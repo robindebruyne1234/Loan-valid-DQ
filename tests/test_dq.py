@@ -171,3 +171,67 @@ def test_quarantine_is_populated_and_traceable() -> None:
         assert row["row_snapshot"] is not None, (
             f"{row['rule_id']} quarantined {row['business_key']} without a snapshot"
         )
+
+
+def test_every_warn_flag_lands_on_a_real_row() -> None:
+    """A warn flag whose key does not resolve is a flag that reaches nobody.
+
+    This is the structural version of a bug this project actually shipped: the
+    balance reconciliation rules report a defect in the transaction data but
+    identify it by ``account_id``, and were recorded against the ``trans``
+    table. ``core.fact_transaction`` joins flags on ``trans_id``, so all 319
+    account-level flags silently landed nowhere -- Q9 reported zero
+    unreconciled accounts while 55 existed. The fix is the rules'
+    ``flag_target_table``; this test is what stops it coming back.
+    """
+    with db.connect() as conn:
+        unresolved = db.fetch_all(
+            conn,
+            """
+            SELECT f.target_table, f.rule_id, count(*) AS flags
+            FROM dq.flags f
+            WHERE f.target_schema = 'stg'
+              AND NOT EXISTS (
+                  SELECT 1 FROM stg.account   a WHERE f.target_table = 'account'  AND a.account_id::text  = f.business_key
+                  UNION ALL
+                  SELECT 1 FROM stg.client    c WHERE f.target_table = 'client'   AND c.client_id::text   = f.business_key
+                  UNION ALL
+                  SELECT 1 FROM stg.disp      d WHERE f.target_table = 'disp'     AND d.disp_id::text     = f.business_key
+                  UNION ALL
+                  SELECT 1 FROM stg.card      k WHERE f.target_table = 'card'     AND k.card_id::text     = f.business_key
+                  UNION ALL
+                  SELECT 1 FROM stg.loan      l WHERE f.target_table = 'loan'     AND l.loan_id::text     = f.business_key
+                  UNION ALL
+                  SELECT 1 FROM stg.trans     t WHERE f.target_table = 'trans'    AND t.trans_id::text    = f.business_key
+                  UNION ALL
+                  SELECT 1 FROM stg.district  s WHERE f.target_table = 'district' AND s.district_id::text = f.business_key
+                  UNION ALL
+                  SELECT 1 FROM stg."order"   o WHERE f.target_table = 'order'    AND o.order_id::text    = f.business_key
+              )
+            GROUP BY f.target_table, f.rule_id
+            """,
+        )
+    assert not unresolved, f"flags that reach no row: {unresolved}"
+
+
+def test_warn_flags_are_visible_on_the_core_rows() -> None:
+    """The flags must actually appear in core._dq_flags, where a consumer sees them."""
+    with db.connect() as conn:
+        counts = {
+            row["flag"]: row["rows"]
+            for row in db.fetch_all(
+                conn,
+                """
+                SELECT flag, count(*) AS rows FROM (
+                    SELECT unnest(_dq_flags) AS flag FROM core.dim_account
+                    UNION ALL SELECT unnest(_dq_flags) FROM core.dim_client
+                    UNION ALL SELECT unnest(_dq_flags) FROM core.fact_loan
+                    UNION ALL SELECT unnest(_dq_flags) FROM core.fact_transaction
+                ) f GROUP BY flag
+                """,
+            )
+        }
+    assert counts.get("con_balance_reconciliation_material") == 55, counts
+    assert counts.get("con_intraday_order_ambiguous") == 183, counts
+    assert counts.get("val_owner_age_at_loan_start") == 6, counts
+    assert counts.get("val_owner_age_at_account_open") == 114, counts

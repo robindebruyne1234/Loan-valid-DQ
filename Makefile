@@ -35,8 +35,12 @@ profile:  ## Build schema stg and profile every column
 dq:  ## Run every data quality rule, quarantine blockers, write the defect report
 	$(PY) -m src.dq_runner
 
-model:  ## Build the core star schema and the curated views
+model:  ## Build the core star schema, then restore the ai views that depend on it
 	$(PY) -m src.build_model
+	@# Rebuilding core drops its dependent views (CASCADE), so the ai surface
+	@# and its row level security policies are re-applied here. Without this,
+	@# `make model` on its own leaves the consumer surface missing.
+	$(PY) -m src.build_security
 
 reference:  ## Run the hand-written reference queries and store the ground truth
 	$(PY) -m src.run_reference

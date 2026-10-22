@@ -781,6 +781,9 @@ rules:
 
   - rule_id: UNQ_LOAN_ONE_PER_ACCOUNT
     dimension: uniqueness
+    # The business key of this rule is a account_id, not the key of
+    # the table the defect lives in, so the warn flag lands on account.
+    flag_target_table: account
     table: loan
     description: "Account has more than one loan"
     severity: warn
@@ -806,6 +809,9 @@ rules:
 
   - rule_id: UNQ_CARD_ONE_PER_DISP
     dimension: uniqueness
+    # The business key of this rule is a disp_id, not the key of
+    # the table the defect lives in, so the warn flag lands on disp.
+    flag_target_table: disp
     table: card
     description: "Disposition holds more than one card"
     severity: warn
@@ -1868,6 +1874,9 @@ rules:
 
   - rule_id: CON_BALANCE_RECONCILIATION_ROUNDING
     dimension: consistency
+    # The business key of this rule is a account_id, not the key of
+    # the table the defect lives in, so the warn flag lands on account.
+    flag_target_table: account
     table: trans
     description: "Per-account balance chain off by more than 1 CZK but at most 100 CZK"
     defect_type: "Running balance does not reconcile"
@@ -1906,6 +1915,9 @@ rules:
 
   - rule_id: CON_BALANCE_RECONCILIATION_MATERIAL
     dimension: consistency
+    # The business key of this rule is a account_id, not the key of
+    # the table the defect lives in, so the warn flag lands on account.
+    flag_target_table: account
     table: trans
     description: "Per-account balance chain off by more than 100 CZK"
     defect_type: "Running balance does not reconcile"
@@ -1948,6 +1960,9 @@ rules:
 
   - rule_id: CON_INTRADAY_ORDER_AMBIGUOUS
     dimension: consistency
+    # The business key of this rule is a account_id, not the key of
+    # the table the defect lives in, so the warn flag lands on account.
+    flag_target_table: account
     table: trans
     description: "Closing balance of the account's last day is not uniquely determined"
     severity: warn

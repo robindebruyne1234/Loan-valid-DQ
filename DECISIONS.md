@@ -310,3 +310,68 @@ symptom was invisible from the owner's connection -- the only way to see it was
 to connect as a restricted user and count rows. That is why the entitlement
 claims here are backed by tests that authenticate as real low-privilege roles,
 rather than by a description of the policies.
+
+---
+
+## D011 - The LLM runs sandboxed, and the evaluation is value-based
+
+**Context.** Task 2 asks for an LLM to answer the 10 questions using the
+semantic layer, and for the generated SQL and the result per question.
+
+**Choice on isolation.** The model is called with no tools, no MCP servers, an
+explicit system prompt and a working directory outside the repository. It
+receives the rendered context pack and the question, and nothing else.
+
+**Reason.** An agent that can read the database or the repository would answer
+the questions by looking, and the exercise would measure the agent rather than
+the semantic layer. The recorded transcripts in `llm_logs/` show
+`permission_denials: []` and a single turn per question, which is what a pure
+completion looks like.
+
+**Choice on comparison.** Value-based: every (dimension, measure) pair in the
+reference answer must appear on some row of the model's answer within a
+relative tolerance of 1e-4, and for the three ranked questions the order is
+checked too.
+
+**Reason.** Two correct queries name their columns differently -- `clients`
+versus `client_count` -- and a correct answer may carry extra supporting
+columns. Comparing SQL text or column names would measure style. What matters
+is whether the number the business user reads is right.
+
+**Honest note on one evaluator change.** On the first run Q6 scored
+`mismatch`. The model's counts were identical to the reference for all twelve
+months; it had labelled the months `1996-01` while the evaluator was looking
+for the integer `1`. That was a defect in the evaluator, not in the answer, so
+the evaluator now accepts any published representation of a dimension (a month
+as `1996-01`, `1` or `January`; a district by name or id). To keep that change
+from quietly becoming "loosen until it passes", `tests/test_evaluate.py`
+corrupts the recorded answers and asserts the evaluator rejects them: doubled
+measures, a reversed ranking, truncated rows, an empty result and a missing
+answer all fail, and `True` is not allowed to match a count of 1.
+
+**Result.** 10 of 10 questions answered on the first attempt, 10 of 10 matching
+the hand-written reference answers, no retries used and no SQL hand-corrected.
+
+---
+
+## D012 - Rebuilding core restores the AI surface in the same target
+
+**Context.** `sql/30_core.sql` rebuilds the core tables with
+`DROP TABLE ... CASCADE`, which also drops the `ai` views that depend on them.
+Running `make model` on its own therefore left the consumer surface missing,
+which surfaced as `relation "ai.transaction" does not exist` in the middle of
+the question run.
+
+**Choice.** The `model` target runs `src.build_security` after
+`src.build_model`, so the ai views, the policies and the grants are restored by
+the same command that invalidated them.
+
+**Reason.** A target that leaves the database in a state no other target
+expects is a trap for the next person -- and `make all` ordering would have
+hidden it, because `entitlements` runs after `model` there anyway. The failure
+only appeared when a single step was re-run, which is exactly how someone
+iterates.
+
+**Consequence.** Both `make model` and `make all` leave a complete, queryable
+surface. The ai views are cheap to rebuild (they are views), so the extra step
+costs about a second.

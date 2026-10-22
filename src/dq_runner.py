@@ -235,13 +235,18 @@ def flag_rows(
         return 0
 
     flag = rule.get("flag") or rule["rule_id"].lower()
+    # A rule reports the table the DEFECT is in, which is not always the table
+    # the flag belongs ON: the balance reconciliation rules find a defect in
+    # the transaction data but identify it by account_id, so the flag has to
+    # land on the account row or it lands nowhere. flag_target_table says where.
+    flag_table = rule.get("flag_target_table") or rule["table"]
     rows = [
         (
             str(run_id),
             rule["rule_id"],
             rule["severity"],
             schema,
-            rule["table"],
+            flag_table,
             str(row.get("business_key")),
             flag,
             row.get("reason"),
