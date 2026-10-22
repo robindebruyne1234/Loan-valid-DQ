@@ -399,9 +399,20 @@ COMMENT ON TABLE core.fact_account_month_end_balance IS
 -- Curated views: the join paths a business question needs, written once.
 -- These are what the ai schema exposes, so that an LLM never has to rediscover
 -- that "the account owner" means a disposition of type OWNER.
+--
+-- WITH (security_invoker = true) is not optional here, and it is the subtlest
+-- thing in this submission. A PostgreSQL view normally reads its base tables
+-- with its OWNER's rights, and the owner is exempt from its own row level
+-- security policies. So a security_invoker view in the ai schema reading a
+-- NON-invoker view in core evaluates the policies as the view owner -- and
+-- returns everything. That is exactly what happened the first time these views
+-- were built: ai.loan returned all 682 loans to a user entitled to none,
+-- while the base table core.fact_loan correctly returned 0 for the same user.
+-- The chain is only as strong as its weakest view, so every view between the
+-- consumer and the policy carries the setting. tests/test_rls.py pins it.
 -- ----------------------------------------------------------------------------
 
-CREATE VIEW core.v_account_owner AS
+CREATE VIEW core.v_account_owner WITH (security_invoker = true) AS
 SELECT
     a.account_id,
     a.open_date                         AS account_open_date,
@@ -437,7 +448,7 @@ COMMENT ON VIEW core.v_account_owner IS
     'one-OWNER-per-account block rule). Use this instead of joining disp by '
     'hand -- it is the only place that decides what "the account owner" means.';
 
-CREATE VIEW core.v_loan_enriched AS
+CREATE VIEW core.v_loan_enriched WITH (security_invoker = true) AS
 SELECT
     l.loan_id,
     l.account_id,
@@ -474,7 +485,7 @@ COMMENT ON VIEW core.v_loan_enriched IS
     'statement frequency and the owner''s exact age at loan start. Grain: one '
     'row per loan. Covers Q2, Q3, Q4, Q7 and Q10 without any further joins.';
 
-CREATE VIEW core.v_client_region AS
+CREATE VIEW core.v_client_region WITH (security_invoker = true) AS
 SELECT
     c.client_id,
     c.birth_date,

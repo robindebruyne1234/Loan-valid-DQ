@@ -225,3 +225,88 @@ and was quietly wrong. It is also the argument for keeping the test data in a
 separate schema rather than mutating staging in place. Kept in this record on
 purpose -- it is a better answer to "how do you know your pipeline is right"
 than any clean run.
+
+---
+
+## D009 - The entitlement filter sits in the database, and identity comes from `session_user`
+
+**Context.** Task 3: expose the data product so each user sees only rows for
+their own clients, say where the filter sits, say why an LLM-generated query
+cannot bypass it, and onboard a new user or portfolio without code changes.
+
+**Options for where the filter sits.**
+(a) In the prompt: tell the model to add `WHERE client_id IN (...)`.
+(b) In the application: a gateway rewrites or wraps every generated query.
+(c) In the database: row level security policies on the tables themselves.
+
+**Choice.** (c), with (b) kept as a secondary control (`src/sql_guard.py`).
+
+**Reason.** (a) is not a control, it is a request: the thing being filtered is
+also the thing being asked to apply the filter. (b) is real, but it is defeated
+by one query shape nobody thought of, and the blast radius of a mistake is
+every user. (c) puts the predicate inside the plan of every statement on that
+connection. The LLM never holds the connection -- it emits text -- and the
+predicate is not in the text, so no rewriting of the text can remove it.
+`tests/test_rls.py` runs nine bypass attempts (switch role, read the base
+tables, read the raw layer, set a session variable, edit the entitlement
+tables, disable the policy, drop the policy, write, join outwards) and all nine
+fail.
+
+**Options for identity.** (i) `current_setting('app.user')`, set by a pooling
+gateway. (ii) `session_user`, the authenticated database role.
+
+**Choice.** (ii).
+
+**Reason.** A GUC can be set by anything that can send SQL, so an entitlement
+resolved from one is exactly as strong as the guard in front of it -- and the
+guard is a Python function, which is a weaker place to stand than the engine.
+`session_user` cannot be re-pointed without a password the model never sees.
+`tests/test_rls.py::test_setting_a_session_variable_does_not_change_visibility`
+sets `app.end_user` to another user's name and shows the visible row count
+does not move.
+
+**Cost.** Role-per-user conflicts with naive connection pooling: a pool keyed
+only by DSN cannot be shared across users. The practical answer is a pool per
+role (banks run hundreds of roles routinely) or `SET ROLE` performed by a
+trusted gateway on a privileged connection, where the gateway -- not the model
+-- decides the role. Discussed in the Design Decision Record.
+
+**Onboarding.** Four inserts and no code: a user is a row in `sec.app_user`, a
+portfolio a row in `sec.portfolio`, its clients rows in `sec.portfolio_client`,
+and the grant a row in `sec.user_portfolio`. The only DDL is `CREATE ROLE`,
+which is a credential rather than business logic. Deactivation is one UPDATE.
+`tests/test_rls.py::test_onboarding_a_user_and_a_portfolio_is_pure_insert`
+onboards a user, grants a book, checks the visible rows change on the next
+statement, deactivates them and checks access is gone.
+
+---
+
+## D010 - Every view between the consumer and the policy must be `security_invoker`
+
+**Context.** The `ai` views were created `WITH (security_invoker = true)` so
+that the row level security policies on `core` are evaluated as the calling
+user. The three curated views in `core` (`v_account_owner`, `v_loan_enriched`,
+`v_client_region`) were not.
+
+**What happened.** A PostgreSQL view normally reads its base tables with its
+*owner's* rights, and a table owner is exempt from its own policies. So
+`ai.loan` -- an invoker view -- read `core.v_loan_enriched` -- an owner view --
+and the policy was evaluated as `berka_owner`. Measured on a user entitled to
+nothing: `ai.loan` returned **all 682 loans** and `ai.account_owner` **all
+4,500 accounts**, while `core.fact_loan` correctly returned **0** for the same
+user in the same session. The base table was right and the view chain was
+wrong.
+
+**Choice.** Every view on the path from a consumer to a policy carries
+`security_invoker = true`, and
+`tests/test_rls.py::test_every_view_between_the_consumer_and_the_policy_is_security_invoker`
+reads `pg_class.reloptions` and fails if any of them does not. The one
+deliberate exception, `ai.my_entitlement`, is named in the test with its
+reason.
+
+**Reason and consequence.** This is the most useful thing in this submission to
+be asked about. The design was right, the DDL was one setting short, and the
+symptom was invisible from the owner's connection -- the only way to see it was
+to connect as a restricted user and count rows. That is why the entitlement
+claims here are backed by tests that authenticate as real low-privilege roles,
+rather than by a description of the policies.
