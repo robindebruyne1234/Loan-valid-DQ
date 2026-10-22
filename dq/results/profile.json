@@ -1,0 +1,3171 @@
+{
+  "generated_at_utc": "2026-10-22T09:49:54+00:00",
+  "git_commit": "ecff816",
+  "stg_build_seconds": 36.419,
+  "tables": [
+    {
+      "table": "district",
+      "rows": 77,
+      "columns": [
+        {
+          "column": "district_id",
+          "data_type": "bigint",
+          "rows": 77,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 77,
+          "min_value": "1",
+          "max_value": "77",
+          "min_length": 1,
+          "max_length": 2,
+          "top_values": [
+            {
+              "value": "1",
+              "count": 1
+            },
+            {
+              "value": "10",
+              "count": 1
+            },
+            {
+              "value": "11",
+              "count": 1
+            },
+            {
+              "value": "12",
+              "count": 1
+            },
+            {
+              "value": "13",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "column": "district_name",
+          "data_type": "text",
+          "rows": 77,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 77,
+          "min_value": "Benesov",
+          "max_value": "Znojmo",
+          "min_length": 4,
+          "max_length": 19,
+          "top_values": [
+            {
+              "value": "Benesov",
+              "count": 1
+            },
+            {
+              "value": "Beroun",
+              "count": 1
+            },
+            {
+              "value": "Blansko",
+              "count": 1
+            },
+            {
+              "value": "Breclav",
+              "count": 1
+            },
+            {
+              "value": "Brno - mesto",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "column": "region",
+          "data_type": "text",
+          "rows": 77,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 8,
+          "min_value": "Prague",
+          "max_value": "west Bohemia",
+          "min_length": 6,
+          "max_length": 15,
+          "top_values": [
+            {
+              "value": "south Moravia",
+              "count": 14
+            },
+            {
+              "value": "central Bohemia",
+              "count": 12
+            },
+            {
+              "value": "east Bohemia",
+              "count": 11
+            },
+            {
+              "value": "north Moravia",
+              "count": 11
+            },
+            {
+              "value": "north Bohemia",
+              "count": 10
+            }
+          ],
+          "patterns": [
+            {
+              "pattern": "AAAAA AAAAAAA",
+              "count": 43
+            },
+            {
+              "pattern": "AAAA AAAAAAA",
+              "count": 21
+            },
+            {
+              "pattern": "AAAAAAA AAAAAAA",
+              "count": 12
+            },
+            {
+              "pattern": "AAAAAA",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "column": "inhabitants",
+          "data_type": "bigint",
+          "rows": 77,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 77,
+          "min_value": "42821",
+          "max_value": "1204953",
+          "min_length": 5,
+          "max_length": 7,
+          "top_values": [
+            {
+              "value": "102609",
+              "count": 1
+            },
+            {
+              "value": "103347",
+              "count": 1
+            },
+            {
+              "value": "105058",
+              "count": 1
+            },
+            {
+              "value": "105606",
+              "count": 1
+            },
+            {
+              "value": "106054",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "column": "municipalities_lt_499",
+          "data_type": "bigint",
+          "rows": 77,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 53,
+          "min_value": "0",
+          "max_value": "151",
+          "min_length": 1,
+          "max_length": 3,
+          "top_values": [
+            {
+              "value": "0",
+              "count": 5
+            },
+            {
+              "value": "38",
+              "count": 3
+            },
+            {
+              "value": "60",
+              "count": 3
+            },
+            {
+              "value": "15",
+              "count": 2
+            },
+            {
+              "value": "17",
+              "count": 2
+            }
+          ]
+        },
+        {
+          "column": "municipalities_500_1999",
+          "data_type": "bigint",
+          "rows": 77,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 36,
+          "min_value": "0",
+          "max_value": "70",
+          "min_length": 1,
+          "max_length": 2,
+          "top_values": [
+            {
+              "value": "26",
+              "count": 6
+            },
+            {
+              "value": "41",
+              "count": 6
+            },
+            {
+              "value": "16",
+              "count": 5
+            },
+            {
+              "value": "19",
+              "count": 5
+            },
+            {
+              "value": "0",
+              "count": 4
+            }
+          ]
+        },
+        {
+          "column": "municipalities_2000_9999",
+          "data_type": "bigint",
+          "rows": 77,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 17,
+          "min_value": "0",
+          "max_value": "20",
+          "min_length": 1,
+          "max_length": 2,
+          "top_values": [
+            {
+              "value": "4",
+              "count": 12
+            },
+            {
+              "value": "6",
+              "count": 11
+            },
+            {
+              "value": "7",
+              "count": 10
+            },
+            {
+              "value": "5",
+              "count": 9
+            },
+            {
+              "value": "10",
+              "count": 5
+            }
+          ]
+        },
+        {
+          "column": "municipalities_gt_10000",
+          "data_type": "bigint",
+          "rows": 77,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 6,
+          "min_value": "0",
+          "max_value": "5",
+          "min_length": 1,
+          "max_length": 1,
+          "top_values": [
+            {
+              "value": "1",
+              "count": 34
+            },
+            {
+              "value": "2",
+              "count": 23
+            },
+            {
+              "value": "3",
+              "count": 12
+            },
+            {
+              "value": "0",
+              "count": 4
+            },
+            {
+              "value": "4",
+              "count": 3
+            }
+          ]
+        },
+        {
+          "column": "cities",
+          "data_type": "bigint",
+          "rows": 77,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 11,
+          "min_value": "1",
+          "max_value": "11",
+          "min_length": 1,
+          "max_length": 2,
+          "top_values": [
+            {
+              "value": "6",
+              "count": 14
+            },
+            {
+              "value": "4",
+              "count": 12
+            },
+            {
+              "value": "7",
+              "count": 11
+            },
+            {
+              "value": "5",
+              "count": 10
+            },
+            {
+              "value": "10",
+              "count": 7
+            }
+          ]
+        },
+        {
+          "column": "urban_ratio_pct",
+          "data_type": "numeric",
+          "rows": 77,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 70,
+          "min_value": "33.9",
+          "max_value": "100.0",
+          "min_length": 4,
+          "max_length": 5,
+          "top_values": [
+            {
+              "value": "100.0",
+              "count": 4
+            },
+            {
+              "value": "46.7",
+              "count": 2
+            },
+            {
+              "value": "51.9",
+              "count": 2
+            },
+            {
+              "value": "53.5",
+              "count": 2
+            },
+            {
+              "value": "89.9",
+              "count": 2
+            }
+          ]
+        },
+        {
+          "column": "average_salary",
+          "data_type": "numeric",
+          "rows": 77,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 76,
+          "min_value": "8110",
+          "max_value": "12541",
+          "min_length": 4,
+          "max_length": 5,
+          "top_values": [
+            {
+              "value": "8369",
+              "count": 2
+            },
+            {
+              "value": "10045",
+              "count": 1
+            },
+            {
+              "value": "10124",
+              "count": 1
+            },
+            {
+              "value": "10177",
+              "count": 1
+            },
+            {
+              "value": "10446",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "column": "unemployment_rate_1995",
+          "data_type": "numeric",
+          "rows": 77,
+          "nulls": 1,
+          "null_rate": 0.012987,
+          "distinct_values": 70,
+          "min_value": "0.29",
+          "max_value": "7.34",
+          "min_length": 4,
+          "max_length": 4,
+          "top_values": [
+            {
+              "value": "1.51",
+              "count": 2
+            },
+            {
+              "value": "1.60",
+              "count": 2
+            },
+            {
+              "value": "1.79",
+              "count": 2
+            },
+            {
+              "value": "3.13",
+              "count": 2
+            },
+            {
+              "value": "3.33",
+              "count": 2
+            }
+          ]
+        },
+        {
+          "column": "unemployment_rate_1996",
+          "data_type": "numeric",
+          "rows": 77,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 73,
+          "min_value": "0.43",
+          "max_value": "9.40",
+          "min_length": 4,
+          "max_length": 4,
+          "top_values": [
+            {
+              "value": "2.01",
+              "count": 2
+            },
+            {
+              "value": "2.31",
+              "count": 2
+            },
+            {
+              "value": "3.60",
+              "count": 2
+            },
+            {
+              "value": "4.48",
+              "count": 2
+            },
+            {
+              "value": "0.43",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "column": "entrepreneurs_per_1000",
+          "data_type": "numeric",
+          "rows": 77,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 44,
+          "min_value": "81",
+          "max_value": "167",
+          "min_length": 2,
+          "max_length": 3,
+          "top_values": [
+            {
+              "value": "100",
+              "count": 4
+            },
+            {
+              "value": "131",
+              "count": 4
+            },
+            {
+              "value": "102",
+              "count": 3
+            },
+            {
+              "value": "107",
+              "count": 3
+            },
+            {
+              "value": "109",
+              "count": 3
+            }
+          ]
+        },
+        {
+          "column": "crimes_1995",
+          "data_type": "bigint",
+          "rows": 77,
+          "nulls": 1,
+          "null_rate": 0.012987,
+          "distinct_values": 75,
+          "min_value": "818",
+          "max_value": "85677",
+          "min_length": 3,
+          "max_length": 5,
+          "top_values": [
+            {
+              "value": "2854",
+              "count": 2
+            },
+            {
+              "value": "1003",
+              "count": 1
+            },
+            {
+              "value": "1029",
+              "count": 1
+            },
+            {
+              "value": "1089",
+              "count": 1
+            },
+            {
+              "value": "1328",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "column": "crimes_1996",
+          "data_type": "bigint",
+          "rows": 77,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 76,
+          "min_value": "888",
+          "max_value": "99107",
+          "min_length": 3,
+          "max_length": 5,
+          "top_values": [
+            {
+              "value": "4505",
+              "count": 2
+            },
+            {
+              "value": "10108",
+              "count": 1
+            },
+            {
+              "value": "1099",
+              "count": 1
+            },
+            {
+              "value": "1117",
+              "count": 1
+            },
+            {
+              "value": "1127",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "column": "unemployment_rate_1995_raw",
+          "data_type": "text",
+          "rows": 77,
+          "nulls": 76,
+          "null_rate": 0.987013,
+          "distinct_values": 1,
+          "min_value": "?",
+          "max_value": "?",
+          "min_length": 1,
+          "max_length": 1,
+          "top_values": [
+            {
+              "value": null,
+              "count": 76
+            },
+            {
+              "value": "?",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "column": "crimes_1995_raw",
+          "data_type": "text",
+          "rows": 77,
+          "nulls": 76,
+          "null_rate": 0.987013,
+          "distinct_values": 1,
+          "min_value": "?",
+          "max_value": "?",
+          "min_length": 1,
+          "max_length": 1,
+          "top_values": [
+            {
+              "value": null,
+              "count": 76
+            },
+            {
+              "value": "?",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "column": "_conversion_notes",
+          "data_type": "ARRAY",
+          "rows": 77,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 2
+        },
+        {
+          "column": "_source_file",
+          "data_type": "text",
+          "rows": 77,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 1,
+          "min_value": "district.asc",
+          "max_value": "district.asc",
+          "min_length": 12,
+          "max_length": 12,
+          "top_values": [
+            {
+              "value": "district.asc",
+              "count": 77
+            }
+          ]
+        },
+        {
+          "column": "_source_row",
+          "data_type": "bigint",
+          "rows": 77,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 77,
+          "min_value": "1",
+          "max_value": "77",
+          "min_length": 1,
+          "max_length": 2,
+          "top_values": [
+            {
+              "value": "1",
+              "count": 1
+            },
+            {
+              "value": "10",
+              "count": 1
+            },
+            {
+              "value": "11",
+              "count": 1
+            },
+            {
+              "value": "12",
+              "count": 1
+            },
+            {
+              "value": "13",
+              "count": 1
+            }
+          ]
+        }
+      ],
+      "duration_sec": 0.022
+    },
+    {
+      "table": "client",
+      "rows": 5369,
+      "columns": [
+        {
+          "column": "client_id",
+          "data_type": "bigint",
+          "rows": 5369,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 5369,
+          "min_value": "1",
+          "max_value": "13998",
+          "min_length": 1,
+          "max_length": 5,
+          "top_values": [
+            {
+              "value": "1",
+              "count": 1
+            },
+            {
+              "value": "10",
+              "count": 1
+            },
+            {
+              "value": "100",
+              "count": 1
+            },
+            {
+              "value": "1000",
+              "count": 1
+            },
+            {
+              "value": "1001",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "column": "birth_number",
+          "data_type": "text",
+          "rows": 5369,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 5019,
+          "min_value": "110820",
+          "max_value": "875927",
+          "min_length": 6,
+          "max_length": 6,
+          "top_values": [
+            {
+              "value": "475713",
+              "count": 4
+            },
+            {
+              "value": "191208",
+              "count": 3
+            },
+            {
+              "value": "360228",
+              "count": 3
+            },
+            {
+              "value": "396027",
+              "count": 3
+            },
+            {
+              "value": "435929",
+              "count": 3
+            }
+          ],
+          "patterns": [
+            {
+              "pattern": "999999",
+              "count": 5369
+            }
+          ]
+        },
+        {
+          "column": "birth_date",
+          "data_type": "date",
+          "rows": 5369,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 4738,
+          "min_value": "1911-08-20",
+          "max_value": "1987-09-27",
+          "min_length": 10,
+          "max_length": 10,
+          "top_values": [
+            {
+              "value": "1947-07-13",
+              "count": 4
+            },
+            {
+              "value": "1952-08-26",
+              "count": 4
+            },
+            {
+              "value": "1965-07-25",
+              "count": 4
+            },
+            {
+              "value": "1970-10-07",
+              "count": 4
+            },
+            {
+              "value": "1971-02-28",
+              "count": 4
+            }
+          ]
+        },
+        {
+          "column": "gender",
+          "data_type": "text",
+          "rows": 5369,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 2,
+          "min_value": "female",
+          "max_value": "male",
+          "min_length": 4,
+          "max_length": 6,
+          "top_values": [
+            {
+              "value": "male",
+              "count": 2724
+            },
+            {
+              "value": "female",
+              "count": 2645
+            }
+          ],
+          "patterns": [
+            {
+              "pattern": "AAAA",
+              "count": 2724
+            },
+            {
+              "pattern": "AAAAAA",
+              "count": 2645
+            }
+          ]
+        },
+        {
+          "column": "birth_number_valid",
+          "data_type": "boolean",
+          "rows": 5369,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 1,
+          "min_value": "1",
+          "max_value": "1",
+          "min_length": 4,
+          "max_length": 4,
+          "top_values": [
+            {
+              "value": "true",
+              "count": 5369
+            }
+          ]
+        },
+        {
+          "column": "district_id",
+          "data_type": "bigint",
+          "rows": 5369,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 77,
+          "min_value": "1",
+          "max_value": "77",
+          "min_length": 1,
+          "max_length": 2,
+          "top_values": [
+            {
+              "value": "1",
+              "count": 663
+            },
+            {
+              "value": "74",
+              "count": 180
+            },
+            {
+              "value": "70",
+              "count": 169
+            },
+            {
+              "value": "54",
+              "count": 155
+            },
+            {
+              "value": "64",
+              "count": 109
+            }
+          ]
+        },
+        {
+          "column": "birth_number_raw",
+          "data_type": "text",
+          "rows": 5369,
+          "nulls": 5369,
+          "null_rate": 1.0,
+          "distinct_values": 0,
+          "min_value": null,
+          "max_value": null,
+          "min_length": null,
+          "max_length": null,
+          "top_values": [
+            {
+              "value": null,
+              "count": 5369
+            }
+          ]
+        },
+        {
+          "column": "_conversion_notes",
+          "data_type": "ARRAY",
+          "rows": 5369,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 1
+        },
+        {
+          "column": "_source_file",
+          "data_type": "text",
+          "rows": 5369,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 1,
+          "min_value": "client.asc",
+          "max_value": "client.asc",
+          "min_length": 10,
+          "max_length": 10,
+          "top_values": [
+            {
+              "value": "client.asc",
+              "count": 5369
+            }
+          ]
+        },
+        {
+          "column": "_source_row",
+          "data_type": "bigint",
+          "rows": 5369,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 5369,
+          "min_value": "1",
+          "max_value": "5369",
+          "min_length": 1,
+          "max_length": 4,
+          "top_values": [
+            {
+              "value": "1",
+              "count": 1
+            },
+            {
+              "value": "10",
+              "count": 1
+            },
+            {
+              "value": "100",
+              "count": 1
+            },
+            {
+              "value": "1000",
+              "count": 1
+            },
+            {
+              "value": "1001",
+              "count": 1
+            }
+          ]
+        }
+      ],
+      "duration_sec": 0.102
+    },
+    {
+      "table": "account",
+      "rows": 4500,
+      "columns": [
+        {
+          "column": "account_id",
+          "data_type": "bigint",
+          "rows": 4500,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 4500,
+          "min_value": "1",
+          "max_value": "11382",
+          "min_length": 1,
+          "max_length": 5,
+          "top_values": [
+            {
+              "value": "1",
+              "count": 1
+            },
+            {
+              "value": "10",
+              "count": 1
+            },
+            {
+              "value": "100",
+              "count": 1
+            },
+            {
+              "value": "1000",
+              "count": 1
+            },
+            {
+              "value": "10001",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "column": "district_id",
+          "data_type": "bigint",
+          "rows": 4500,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 77,
+          "min_value": "1",
+          "max_value": "77",
+          "min_length": 1,
+          "max_length": 2,
+          "top_values": [
+            {
+              "value": "1",
+              "count": 554
+            },
+            {
+              "value": "70",
+              "count": 152
+            },
+            {
+              "value": "74",
+              "count": 135
+            },
+            {
+              "value": "54",
+              "count": 128
+            },
+            {
+              "value": "64",
+              "count": 92
+            }
+          ]
+        },
+        {
+          "column": "frequency_code",
+          "data_type": "text",
+          "rows": 4500,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 3,
+          "min_value": "POPLATEK MESICNE",
+          "max_value": "POPLATEK TYDNE",
+          "min_length": 14,
+          "max_length": 18,
+          "top_values": [
+            {
+              "value": "POPLATEK MESICNE",
+              "count": 4167
+            },
+            {
+              "value": "POPLATEK TYDNE",
+              "count": 240
+            },
+            {
+              "value": "POPLATEK PO OBRATU",
+              "count": 93
+            }
+          ],
+          "patterns": [
+            {
+              "pattern": "AAAAAAAA AAAAAAA",
+              "count": 4167
+            },
+            {
+              "pattern": "AAAAAAAA AAAAA",
+              "count": 240
+            },
+            {
+              "pattern": "AAAAAAAA AA AAAAAA",
+              "count": 93
+            }
+          ]
+        },
+        {
+          "column": "frequency_label",
+          "data_type": "text",
+          "rows": 4500,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 3,
+          "min_value": "after transaction",
+          "max_value": "weekly",
+          "min_length": 6,
+          "max_length": 17,
+          "top_values": [
+            {
+              "value": "monthly",
+              "count": 4167
+            },
+            {
+              "value": "weekly",
+              "count": 240
+            },
+            {
+              "value": "after transaction",
+              "count": 93
+            }
+          ],
+          "patterns": [
+            {
+              "pattern": "AAAAAAA",
+              "count": 4167
+            },
+            {
+              "pattern": "AAAAAA",
+              "count": 240
+            },
+            {
+              "pattern": "AAAAA AAAAAAAAAAA",
+              "count": 93
+            }
+          ]
+        },
+        {
+          "column": "open_date",
+          "data_type": "date",
+          "rows": 4500,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 1535,
+          "min_value": "1993-01-01",
+          "max_value": "1997-12-29",
+          "min_length": 10,
+          "max_length": 10,
+          "top_values": [
+            {
+              "value": "1993-02-08",
+              "count": 13
+            },
+            {
+              "value": "1993-10-08",
+              "count": 12
+            },
+            {
+              "value": "1996-06-25",
+              "count": 11
+            },
+            {
+              "value": "1996-11-24",
+              "count": 11
+            },
+            {
+              "value": "1993-02-27",
+              "count": 10
+            }
+          ]
+        },
+        {
+          "column": "open_date_raw",
+          "data_type": "text",
+          "rows": 4500,
+          "nulls": 4500,
+          "null_rate": 1.0,
+          "distinct_values": 0,
+          "min_value": null,
+          "max_value": null,
+          "min_length": null,
+          "max_length": null,
+          "top_values": [
+            {
+              "value": null,
+              "count": 4500
+            }
+          ]
+        },
+        {
+          "column": "_conversion_notes",
+          "data_type": "ARRAY",
+          "rows": 4500,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 1
+        },
+        {
+          "column": "_source_file",
+          "data_type": "text",
+          "rows": 4500,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 1,
+          "min_value": "account.asc",
+          "max_value": "account.asc",
+          "min_length": 11,
+          "max_length": 11,
+          "top_values": [
+            {
+              "value": "account.asc",
+              "count": 4500
+            }
+          ]
+        },
+        {
+          "column": "_source_row",
+          "data_type": "bigint",
+          "rows": 4500,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 4500,
+          "min_value": "1",
+          "max_value": "4500",
+          "min_length": 1,
+          "max_length": 4,
+          "top_values": [
+            {
+              "value": "1",
+              "count": 1
+            },
+            {
+              "value": "10",
+              "count": 1
+            },
+            {
+              "value": "100",
+              "count": 1
+            },
+            {
+              "value": "1000",
+              "count": 1
+            },
+            {
+              "value": "1001",
+              "count": 1
+            }
+          ]
+        }
+      ],
+      "duration_sec": 0.08
+    },
+    {
+      "table": "disp",
+      "rows": 5369,
+      "columns": [
+        {
+          "column": "disp_id",
+          "data_type": "bigint",
+          "rows": 5369,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 5369,
+          "min_value": "1",
+          "max_value": "13690",
+          "min_length": 1,
+          "max_length": 5,
+          "top_values": [
+            {
+              "value": "1",
+              "count": 1
+            },
+            {
+              "value": "10",
+              "count": 1
+            },
+            {
+              "value": "100",
+              "count": 1
+            },
+            {
+              "value": "1000",
+              "count": 1
+            },
+            {
+              "value": "1001",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "column": "client_id",
+          "data_type": "bigint",
+          "rows": 5369,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 5369,
+          "min_value": "1",
+          "max_value": "13998",
+          "min_length": 1,
+          "max_length": 5,
+          "top_values": [
+            {
+              "value": "1",
+              "count": 1
+            },
+            {
+              "value": "10",
+              "count": 1
+            },
+            {
+              "value": "100",
+              "count": 1
+            },
+            {
+              "value": "1000",
+              "count": 1
+            },
+            {
+              "value": "1001",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "column": "account_id",
+          "data_type": "bigint",
+          "rows": 5369,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 4500,
+          "min_value": "1",
+          "max_value": "11382",
+          "min_length": 1,
+          "max_length": 5,
+          "top_values": [
+            {
+              "value": "10049",
+              "count": 2
+            },
+            {
+              "value": "10068",
+              "count": 2
+            },
+            {
+              "value": "10079",
+              "count": 2
+            },
+            {
+              "value": "10093",
+              "count": 2
+            },
+            {
+              "value": "1022",
+              "count": 2
+            }
+          ]
+        },
+        {
+          "column": "disp_type_code",
+          "data_type": "text",
+          "rows": 5369,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 2,
+          "min_value": "DISPONENT",
+          "max_value": "OWNER",
+          "min_length": 5,
+          "max_length": 9,
+          "top_values": [
+            {
+              "value": "OWNER",
+              "count": 4500
+            },
+            {
+              "value": "DISPONENT",
+              "count": 869
+            }
+          ],
+          "patterns": [
+            {
+              "pattern": "AAAAA",
+              "count": 4500
+            },
+            {
+              "pattern": "AAAAAAAAA",
+              "count": 869
+            }
+          ]
+        },
+        {
+          "column": "disp_type_label",
+          "data_type": "text",
+          "rows": 5369,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 2,
+          "min_value": "disponent",
+          "max_value": "owner",
+          "min_length": 5,
+          "max_length": 9,
+          "top_values": [
+            {
+              "value": "owner",
+              "count": 4500
+            },
+            {
+              "value": "disponent",
+              "count": 869
+            }
+          ]
+        },
+        {
+          "column": "_conversion_notes",
+          "data_type": "ARRAY",
+          "rows": 5369,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 1
+        },
+        {
+          "column": "_source_file",
+          "data_type": "text",
+          "rows": 5369,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 1,
+          "min_value": "disp.asc",
+          "max_value": "disp.asc",
+          "min_length": 8,
+          "max_length": 8,
+          "top_values": [
+            {
+              "value": "disp.asc",
+              "count": 5369
+            }
+          ]
+        },
+        {
+          "column": "_source_row",
+          "data_type": "bigint",
+          "rows": 5369,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 5369,
+          "min_value": "1",
+          "max_value": "5369",
+          "min_length": 1,
+          "max_length": 4,
+          "top_values": [
+            {
+              "value": "1",
+              "count": 1
+            },
+            {
+              "value": "10",
+              "count": 1
+            },
+            {
+              "value": "100",
+              "count": 1
+            },
+            {
+              "value": "1000",
+              "count": 1
+            },
+            {
+              "value": "1001",
+              "count": 1
+            }
+          ]
+        }
+      ],
+      "duration_sec": 0.052
+    },
+    {
+      "table": "card",
+      "rows": 892,
+      "columns": [
+        {
+          "column": "card_id",
+          "data_type": "bigint",
+          "rows": 892,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 892,
+          "min_value": "1",
+          "max_value": "1247",
+          "min_length": 1,
+          "max_length": 4,
+          "top_values": [
+            {
+              "value": "1",
+              "count": 1
+            },
+            {
+              "value": "10",
+              "count": 1
+            },
+            {
+              "value": "100",
+              "count": 1
+            },
+            {
+              "value": "1001",
+              "count": 1
+            },
+            {
+              "value": "1002",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "column": "disp_id",
+          "data_type": "bigint",
+          "rows": 892,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 892,
+          "min_value": "9",
+          "max_value": "13660",
+          "min_length": 1,
+          "max_length": 5,
+          "top_values": [
+            {
+              "value": "1011",
+              "count": 1
+            },
+            {
+              "value": "10171",
+              "count": 1
+            },
+            {
+              "value": "1018",
+              "count": 1
+            },
+            {
+              "value": "1019",
+              "count": 1
+            },
+            {
+              "value": "1020",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "column": "card_type",
+          "data_type": "text",
+          "rows": 892,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 3,
+          "min_value": "classic",
+          "max_value": "junior",
+          "min_length": 4,
+          "max_length": 7,
+          "top_values": [
+            {
+              "value": "classic",
+              "count": 659
+            },
+            {
+              "value": "junior",
+              "count": 145
+            },
+            {
+              "value": "gold",
+              "count": 88
+            }
+          ],
+          "patterns": [
+            {
+              "pattern": "AAAAAAA",
+              "count": 659
+            },
+            {
+              "pattern": "AAAAAA",
+              "count": 145
+            },
+            {
+              "pattern": "AAAA",
+              "count": 88
+            }
+          ]
+        },
+        {
+          "column": "issued_date",
+          "data_type": "date",
+          "rows": 892,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 607,
+          "min_value": "1993-11-07",
+          "max_value": "1998-12-29",
+          "min_length": 10,
+          "max_length": 10,
+          "top_values": [
+            {
+              "value": "1998-09-29",
+              "count": 7
+            },
+            {
+              "value": "1997-05-17",
+              "count": 4
+            },
+            {
+              "value": "1997-12-13",
+              "count": 4
+            },
+            {
+              "value": "1998-02-26",
+              "count": 4
+            },
+            {
+              "value": "1998-04-16",
+              "count": 4
+            }
+          ]
+        },
+        {
+          "column": "issued_raw",
+          "data_type": "text",
+          "rows": 892,
+          "nulls": 892,
+          "null_rate": 1.0,
+          "distinct_values": 0,
+          "min_value": null,
+          "max_value": null,
+          "min_length": null,
+          "max_length": null,
+          "top_values": [
+            {
+              "value": null,
+              "count": 892
+            }
+          ]
+        },
+        {
+          "column": "_conversion_notes",
+          "data_type": "ARRAY",
+          "rows": 892,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 1
+        },
+        {
+          "column": "_source_file",
+          "data_type": "text",
+          "rows": 892,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 1,
+          "min_value": "card.asc",
+          "max_value": "card.asc",
+          "min_length": 8,
+          "max_length": 8,
+          "top_values": [
+            {
+              "value": "card.asc",
+              "count": 892
+            }
+          ]
+        },
+        {
+          "column": "_source_row",
+          "data_type": "bigint",
+          "rows": 892,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 892,
+          "min_value": "1",
+          "max_value": "892",
+          "min_length": 1,
+          "max_length": 3,
+          "top_values": [
+            {
+              "value": "1",
+              "count": 1
+            },
+            {
+              "value": "10",
+              "count": 1
+            },
+            {
+              "value": "100",
+              "count": 1
+            },
+            {
+              "value": "101",
+              "count": 1
+            },
+            {
+              "value": "102",
+              "count": 1
+            }
+          ]
+        }
+      ],
+      "duration_sec": 0.016
+    },
+    {
+      "table": "loan",
+      "rows": 682,
+      "columns": [
+        {
+          "column": "loan_id",
+          "data_type": "bigint",
+          "rows": 682,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 682,
+          "min_value": "4959",
+          "max_value": "7308",
+          "min_length": 4,
+          "max_length": 4,
+          "top_values": [
+            {
+              "value": "4959",
+              "count": 1
+            },
+            {
+              "value": "4961",
+              "count": 1
+            },
+            {
+              "value": "4962",
+              "count": 1
+            },
+            {
+              "value": "4967",
+              "count": 1
+            },
+            {
+              "value": "4968",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "column": "account_id",
+          "data_type": "bigint",
+          "rows": 682,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 682,
+          "min_value": "2",
+          "max_value": "11362",
+          "min_length": 1,
+          "max_length": 5,
+          "top_values": [
+            {
+              "value": "10001",
+              "count": 1
+            },
+            {
+              "value": "10005",
+              "count": 1
+            },
+            {
+              "value": "10019",
+              "count": 1
+            },
+            {
+              "value": "10022",
+              "count": 1
+            },
+            {
+              "value": "1004",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "column": "loan_date",
+          "data_type": "date",
+          "rows": 682,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 559,
+          "min_value": "1993-07-05",
+          "max_value": "1998-12-08",
+          "min_length": 10,
+          "max_length": 10,
+          "top_values": [
+            {
+              "value": "1997-12-28",
+              "count": 4
+            },
+            {
+              "value": "1998-04-19",
+              "count": 4
+            },
+            {
+              "value": "1998-07-12",
+              "count": 4
+            },
+            {
+              "value": "1994-05-26",
+              "count": 3
+            },
+            {
+              "value": "1994-12-21",
+              "count": 3
+            }
+          ]
+        },
+        {
+          "column": "amount",
+          "data_type": "numeric",
+          "rows": 682,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 645,
+          "min_value": "4980",
+          "max_value": "590820",
+          "min_length": 4,
+          "max_length": 6,
+          "top_values": [
+            {
+              "value": "30276",
+              "count": 4
+            },
+            {
+              "value": "86184",
+              "count": 3
+            },
+            {
+              "value": "104712",
+              "count": 2
+            },
+            {
+              "value": "110736",
+              "count": 2
+            },
+            {
+              "value": "125472",
+              "count": 2
+            }
+          ]
+        },
+        {
+          "column": "duration_months",
+          "data_type": "bigint",
+          "rows": 682,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 5,
+          "min_value": "12",
+          "max_value": "60",
+          "min_length": 2,
+          "max_length": 2,
+          "top_values": [
+            {
+              "value": "60",
+              "count": 145
+            },
+            {
+              "value": "24",
+              "count": 138
+            },
+            {
+              "value": "48",
+              "count": 138
+            },
+            {
+              "value": "12",
+              "count": 131
+            },
+            {
+              "value": "36",
+              "count": 130
+            }
+          ]
+        },
+        {
+          "column": "monthly_payment",
+          "data_type": "numeric",
+          "rows": 682,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 577,
+          "min_value": "304.00",
+          "max_value": "9910.00",
+          "min_length": 6,
+          "max_length": 7,
+          "top_values": [
+            {
+              "value": "2523.00",
+              "count": 4
+            },
+            {
+              "value": "3151.00",
+              "count": 4
+            },
+            {
+              "value": "2307.00",
+              "count": 3
+            },
+            {
+              "value": "2779.00",
+              "count": 3
+            },
+            {
+              "value": "3017.00",
+              "count": 3
+            }
+          ]
+        },
+        {
+          "column": "status_code",
+          "data_type": "text",
+          "rows": 682,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 4,
+          "min_value": "A",
+          "max_value": "D",
+          "min_length": 1,
+          "max_length": 1,
+          "top_values": [
+            {
+              "value": "C",
+              "count": 403
+            },
+            {
+              "value": "A",
+              "count": 203
+            },
+            {
+              "value": "D",
+              "count": 45
+            },
+            {
+              "value": "B",
+              "count": 31
+            }
+          ],
+          "patterns": [
+            {
+              "pattern": "A",
+              "count": 682
+            }
+          ]
+        },
+        {
+          "column": "status_label",
+          "data_type": "text",
+          "rows": 682,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 4,
+          "min_value": "finished, paid in full",
+          "max_value": "running, no problem",
+          "min_length": 19,
+          "max_length": 26,
+          "top_values": [
+            {
+              "value": "running, no problem",
+              "count": 403
+            },
+            {
+              "value": "finished, paid in full",
+              "count": 203
+            },
+            {
+              "value": "running, client in debt",
+              "count": 45
+            },
+            {
+              "value": "finished, unpaid (default)",
+              "count": 31
+            }
+          ]
+        },
+        {
+          "column": "is_problematic",
+          "data_type": "boolean",
+          "rows": 682,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 2,
+          "min_value": "0",
+          "max_value": "1",
+          "min_length": 4,
+          "max_length": 5,
+          "top_values": [
+            {
+              "value": "false",
+              "count": 606
+            },
+            {
+              "value": "true",
+              "count": 76
+            }
+          ]
+        },
+        {
+          "column": "loan_date_raw",
+          "data_type": "text",
+          "rows": 682,
+          "nulls": 682,
+          "null_rate": 1.0,
+          "distinct_values": 0,
+          "min_value": null,
+          "max_value": null,
+          "min_length": null,
+          "max_length": null,
+          "top_values": [
+            {
+              "value": null,
+              "count": 682
+            }
+          ]
+        },
+        {
+          "column": "amount_raw",
+          "data_type": "text",
+          "rows": 682,
+          "nulls": 682,
+          "null_rate": 1.0,
+          "distinct_values": 0,
+          "min_value": null,
+          "max_value": null,
+          "min_length": null,
+          "max_length": null,
+          "top_values": [
+            {
+              "value": null,
+              "count": 682
+            }
+          ]
+        },
+        {
+          "column": "_conversion_notes",
+          "data_type": "ARRAY",
+          "rows": 682,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 1
+        },
+        {
+          "column": "_source_file",
+          "data_type": "text",
+          "rows": 682,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 1,
+          "min_value": "loan.asc",
+          "max_value": "loan.asc",
+          "min_length": 8,
+          "max_length": 8,
+          "top_values": [
+            {
+              "value": "loan.asc",
+              "count": 682
+            }
+          ]
+        },
+        {
+          "column": "_source_row",
+          "data_type": "bigint",
+          "rows": 682,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 682,
+          "min_value": "1",
+          "max_value": "682",
+          "min_length": 1,
+          "max_length": 3,
+          "top_values": [
+            {
+              "value": "1",
+              "count": 1
+            },
+            {
+              "value": "10",
+              "count": 1
+            },
+            {
+              "value": "100",
+              "count": 1
+            },
+            {
+              "value": "101",
+              "count": 1
+            },
+            {
+              "value": "102",
+              "count": 1
+            }
+          ]
+        }
+      ],
+      "duration_sec": 0.021
+    },
+    {
+      "table": "order",
+      "rows": 6471,
+      "columns": [
+        {
+          "column": "order_id",
+          "data_type": "bigint",
+          "rows": 6471,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 6471,
+          "min_value": "29401",
+          "max_value": "46338",
+          "min_length": 5,
+          "max_length": 5,
+          "top_values": [
+            {
+              "value": "29401",
+              "count": 1
+            },
+            {
+              "value": "29402",
+              "count": 1
+            },
+            {
+              "value": "29403",
+              "count": 1
+            },
+            {
+              "value": "29404",
+              "count": 1
+            },
+            {
+              "value": "29405",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "column": "account_id",
+          "data_type": "bigint",
+          "rows": 6471,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 3758,
+          "min_value": "1",
+          "max_value": "11362",
+          "min_length": 1,
+          "max_length": 5,
+          "top_values": [
+            {
+              "value": "10063",
+              "count": 5
+            },
+            {
+              "value": "10233",
+              "count": 5
+            },
+            {
+              "value": "10365",
+              "count": 5
+            },
+            {
+              "value": "10404",
+              "count": 5
+            },
+            {
+              "value": "10411",
+              "count": 5
+            }
+          ]
+        },
+        {
+          "column": "bank_to",
+          "data_type": "text",
+          "rows": 6471,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 13,
+          "min_value": "AB",
+          "max_value": "YZ",
+          "min_length": 2,
+          "max_length": 2,
+          "top_values": [
+            {
+              "value": "QR",
+              "count": 531
+            },
+            {
+              "value": "YZ",
+              "count": 521
+            },
+            {
+              "value": "AB",
+              "count": 519
+            },
+            {
+              "value": "WX",
+              "count": 515
+            },
+            {
+              "value": "ST",
+              "count": 511
+            }
+          ],
+          "patterns": [
+            {
+              "pattern": "AA",
+              "count": 6471
+            }
+          ]
+        },
+        {
+          "column": "account_to",
+          "data_type": "text",
+          "rows": 6471,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 6446,
+          "min_value": "10030848",
+          "max_value": "99994199",
+          "min_length": 3,
+          "max_length": 8,
+          "top_values": [
+            {
+              "value": "10807258",
+              "count": 2
+            },
+            {
+              "value": "1301700",
+              "count": 2
+            },
+            {
+              "value": "13943797",
+              "count": 2
+            },
+            {
+              "value": "14132368",
+              "count": 2
+            },
+            {
+              "value": "1838881",
+              "count": 2
+            }
+          ]
+        },
+        {
+          "column": "amount",
+          "data_type": "numeric",
+          "rows": 6471,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 4412,
+          "min_value": "1.00",
+          "max_value": "14882.00",
+          "min_length": 4,
+          "max_length": 8,
+          "top_values": [
+            {
+              "value": "2.00",
+              "count": 8
+            },
+            {
+              "value": "107.00",
+              "count": 7
+            },
+            {
+              "value": "17.00",
+              "count": 6
+            },
+            {
+              "value": "1950.00",
+              "count": 6
+            },
+            {
+              "value": "2332.00",
+              "count": 6
+            }
+          ]
+        },
+        {
+          "column": "k_symbol_code",
+          "data_type": "text",
+          "rows": 6471,
+          "nulls": 1379,
+          "null_rate": 0.213105,
+          "distinct_values": 4,
+          "min_value": "LEASING",
+          "max_value": "UVER",
+          "min_length": 4,
+          "max_length": 8,
+          "top_values": [
+            {
+              "value": "SIPO",
+              "count": 3502
+            },
+            {
+              "value": null,
+              "count": 1379
+            },
+            {
+              "value": "UVER",
+              "count": 717
+            },
+            {
+              "value": "POJISTNE",
+              "count": 532
+            },
+            {
+              "value": "LEASING",
+              "count": 341
+            }
+          ],
+          "patterns": [
+            {
+              "pattern": "AAAA",
+              "count": 4219
+            },
+            {
+              "pattern": "AAAAAAAA",
+              "count": 532
+            },
+            {
+              "pattern": "AAAAAAA",
+              "count": 341
+            }
+          ]
+        },
+        {
+          "column": "k_symbol_label",
+          "data_type": "text",
+          "rows": 6471,
+          "nulls": 1720,
+          "null_rate": 0.265801,
+          "distinct_values": 3,
+          "min_value": "household payment",
+          "max_value": "loan payment",
+          "min_length": 12,
+          "max_length": 17,
+          "top_values": [
+            {
+              "value": "household payment",
+              "count": 3502
+            },
+            {
+              "value": null,
+              "count": 1720
+            },
+            {
+              "value": "loan payment",
+              "count": 717
+            },
+            {
+              "value": "insurance payment",
+              "count": 532
+            }
+          ]
+        },
+        {
+          "column": "k_symbol_raw",
+          "data_type": "text",
+          "rows": 6471,
+          "nulls": 5092,
+          "null_rate": 0.786895,
+          "distinct_values": 1,
+          "min_value": " ",
+          "max_value": " ",
+          "min_length": 1,
+          "max_length": 1,
+          "top_values": [
+            {
+              "value": null,
+              "count": 5092
+            },
+            {
+              "value": " ",
+              "count": 1379
+            }
+          ]
+        },
+        {
+          "column": "_conversion_notes",
+          "data_type": "ARRAY",
+          "rows": 6471,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 2
+        },
+        {
+          "column": "_source_file",
+          "data_type": "text",
+          "rows": 6471,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 1,
+          "min_value": "order.asc",
+          "max_value": "order.asc",
+          "min_length": 9,
+          "max_length": 9,
+          "top_values": [
+            {
+              "value": "order.asc",
+              "count": 6471
+            }
+          ]
+        },
+        {
+          "column": "_source_row",
+          "data_type": "bigint",
+          "rows": 6471,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 6471,
+          "min_value": "1",
+          "max_value": "6471",
+          "min_length": 1,
+          "max_length": 4,
+          "top_values": [
+            {
+              "value": "1",
+              "count": 1
+            },
+            {
+              "value": "10",
+              "count": 1
+            },
+            {
+              "value": "100",
+              "count": 1
+            },
+            {
+              "value": "1000",
+              "count": 1
+            },
+            {
+              "value": "1001",
+              "count": 1
+            }
+          ]
+        }
+      ],
+      "duration_sec": 0.089
+    },
+    {
+      "table": "trans",
+      "rows": 1056320,
+      "columns": [
+        {
+          "column": "trans_id",
+          "data_type": "bigint",
+          "rows": 1056320,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 1056320,
+          "min_value": "1",
+          "max_value": "3682987",
+          "min_length": 1,
+          "max_length": 7,
+          "top_values": [
+            {
+              "value": "1",
+              "count": 1
+            },
+            {
+              "value": "10",
+              "count": 1
+            },
+            {
+              "value": "10000",
+              "count": 1
+            },
+            {
+              "value": "100008",
+              "count": 1
+            },
+            {
+              "value": "100009",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "column": "account_id",
+          "data_type": "bigint",
+          "rows": 1056320,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 4500,
+          "min_value": "1",
+          "max_value": "11382",
+          "min_length": 1,
+          "max_length": 5,
+          "top_values": [
+            {
+              "value": "8261",
+              "count": 675
+            },
+            {
+              "value": "3834",
+              "count": 665
+            },
+            {
+              "value": "96",
+              "count": 661
+            },
+            {
+              "value": "2932",
+              "count": 655
+            },
+            {
+              "value": "9307",
+              "count": 649
+            }
+          ]
+        },
+        {
+          "column": "trans_date",
+          "data_type": "date",
+          "rows": 1056320,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 2191,
+          "min_value": "1993-01-01",
+          "max_value": "1998-12-31",
+          "min_length": 10,
+          "max_length": 10,
+          "top_values": [
+            {
+              "value": "1998-06-30",
+              "count": 9269
+            },
+            {
+              "value": "1998-09-30",
+              "count": 9249
+            },
+            {
+              "value": "1998-07-31",
+              "count": 9223
+            },
+            {
+              "value": "1998-08-31",
+              "count": 9222
+            },
+            {
+              "value": "1998-10-31",
+              "count": 9218
+            }
+          ]
+        },
+        {
+          "column": "trans_type_code",
+          "data_type": "text",
+          "rows": 1056320,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 3,
+          "min_value": "PRIJEM",
+          "max_value": "VYDAJ",
+          "min_length": 5,
+          "max_length": 6,
+          "top_values": [
+            {
+              "value": "VYDAJ",
+              "count": 634571
+            },
+            {
+              "value": "PRIJEM",
+              "count": 405083
+            },
+            {
+              "value": "VYBER",
+              "count": 16666
+            }
+          ],
+          "patterns": [
+            {
+              "pattern": "AAAAA",
+              "count": 651237
+            },
+            {
+              "pattern": "AAAAAA",
+              "count": 405083
+            }
+          ]
+        },
+        {
+          "column": "trans_type_label",
+          "data_type": "text",
+          "rows": 1056320,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 3,
+          "min_value": "credit",
+          "max_value": "withdrawal (legacy debit)",
+          "min_length": 5,
+          "max_length": 25,
+          "top_values": [
+            {
+              "value": "debit",
+              "count": 634571
+            },
+            {
+              "value": "credit",
+              "count": 405083
+            },
+            {
+              "value": "withdrawal (legacy debit)",
+              "count": 16666
+            }
+          ]
+        },
+        {
+          "column": "direction",
+          "data_type": "text",
+          "rows": 1056320,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 2,
+          "min_value": "credit",
+          "max_value": "debit",
+          "min_length": 5,
+          "max_length": 6,
+          "top_values": [
+            {
+              "value": "debit",
+              "count": 651237
+            },
+            {
+              "value": "credit",
+              "count": 405083
+            }
+          ]
+        },
+        {
+          "column": "operation_code",
+          "data_type": "text",
+          "rows": 1056320,
+          "nulls": 183114,
+          "null_rate": 0.173351,
+          "distinct_values": 5,
+          "min_value": "PREVOD NA UCET",
+          "max_value": "VYBER KARTOU",
+          "min_length": 5,
+          "max_length": 14,
+          "top_values": [
+            {
+              "value": "VYBER",
+              "count": 434918
+            },
+            {
+              "value": "PREVOD NA UCET",
+              "count": 208283
+            },
+            {
+              "value": null,
+              "count": 183114
+            },
+            {
+              "value": "VKLAD",
+              "count": 156743
+            },
+            {
+              "value": "PREVOD Z UCTU",
+              "count": 65226
+            }
+          ],
+          "patterns": [
+            {
+              "pattern": "AAAAA",
+              "count": 591661
+            },
+            {
+              "pattern": "AAAAAA AA AAAA",
+              "count": 208283
+            },
+            {
+              "pattern": "AAAAAA A AAAA",
+              "count": 65226
+            },
+            {
+              "pattern": "AAAAA AAAAAA",
+              "count": 8036
+            }
+          ]
+        },
+        {
+          "column": "operation_label",
+          "data_type": "text",
+          "rows": 1056320,
+          "nulls": 183114,
+          "null_rate": 0.173351,
+          "distinct_values": 5,
+          "min_value": "cash deposit",
+          "max_value": "remittance to another bank",
+          "min_length": 12,
+          "max_length": 28,
+          "top_values": [
+            {
+              "value": "cash withdrawal",
+              "count": 434918
+            },
+            {
+              "value": "remittance to another bank",
+              "count": 208283
+            },
+            {
+              "value": null,
+              "count": 183114
+            },
+            {
+              "value": "cash deposit",
+              "count": 156743
+            },
+            {
+              "value": "collection from another bank",
+              "count": 65226
+            }
+          ]
+        },
+        {
+          "column": "amount",
+          "data_type": "numeric",
+          "rows": 1056320,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 40400,
+          "min_value": "0.00",
+          "max_value": "87400.00",
+          "min_length": 4,
+          "max_length": 8,
+          "top_values": [
+            {
+              "value": "14.60",
+              "count": 144098
+            },
+            {
+              "value": "30.00",
+              "count": 8495
+            },
+            {
+              "value": "100.00",
+              "count": 5082
+            },
+            {
+              "value": "1200.00",
+              "count": 4710
+            },
+            {
+              "value": "1800.00",
+              "count": 4705
+            }
+          ]
+        },
+        {
+          "column": "signed_amount",
+          "data_type": "numeric",
+          "rows": 1056320,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 48987,
+          "min_value": "-87400.00",
+          "max_value": "74812.00",
+          "min_length": 4,
+          "max_length": 9,
+          "top_values": [
+            {
+              "value": "-14.60",
+              "count": 144071
+            },
+            {
+              "value": "-30.00",
+              "count": 8478
+            },
+            {
+              "value": "-100.00",
+              "count": 4293
+            },
+            {
+              "value": "-2400.00",
+              "count": 4047
+            },
+            {
+              "value": "-1800.00",
+              "count": 3787
+            }
+          ]
+        },
+        {
+          "column": "balance_after",
+          "data_type": "numeric",
+          "rows": 1056320,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 542739,
+          "min_value": "-41125.70",
+          "max_value": "209637.00",
+          "min_length": 4,
+          "max_length": 9,
+          "top_values": [
+            {
+              "value": "900.00",
+              "count": 488
+            },
+            {
+              "value": "1100.00",
+              "count": 478
+            },
+            {
+              "value": "600.00",
+              "count": 463
+            },
+            {
+              "value": "1000.00",
+              "count": 449
+            },
+            {
+              "value": "200.00",
+              "count": 448
+            }
+          ]
+        },
+        {
+          "column": "k_symbol_code",
+          "data_type": "text",
+          "rows": 1056320,
+          "nulls": 535314,
+          "null_rate": 0.506773,
+          "distinct_values": 7,
+          "min_value": "DUCHOD",
+          "max_value": "UVER",
+          "min_length": 4,
+          "max_length": 11,
+          "top_values": [
+            {
+              "value": null,
+              "count": 535314
+            },
+            {
+              "value": "UROK",
+              "count": 183114
+            },
+            {
+              "value": "SLUZBY",
+              "count": 155832
+            },
+            {
+              "value": "SIPO",
+              "count": 118065
+            },
+            {
+              "value": "DUCHOD",
+              "count": 30338
+            }
+          ],
+          "patterns": [
+            {
+              "pattern": "AAAA",
+              "count": 314759
+            },
+            {
+              "pattern": "AAAAAA",
+              "count": 186170
+            },
+            {
+              "pattern": "AAAAAAAA",
+              "count": 18500
+            },
+            {
+              "pattern": "AAAAA. AAAA",
+              "count": 1577
+            }
+          ]
+        },
+        {
+          "column": "k_symbol_label",
+          "data_type": "text",
+          "rows": 1056320,
+          "nulls": 535314,
+          "null_rate": 0.506773,
+          "distinct_values": 7,
+          "min_value": "household payment",
+          "max_value": "sanction interest for negative balance",
+          "min_length": 12,
+          "max_length": 38,
+          "top_values": [
+            {
+              "value": null,
+              "count": 535314
+            },
+            {
+              "value": "interest credited",
+              "count": 183114
+            },
+            {
+              "value": "payment for statement",
+              "count": 155832
+            },
+            {
+              "value": "household payment",
+              "count": 118065
+            },
+            {
+              "value": "old age pension",
+              "count": 30338
+            }
+          ]
+        },
+        {
+          "column": "partner_bank",
+          "data_type": "text",
+          "rows": 1056320,
+          "nulls": 782812,
+          "null_rate": 0.741075,
+          "distinct_values": 13,
+          "min_value": "AB",
+          "max_value": "YZ",
+          "min_length": 2,
+          "max_length": 2,
+          "top_values": [
+            {
+              "value": null,
+              "count": 782812
+            },
+            {
+              "value": "QR",
+              "count": 22285
+            },
+            {
+              "value": "AB",
+              "count": 21720
+            },
+            {
+              "value": "ST",
+              "count": 21711
+            },
+            {
+              "value": "YZ",
+              "count": 21582
+            }
+          ],
+          "patterns": [
+            {
+              "pattern": "AA",
+              "count": 273508
+            }
+          ]
+        },
+        {
+          "column": "partner_account",
+          "data_type": "text",
+          "rows": 1056320,
+          "nulls": 760931,
+          "null_rate": 0.72036,
+          "distinct_values": 7665,
+          "min_value": "0",
+          "max_value": "99994199",
+          "min_length": 1,
+          "max_length": 8,
+          "top_values": [
+            {
+              "value": null,
+              "count": 760931
+            },
+            {
+              "value": "0",
+              "count": 21881
+            },
+            {
+              "value": "66487163",
+              "count": 140
+            },
+            {
+              "value": "13943797",
+              "count": 130
+            },
+            {
+              "value": "95437645",
+              "count": 95
+            }
+          ]
+        },
+        {
+          "column": "trans_date_raw",
+          "data_type": "text",
+          "rows": 1056320,
+          "nulls": 1056320,
+          "null_rate": 1.0,
+          "distinct_values": 0,
+          "min_value": null,
+          "max_value": null,
+          "min_length": null,
+          "max_length": null,
+          "top_values": [
+            {
+              "value": null,
+              "count": 1056320
+            }
+          ]
+        },
+        {
+          "column": "amount_raw",
+          "data_type": "text",
+          "rows": 1056320,
+          "nulls": 1056320,
+          "null_rate": 1.0,
+          "distinct_values": 0,
+          "min_value": null,
+          "max_value": null,
+          "min_length": null,
+          "max_length": null,
+          "top_values": [
+            {
+              "value": null,
+              "count": 1056320
+            }
+          ]
+        },
+        {
+          "column": "balance_raw",
+          "data_type": "text",
+          "rows": 1056320,
+          "nulls": 1056320,
+          "null_rate": 1.0,
+          "distinct_values": 0,
+          "min_value": null,
+          "max_value": null,
+          "min_length": null,
+          "max_length": null,
+          "top_values": [
+            {
+              "value": null,
+              "count": 1056320
+            }
+          ]
+        },
+        {
+          "column": "_conversion_notes",
+          "data_type": "ARRAY",
+          "rows": 1056320,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 1
+        },
+        {
+          "column": "_source_file",
+          "data_type": "text",
+          "rows": 1056320,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 1,
+          "min_value": "trans.asc",
+          "max_value": "trans.asc",
+          "min_length": 9,
+          "max_length": 9,
+          "top_values": [
+            {
+              "value": "trans.asc",
+              "count": 1056320
+            }
+          ]
+        },
+        {
+          "column": "_source_row",
+          "data_type": "bigint",
+          "rows": 1056320,
+          "nulls": 0,
+          "null_rate": 0.0,
+          "distinct_values": 1056320,
+          "min_value": "1",
+          "max_value": "1056320",
+          "min_length": 1,
+          "max_length": 7,
+          "top_values": [
+            {
+              "value": "1",
+              "count": 1
+            },
+            {
+              "value": "10",
+              "count": 1
+            },
+            {
+              "value": "100",
+              "count": 1
+            },
+            {
+              "value": "1000",
+              "count": 1
+            },
+            {
+              "value": "10000",
+              "count": 1
+            }
+          ]
+        }
+      ],
+      "duration_sec": 21.118
+    }
+  ],
+  "candidates": [
+    {
+      "label": "trans: partner bank and partner account missing together",
+      "count": 760931,
+      "note": "Structural: cash operations have no counterparty. Expected to equal the number of non-transfer operations.",
+      "sql": "SELECT count(*) FROM stg.trans WHERE partner_bank IS NULL AND partner_account IS NULL"
+    },
+    {
+      "label": "trans: three different encodings of 'no value' in the same column",
+      "count": 535314,
+      "note": "raw.trans.k_symbol arrives as quoted empty string, unquoted empty field (NULL) and a single space. Three spellings of the same fact.",
+      "sql": "SELECT count(*) FROM raw.trans WHERE k_symbol IS NULL OR k_symbol = '' OR btrim(k_symbol) = ''"
+    },
+    {
+      "label": "trans: structural NULL in operation (interest postings have no operation)",
+      "count": 183114,
+      "note": "Every one of these is an interest credit (k_symbol = UROK). The NULL is meaningful, not missing, so it must not be imputed.",
+      "sql": "SELECT count(*) FROM stg.trans WHERE operation_code IS NULL"
+    },
+    {
+      "label": "trans: negative balance after the transaction",
+      "count": 2999,
+      "note": "Overdrafts. Real banking behaviour, not a defect; relevant to Q9 because they drag the average balance down and must not be clipped.",
+      "sql": "SELECT count(*) FROM stg.trans WHERE balance_after < 0"
+    },
+    {
+      "label": "client district differs from the district of the account they own",
+      "count": 409,
+      "note": "Not a defect: a client may bank in a different district than they live in. It is a modelling fork for Q1 and Q5, which is why both questions state which district they use.",
+      "sql": "SELECT count(*) FROM stg.disp d JOIN stg.client c USING (client_id) JOIN stg.account a ON a.account_id = d.account_id WHERE d.disp_type_code = 'OWNER' AND c.district_id <> a.district_id"
+    },
+    {
+      "label": "trans: intra-day ordering is undefined (accounts with >1 posting on their last date)",
+      "count": 183,
+      "note": "The closing balance of a day is only well defined if the last posting of that day is identifiable. trans_id is not chronological within a day, so for these accounts the closing balance is a choice, not a fact.",
+      "sql": "SELECT count(*) FROM ( SELECT account_id, trans_date, count(*) AS n, row_number() OVER (PARTITION BY account_id ORDER BY trans_date DESC) AS rn FROM stg.trans GROUP BY account_id, trans_date ) x WHERE rn = 1 AND n > 1"
+    },
+    {
+      "label": "trans: running balance does not reconcile per account (tolerance 1.00 CZK)",
+      "count": 136,
+      "note": "Order independent test: the sum of signed amounts should equal the last reported balance. Differences cluster at 0.1-0.5 CZK (rounding), but a tail of accounts is off by hundreds, which is a real gap.",
+      "sql": "WITH final AS ( SELECT account_id, balance_after FROM ( SELECT account_id, balance_after, row_number() OVER (PARTITION BY account_id ORDER BY trans_date DESC, trans_id DESC) AS rn FROM stg.trans ) x WHERE rn = 1 ), summed AS ( SELECT account_id, sum(signed_amount) AS total FROM stg.trans GROUP BY 1 ) SELECT count(*) FROM summed s JOIN final f USING (account_id) WHERE abs(s.total - f.balance_after) > 1.00"
+    },
+    {
+      "label": "owner was younger than 15 at account opening",
+      "count": 114,
+      "note": "Implausible for a legal account holder. Minimum observed age is 10.3 years. Affects Q7 (average age at loan start) and Q8.",
+      "sql": "SELECT count(*) FROM stg.disp d JOIN stg.client c USING (client_id) JOIN stg.account a ON a.account_id = d.account_id WHERE d.disp_type_code = 'OWNER' AND (a.open_date - c.birth_date) / 365.25 < 15"
+    },
+    {
+      "label": "trans: running balance off by more than 100 CZK per account",
+      "count": 55,
+      "note": "Material, not rounding: a missing or extra posting. Directly affects Q9.",
+      "sql": "WITH final AS ( SELECT account_id, balance_after FROM ( SELECT account_id, balance_after, row_number() OVER (PARTITION BY account_id ORDER BY trans_date DESC, trans_id DESC) AS rn FROM stg.trans ) x WHERE rn = 1 ), summed AS ( SELECT account_id, sum(signed_amount) AS total FROM stg.trans GROUP BY 1 ) SELECT count(*) FROM summed s JOIN final f USING (account_id) WHERE abs(s.total - f.balance_after) > 100.00"
+    },
+    {
+      "label": "trans: amount is zero",
+      "count": 14,
+      "note": "Zero-value postings (sanction interest and interest with no accrual). Breaks a naive 'amount > 0' validity rule but changes no sum.",
+      "sql": "SELECT count(*) FROM stg.trans WHERE amount = 0"
+    },
+    {
+      "label": "owner was younger than 15 at loan start",
+      "count": 6,
+      "note": "A minor cannot take a loan. Direct hit on Q7.",
+      "sql": "SELECT count(*) FROM stg.loan l JOIN stg.disp d ON d.account_id = l.account_id AND d.disp_type_code = 'OWNER' JOIN stg.client c USING (client_id) WHERE (l.loan_date - c.birth_date) / 365.25 < 15"
+    },
+    {
+      "label": "district: placeholder '?' in 1995 unemployment and crime columns",
+      "count": 1,
+      "note": "Known original-dataset gap (district 69, Jesenik). Only matters once a metric uses the 1995 columns; none of the 10 questions does.",
+      "sql": "SELECT count(*) FROM stg.district WHERE unemployment_rate_1995_raw IS NOT NULL OR crimes_1995_raw IS NOT NULL"
+    },
+    {
+      "label": "trans: duplicate business key (same account, date, type, amount, balance)",
+      "count": 1,
+      "note": "Distinct trans_id, identical business content. A duplicate posting the primary key cannot catch.",
+      "sql": "SELECT coalesce(sum(n) - count(*), 0) FROM ( SELECT count(*) AS n FROM stg.trans GROUP BY account_id, trans_date, trans_type_code, coalesce(operation_code, '~'), amount, balance_after HAVING count(*) > 1 ) d"
+    },
+    {
+      "label": "card: holder is a disponent rather than the account owner",
+      "count": 0,
+      "note": "Q4 and Q8 ask about the card of the account OWNER, so a card held by a disponent must not be attributed to the owner.",
+      "sql": "SELECT count(*) FROM stg.card k JOIN stg.disp d USING (disp_id) WHERE d.disp_type_code <> 'OWNER'"
+    },
+    {
+      "label": "account has no transaction at all",
+      "count": 0,
+      "note": "Would make the account invisible in any transaction-derived metric, including the Q9 balance.",
+      "sql": "SELECT count(*) FROM stg.account a WHERE NOT EXISTS (SELECT 1 FROM stg.trans t WHERE t.account_id = a.account_id)"
+    },
+    {
+      "label": "business date outside the configured plausibility window",
+      "count": 0,
+      "note": "Window is 1993-01-01 to 1998-12-31 (src.config). A date outside it silently corrupts every per-year and per-month grouping (Q2, Q5, Q6).",
+      "sql": "SELECT (SELECT count(*) FROM stg.account WHERE open_date NOT BETWEEN %(lo)s AND %(hi)s) + (SELECT count(*) FROM stg.loan WHERE loan_date NOT BETWEEN %(lo)s AND %(hi)s) + (SELECT count(*) FROM stg.card WHERE issued_date NOT BETWEEN %(lo)s AND %(hi)s) + (SELECT count(*) FROM stg.trans WHERE trans_date NOT BETWEEN %(lo)s AND %(hi)s)"
+    },
+    {
+      "label": "unparsable date or amount anywhere in staging",
+      "count": 0,
+      "note": "Non-zero means a cast silently produced NULL. The raw text is kept in the *_raw audit columns, so nothing is lost and the rows are countable.",
+      "sql": "SELECT (SELECT count(*) FROM stg.account WHERE open_date_raw IS NOT NULL) + (SELECT count(*) FROM stg.loan WHERE loan_date_raw IS NOT NULL) + (SELECT count(*) FROM stg.card WHERE issued_raw IS NOT NULL) + (SELECT count(*) FROM stg.trans WHERE trans_date_raw IS NOT NULL) + (SELECT count(*) FROM stg.loan WHERE amount_raw IS NOT NULL) + (SELECT count(*) FROM stg.trans WHERE amount_raw IS NOT NULL) + (SELECT count(*) FROM stg.trans WHERE balance_raw IS NOT NULL)"
+    }
+  ]
+}
