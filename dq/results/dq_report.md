@@ -1,8 +1,8 @@
 # Data quality report
 
-- run_id: `6b7688ee-905d-44cf-915c-2eea22ef2660`
+- run_id: `861c72b9-c1c2-4902-815a-5ec9bdbbcc30`
 - dataset: `stg`
-- executed at: 2026-10-22T10:00:21+00:00 (git 1351de8)
+- executed at: 2026-10-22T10:04:34+00:00 (git d60708d)
 - command: `make dq`
 - rules executed: **123** (19 fired, 104 clean, 0 errored)
 
@@ -98,7 +98,7 @@ Rows quarantined this run: **1** (trans: 1)
 
 - severity rationale: 760,931 postings have neither partner bank nor partner account. These are cash operations and bank-generated postings, which have no counterparty by construction. No question reads the counterparty. Reported as info with the cross-check that it never happens on a transfer operation, which is the version of this that *would* be a defect.
 - handling: Left as NULL by design; documented as structural in the semantic layer.
-- example: key `695247` -- partner_bank and partner_account are both NULL; operation = VKLAD
+- example: key `3643693` -- partner_bank and partner_account are both NULL; operation = NULL
 
 **`COMP_RAW_MISSING_ENCODING_INCONSISTENT`** -- The same column encodes 'missing' three different ways in the source
 
@@ -122,7 +122,7 @@ Rows quarantined this run: **1** (trans: 1)
 
 - severity rationale: 183,114 postings have no operation. Every one of them is an interest credit (k_symbol = UROK): the bank's own interest run has no customer operation behind it, so the NULL means "not applicable" rather than "unknown". None of the 10 questions groups by operation. It is reported as info precisely so that nobody later imputes a value into it, which would invent an operation that never happened.
 - handling: Left as NULL by design, labelled 'not applicable (bank-generated posting)' in the semantic layer so an LLM does not treat it as missing.
-- example: key `3591421` -- operation_code is NULL; k_symbol = UROK
+- example: key `3643693` -- operation_code is NULL; k_symbol = UROK
 
 **`VAL_TRANS_BALANCE_NEGATIVE`** -- Balance after the transaction is negative (overdraft)
 

@@ -113,6 +113,58 @@ COMMENT ON TABLE dq.quarantine IS
     'Rows excluded from core by a block-severity rule, with the rule that '
     'excluded them, the reason and a JSON snapshot of the row as it arrived.';
 
+CREATE TABLE IF NOT EXISTS dq.flags (
+    flag_id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    run_id          uuid        NOT NULL,
+    rule_id         text        NOT NULL,
+    severity        text        NOT NULL,
+    target_schema   text        NOT NULL,
+    target_table    text        NOT NULL,
+    business_key    text        NOT NULL,
+    flag            text        NOT NULL,
+    reason          text,
+    flagged_at      timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS ix_dq_flags_target
+    ON dq.flags (target_schema, target_table, business_key);
+
+COMMENT ON TABLE dq.flags IS
+    'Rows a warn-severity rule marked. The row stays in core and carries the '
+    'flag in its _dq_flags array, so a consumer can see the caveat on the row '
+    'rather than only in a report.';
+
+-- One row per (table, key) that a block rule rejected in the REAL staging
+-- data. core is built from stg minus this view, which is the mechanical
+-- meaning of the block severity.
+--
+-- The target_schema filter is load-bearing: the identical rule set also runs
+-- against schema `inject` (the corrupted copy used to test the rules), and
+-- those verdicts must never reach core. Without the filter, running the rule
+-- self-tests would silently delete real rows from the data product.
+CREATE OR REPLACE VIEW dq.v_blocked AS
+SELECT DISTINCT target_table, business_key
+FROM dq.quarantine
+WHERE severity = 'block'
+  AND target_schema = 'stg';
+
+COMMENT ON VIEW dq.v_blocked IS
+    'Distinct keys excluded from core by a block rule on the real staging '
+    'data. Joined by 30_core.sql. Scoped to target_schema = stg so verdicts '
+    'from the inject self-test copy cannot affect the data product.';
+
+-- One row per (table, key) with the aggregated warn flags for that row.
+-- Same schema scoping, for the same reason.
+CREATE OR REPLACE VIEW dq.v_row_flags AS
+SELECT target_table, business_key, array_agg(DISTINCT flag ORDER BY flag) AS flags
+FROM dq.flags
+WHERE target_schema = 'stg'
+GROUP BY target_table, business_key;
+
+COMMENT ON VIEW dq.v_row_flags IS
+    'Warn flags per row on the real staging data, aggregated into an array '
+    'for core._dq_flags. Scoped to target_schema = stg.';
+
 CREATE TABLE IF NOT EXISTS dq.reconciliation (
     recon_id      bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     run_id        uuid        NOT NULL,

@@ -144,3 +144,84 @@ read the tables.
 **Consequence.** Every call writes `llm_logs/<question>.json` with the full
 prompt, model id, parameters, raw response and timing. Nothing in the Questions
 tab is hand-written: where a call fails, the cell says `NOT EXECUTED`.
+
+---
+
+## D006 - Code-to-label mapping lives in one place, and the redundancy is checked
+
+**Context.** The seven Czech code sets (statement frequency, loan status, card
+type, disposition type, transaction type, operation, category) have to be
+readable in staging for profiling, available in SQL for the model, and
+available to the LLM in the semantic layer. Three places to write the same
+mapping.
+
+**Options.** (a) Repeat the mapping in each place. (b) One source, and derive
+the rest. (c) One source for the product, with any convenience copy verified.
+
+**Choice.** (c). `src/config.py` holds the mapping; `src/build_model.py`
+publishes it as `core.ref_codes`; `sql/30_core.sql` joins that table for every
+label; the semantic layer renders its allowed-value lists from the same place.
+The staging layer additionally decodes labels inline while casting, which is a
+convenience copy -- so `build_model.check_codes_against_staging` asserts that
+staging's labels equal `ref_codes`, and that no code exists in the data that
+the catalogue does not publish.
+
+**Reason.** The failure mode that matters is not duplication, it is *silent*
+duplication: two places disagreeing and nobody noticing until a report and a
+dashboard show different words for the same loan. A checked copy fails the
+build instead.
+
+**Cost.** One verification function, about 60 lines, and one extra join per
+labelled column in the core build.
+
+---
+
+## D007 - Natural keys, not surrogate keys
+
+**Context.** The source keys (`account_id`, `client_id`, `trans_id`, ...) are
+stable integers with no gaps in meaning and no reuse.
+
+**Options.** (a) Surrogate integer keys per dimension with the natural key as
+an attribute. (b) Use the natural keys as primary keys.
+
+**Choice.** (b).
+
+**Reason.** Surrogate keys buy conformance across multiple source systems and
+the ability to track slowly changing dimensions. There is one source system
+here and a single extract with no history, so they would buy a join per
+dimension and nothing else. They also make every example query longer, which
+matters when the queries are written by an LLM reading a context pack.
+
+**Consequence.** At 100,000x this is one of the first things to revisit --
+along with partitioning the transaction fact by month. It is called out in the
+Design Decision Record for exactly that reason.
+
+---
+
+## D008 - The rule self-test nearly deleted real data; the fix is schema scoping
+
+**Context.** `core` is built from `stg` minus the rows block rules rejected,
+read through the view `dq.v_blocked`. The identical rule set also runs against
+schema `inject` (the corrupted copy that proves the rules fire), and writes its
+verdicts to the same `dq.quarantine` table.
+
+**What happened.** The first version of `dq.v_blocked` selected every
+block-severity quarantine row regardless of which schema it came from. Running
+the rule self-tests therefore made the *injected* defects exclude *real* rows
+from the data product: `core.dim_district` came out at 76 rows instead of 77,
+`dim_account` at 4,457 instead of 4,500, and 11,024 transactions lost their
+account. Nothing in the data was wrong; the control plane was.
+
+**How it was caught.** `build_model` verifies the declared foreign keys and
+grains after every build, and it failed with eight problems before any
+deliverable was produced.
+
+**Choice.** `dq.v_blocked` and `dq.v_row_flags` filter `target_schema = 'stg'`,
+and the comment in `sql/00_schemas.sql` says why the filter is load-bearing.
+
+**Reason and consequence.** This is the argument for verifying a model rather
+than trusting a build: the pipeline ran green, produced plausible row counts,
+and was quietly wrong. It is also the argument for keeping the test data in a
+separate schema rather than mutating staging in place. Kept in this record on
+purpose -- it is a better answer to "how do you know your pipeline is right"
+than any clean run.

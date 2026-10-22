@@ -204,10 +204,62 @@ def execute_rule(
             {"key": str(row.get("business_key")), "reason": row.get("reason")}
             for row in violations[:SAMPLE_KEY_LIMIT]
         ],
-        "violations": violations[:MAX_SNAPSHOTS_PER_RULE],
+        "violations": violations,
         "duration_sec": round(duration, 3),
         "error_message": error,
     }
+
+
+def flag_rows(
+    conn: psycopg.Connection,
+    run_id: uuid.UUID,
+    rule: dict[str, Any],
+    outcome: dict[str, Any],
+    schema: str,
+) -> int:
+    """Record the rows a warn rule marked, so core can carry the flag per row.
+
+    This is the mechanical meaning of the ``warn`` severity: the row is not
+    removed, it is labelled. ``core`` joins :data:`dq.v_row_flags` and exposes
+    the labels in ``_dq_flags``, so a consumer sees the caveat on the row
+    itself and not only in a report nobody opens.
+
+    :param conn: Open connection.
+    :param run_id: Current data quality run.
+    :param rule: The rule that fired.
+    :param outcome: Result of :func:`execute_rule`.
+    :param schema: Schema the rule ran against.
+    :returns: Number of flags written.
+    """
+    if rule["severity"] != config.SEVERITY_WARN:
+        return 0
+
+    flag = rule.get("flag") or rule["rule_id"].lower()
+    rows = [
+        (
+            str(run_id),
+            rule["rule_id"],
+            rule["severity"],
+            schema,
+            rule["table"],
+            str(row.get("business_key")),
+            flag,
+            row.get("reason"),
+        )
+        for row in outcome["violations"]
+    ]
+    if not rows:
+        return 0
+    with conn.cursor() as cur:
+        cur.executemany(
+            """
+            INSERT INTO dq.flags (run_id, rule_id, severity, target_schema,
+                                  target_table, business_key, flag, reason)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            rows,
+        )
+    return len(rows)
 
 
 def quarantine_rows(
@@ -236,7 +288,7 @@ def quarantine_rows(
 
     written = 0
     with conn.cursor() as cur:
-        for row in outcome["violations"]:
+        for index, row in enumerate(outcome["violations"]):
             business_key = str(row.get("business_key"))
             target_table = rule["table"]
             key_value = business_key
@@ -246,7 +298,7 @@ def quarantine_rows(
 
             snapshot = None
             key_column = KEY_COLUMNS.get(target_table)
-            if key_column and key_value.isdigit():
+            if key_column and key_value.isdigit() and index < MAX_SNAPSHOTS_PER_RULE:
                 try:
                     snapshot = db.fetch_value(
                         conn,
@@ -613,9 +665,15 @@ def run(dataset: str = config.SCHEMA_STG, write_deliverables: bool = True) -> di
             (str(run_id), dataset, db.git_commit(), len(rules), f"make dq ({dataset})"),
         )
         LOGGER.info("--- data quality run %s on schema %s ---", run_id, dataset)
+        # A re-run replaces the previous verdict for this dataset: quarantine
+        # and flags describe the current state of the data, not its history.
+        # The history stays in dq.results, which is append only.
+        db.execute(conn, "DELETE FROM dq.quarantine WHERE target_schema = %s", (dataset,))
+        db.execute(conn, "DELETE FROM dq.flags WHERE target_schema = %s", (dataset,))
 
         results: list[dict[str, Any]] = []
         quarantined: dict[str, int] = defaultdict(int)
+        flagged: dict[str, int] = defaultdict(int)
         for rule in rules:
             outcome = execute_rule(conn, rule, dataset)
             outcome["rule"] = rule
@@ -624,6 +682,7 @@ def run(dataset: str = config.SCHEMA_STG, write_deliverables: bool = True) -> di
             written = quarantine_rows(conn, run_id, rule, outcome, dataset)
             if written:
                 quarantined[rule["table"]] += written
+            flagged[rule["table"]] += flag_rows(conn, run_id, rule, outcome, dataset)
 
             db.execute(
                 conn,
@@ -684,6 +743,8 @@ def run(dataset: str = config.SCHEMA_STG, write_deliverables: bool = True) -> di
         "by_severity": by_severity,
         "rows_quarantined": sum(quarantined.values()),
         "quarantined_by_table": dict(quarantined),
+        "rows_flagged": sum(flagged.values()),
+        "flagged_by_table": dict(flagged),
         "duration_sec": round(time.perf_counter() - started, 2),
     }
 
@@ -700,6 +761,7 @@ def run(dataset: str = config.SCHEMA_STG, write_deliverables: bool = True) -> di
                 by_severity[config.SEVERITY_WARN],
                 by_severity[config.SEVERITY_INFO])
     LOGGER.info("  rows quarantined  : %d", summary["rows_quarantined"])
+    LOGGER.info("  rows flagged      : %d", summary["rows_flagged"])
     LOGGER.info("  errored rules     : %d", summary["rules_errored"])
     LOGGER.info("  duration          : %.1fs", summary["duration_sec"])
     return summary

@@ -286,3 +286,16 @@ def iter_sql_statements(sql_text: str) -> Iterable[str]:
     tail = "".join(statement).strip()
     if tail:
         yield tail
+
+#: Primary key column per source table. Used wherever a generic query needs to
+#: address a staging row by its business key (reconciliation, quarantine).
+KEY_COLUMN_BY_TABLE: dict[str, str] = {
+    "account": "account_id",
+    "client": "client_id",
+    "disp": "disp_id",
+    "card": "card_id",
+    "loan": "loan_id",
+    "order": "order_id",
+    "trans": "trans_id",
+    "district": "district_id",
+}
