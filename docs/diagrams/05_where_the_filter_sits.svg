@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 452" width="1000" height="452"
+     role="img" aria-label="Three places an entitlement filter can sit. In the prompt, the model can omit it. In the application gateway, an unanticipated query shape defeats it. In the database engine, nothing the model emits can remove it, because the predicate is never in the query. The engine option is the one chosen.">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#5b6472"/>
+    </marker>
+  </defs>
+  <rect width="1000" height="452" fill="#ffffff"/>
+
+  <!-- chosen-option band highlight -->
+  <rect x="8" y="310" width="984" height="126" rx="6" fill="#f1f8f3"/>
+  <rect x="8" y="310" width="5" height="126" rx="2" fill="#15803d"/>
+
+  <!-- column captions -->
+  <g font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#5b6472" text-anchor="middle">
+    <text x="235" y="32">the model</text>
+    <text x="410" y="32">the application</text>
+    <text x="585" y="32">the database</text>
+  </g>
+  <text x="680" y="32" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#5b6472">what defeats it</text>
+  <line x1="16" y1="42" x2="984" y2="42" stroke="#e3e7ed" stroke-width="1"/>
+
+  <!-- ============ OPTION A: filter in the prompt ============ -->
+  <text x="16" y="74" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#1f2a44">A. In the prompt</text>
+  <text x="16" y="92" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#5b6472">"only show clients in</text>
+  <text x="16" y="106" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#5b6472">portfolio NORTH_BOOK"</text>
+
+  <rect x="170" y="62" width="130" height="58" rx="5" fill="#fdecec" stroke="#991b1b" stroke-width="1.5"/>
+  <text x="235" y="84" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#1f2a44" text-anchor="middle">LLM</text>
+  <rect x="186" y="92" width="98" height="19" rx="9" fill="#1f3864"/>
+  <text x="235" y="105" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#ffffff" text-anchor="middle">filter lives here</text>
+
+  <line x1="300" y1="91" x2="345" y2="91" stroke="#5b6472" stroke-width="1.4" marker-end="url(#ar)"/>
+  <rect x="350" y="62" width="120" height="58" rx="5" fill="#f7f9fc" stroke="#c4cad3" stroke-width="1.2"/>
+  <text x="410" y="88" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#5b6472" text-anchor="middle">passes SQL</text>
+  <text x="410" y="103" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#5b6472" text-anchor="middle">through</text>
+
+  <line x1="470" y1="91" x2="520" y2="91" stroke="#5b6472" stroke-width="1.4" marker-end="url(#ar)"/>
+  <rect x="525" y="62" width="120" height="58" rx="5" fill="#f7f9fc" stroke="#c4cad3" stroke-width="1.2"/>
+  <text x="585" y="88" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#5b6472" text-anchor="middle">runs whatever</text>
+  <text x="585" y="103" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#5b6472" text-anchor="middle">it is sent</text>
+
+  <g font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11.5" fill="#1f2a44">
+    <text x="672" y="76">The model omitting it, or being</text>
+    <text x="672" y="92">talked out of it. The thing being</text>
+    <text x="672" y="108">filtered is the thing asked to</text>
+    <text x="672" y="124">apply the filter: a request, not</text>
+    <text x="672" y="140">a control.</text>
+  </g>
+  <line x1="16" y1="160" x2="984" y2="160" stroke="#e3e7ed" stroke-width="1"/>
+
+  <!-- ============ OPTION B: filter in the gateway ============ -->
+  <text x="16" y="200" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#1f2a44">B. In the gateway</text>
+  <text x="16" y="218" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#5b6472">the application rewrites</text>
+  <text x="16" y="232" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#5b6472">or wraps every query</text>
+
+  <rect x="170" y="188" width="130" height="58" rx="5" fill="#fdecec" stroke="#991b1b" stroke-width="1.5"/>
+  <text x="235" y="214" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#1f2a44" text-anchor="middle">LLM</text>
+  <text x="235" y="230" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10.5" fill="#5b6472" text-anchor="middle">emits any SQL</text>
+
+  <line x1="300" y1="217" x2="345" y2="217" stroke="#5b6472" stroke-width="1.4" marker-end="url(#ar)"/>
+  <rect x="350" y="188" width="120" height="58" rx="5" fill="#fff4e5" stroke="#b45309" stroke-width="1.5"/>
+  <text x="410" y="208" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#1f2a44" text-anchor="middle">gateway</text>
+  <rect x="362" y="216" width="96" height="19" rx="9" fill="#1f3864"/>
+  <text x="410" y="229" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#ffffff" text-anchor="middle">filter lives here</text>
+
+  <line x1="470" y1="217" x2="520" y2="217" stroke="#5b6472" stroke-width="1.4" marker-end="url(#ar)"/>
+  <rect x="525" y="188" width="120" height="58" rx="5" fill="#f7f9fc" stroke="#c4cad3" stroke-width="1.2"/>
+  <text x="585" y="214" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#5b6472" text-anchor="middle">runs whatever</text>
+  <text x="585" y="229" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#5b6472" text-anchor="middle">it is sent</text>
+
+  <g font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11.5" fill="#1f2a44">
+    <text x="672" y="202">One query shape the rewriter did</text>
+    <text x="672" y="218">not anticipate. Real protection,</text>
+    <text x="672" y="234">but the blast radius of a single</text>
+    <text x="672" y="250">missed case is every user.</text>
+  </g>
+  <line x1="16" y1="286" x2="984" y2="286" stroke="#e3e7ed" stroke-width="1"/>
+
+  <!-- ============ OPTION C: filter in the engine (chosen) ============ -->
+  <text x="22" y="340" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#15803d">C. In the engine</text>
+  <text x="22" y="358" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#5b6472">row level security policy</text>
+  <text x="22" y="372" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#5b6472">on the table itself</text>
+  <rect x="22" y="382" width="58" height="17" rx="8" fill="#15803d"/>
+  <text x="51" y="394" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" font-weight="600" fill="#ffffff" text-anchor="middle">CHOSEN</text>
+
+  <rect x="170" y="330" width="130" height="58" rx="5" fill="#fdecec" stroke="#991b1b" stroke-width="1.5"/>
+  <text x="235" y="356" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#1f2a44" text-anchor="middle">LLM</text>
+  <text x="235" y="372" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10.5" fill="#5b6472" text-anchor="middle">emits any SQL</text>
+
+  <line x1="300" y1="359" x2="345" y2="359" stroke="#5b6472" stroke-width="1.4" marker-end="url(#ar)"/>
+  <rect x="350" y="330" width="120" height="58" rx="5" fill="#fff4e5" stroke="#b45309" stroke-width="1.5"/>
+  <text x="410" y="352" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#1f2a44" text-anchor="middle">guard</text>
+  <text x="410" y="368" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10.5" fill="#5b6472" text-anchor="middle">shape only:</text>
+  <text x="410" y="381" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10.5" fill="#5b6472" text-anchor="middle">one read-only SELECT</text>
+
+  <line x1="470" y1="359" x2="520" y2="359" stroke="#5b6472" stroke-width="1.4" marker-end="url(#ar)"/>
+  <rect x="525" y="330" width="120" height="58" rx="5" fill="#ffffff" stroke="#15803d" stroke-width="2"/>
+  <text x="585" y="350" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#1f2a44" text-anchor="middle">database</text>
+  <rect x="537" y="358" width="96" height="19" rx="9" fill="#15803d"/>
+  <text x="585" y="371" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#ffffff" text-anchor="middle">filter lives here</text>
+
+  <g font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11.5" fill="#1f2a44">
+    <text x="672" y="344">Nothing the model can emit. The</text>
+    <text x="672" y="360">predicate is not in the query, so</text>
+    <text x="672" y="376">rewriting the query cannot remove</text>
+    <text x="672" y="392">it. Identity comes from the</text>
+    <text x="672" y="408">authenticated role, which needs a</text>
+    <text x="672" y="424">password the model never sees.</text>
+  </g>
+</svg>

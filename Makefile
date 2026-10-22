@@ -11,7 +11,7 @@ export PYTHONPATH
 
 .DEFAULT_GOAL := help
 .PHONY: help up down deps ingest profile dq model reference semantic questions \
-        entitlements evaluate workbook ddr zip deliverables test all clean status
+        entitlements evaluate workbook ddr zip deliverables test all clean status diagrams
 
 help:  ## Show the available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -67,6 +67,10 @@ zip:  ## Package the semantic solution and code as a ZIP
 	$(PY) -m src.make_zip
 
 deliverables: workbook ddr zip  ## Build every deliverable
+
+diagrams:  ## Re-render docs/diagrams (optional; outputs are committed)
+	@bash scripts/render_diagrams.sh
+	@bash scripts/render_svgs.sh
 
 status:  ## Write STATUS_REPORT.md from the run log
 	$(PY) -m src.make_status

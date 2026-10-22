@@ -1,0 +1,36 @@
+%% Query time: how a natural-language question becomes entitlement-filtered
+%% rows, and where the filter the LLM cannot remove actually lives.
+%% Read left to right. The LLM only ever produces TEXT; the predicate that
+%% limits the rows is never in that text.
+flowchart LR
+    U["Business user asks<br/>a question in English<br/><small>authenticated as rm_north</small>"]
+    SEM["semantic layer<br/><small>context pack, ~6,900 tokens</small>"]
+    LLM["LLM<br/><small>no tools, no filesystem,<br/>no database connection</small>"]
+    G{"SQL guard<br/><small>sqlglot AST</small>"}
+    X["rejected and logged<br/><small>never reaches the database</small>"]
+    CONN["connection<br/><small>session_user = rm_north</small>"]
+    AI["ai views<br/><small>security_invoker = true</small>"]
+    CORE["core tables<br/><b>RLS policy evaluated here</b>"]
+    SEC["sec.app_user<br/>sec.portfolio_client<br/>sec.user_portfolio"]
+    OUT["1,481 clients<br/><small>not the 5,369 in the book</small>"]
+
+    SEM -->|"the only thing it knows"| LLM
+    U --> LLM
+    LLM -->|"SQL as <b>text</b>"| G
+    G -->|"not one read-only SELECT<br/>on the ai schema"| X
+    G -->|"allowed, row cap<br/>and timeout applied"| CONN
+    CONN --> AI
+    AI -->|"policy applies as<br/>the calling user"| CORE
+    SEC -->|"entitled clients,<br/>resolved from session_user"| CORE
+    CORE --> OUT
+
+    classDef untrusted fill:#fdecec,stroke:#991b1b,stroke-width:1.5px,color:#1f2a44
+    classDef gate fill:#fff4e5,stroke:#b45309,stroke-width:1.5px,color:#1f2a44
+    classDef engine fill:#e8f3ec,stroke:#15803d,stroke-width:2px,color:#1f2a44
+    classDef plain fill:#eef3fb,stroke:#1f3864,stroke-width:1.2px,color:#1f2a44
+    classDef result fill:#ffffff,stroke:#15803d,stroke-width:2px,color:#1f2a44
+    class LLM untrusted
+    class G,X gate
+    class CORE,SEC engine
+    class U,SEM,CONN,AI plain
+    class OUT result

@@ -19,9 +19,12 @@ make test   # 114 tests
 | Semantic solution and code | `deliverables/semantic_solution.zip` | Task 2 |
 | Design Decision Record | `deliverables/DDR.pdf` (2 pages, verified) and `DDR.docx`; source text `DDR_source.md` | all |
 
-Supporting: `STATUS_REPORT.md` (what ran, what did not), `DECISIONS.md` (12
-decisions with options, cost and consequence), `ASSUMPTIONS.md` (A1-A24),
-`AI_DISCLOSURE.md`, `WALKTHROUGH_NOTES.md`.
+Supporting: **[`docs/VISUAL_GUIDE.md`](docs/VISUAL_GUIDE.md)** (six figures:
+the pipeline, the query path and where the entitlement filter lives, what each
+severity does, the star schema, and two decision comparisons),
+`STATUS_REPORT.md` (what ran, what did not), `DECISIONS.md` (12 decisions with
+options, cost and consequence), `ASSUMPTIONS.md` (A1-A24), `AI_DISCLOSURE.md`,
+`WALKTHROUGH_NOTES.md`.
 
 ## Results
 

@@ -40,3 +40,4 @@
 {"step": "ddr", "command": "make ddr", "executed_at_utc": "2026-10-22T10:55:21+00:00", "detail": {"words": 1527, "pages": 2}}
 {"step": "workbook", "command": "make workbook", "executed_at_utc": "2026-10-22T10:55:23+00:00", "detail": {"tabs": ["Overview", "Defect types", "Model", "Questions", "Q detail", "DQ rules", "Assumptions", "Entitlements", "Run log"], "defect_types": 14}}
 {"step": "zip", "command": "make zip", "executed_at_utc": "2026-10-22T10:55:23+00:00", "detail": {"files": 79, "size_kb": 482.3}}
+{"step": "zip", "command": "make zip", "executed_at_utc": "2026-10-22T12:22:41+00:00", "detail": {"files": 99, "size_kb": 1265.5}}

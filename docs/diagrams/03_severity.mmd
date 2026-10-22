@@ -1,0 +1,23 @@
+%% The severity framework: each level has a mechanical consequence, not a label.
+flowchart LR
+    R["a rule finds a violating row"] --> S{"severity<br/><small>declared with its reason<br/>in the rule file</small>"}
+
+    S -->|"<b>block</b><br/>breaks a key, a join path<br/>or a certified metric"| B1["row written to dq.quarantine<br/><small>rule_id + reason + JSON snapshot</small>"]
+    B1 --> B2["core = stg minus quarantine"]
+    B2 --> B3["row never reaches the ai views;<br/>the exclusion is counted and reversible"]
+
+    S -->|"<b>warn</b><br/>row is still usable<br/>but a metric should say so"| W1["row kept, flag written to dq.flags"]
+    W1 --> W2["flag travels into core._dq_flags<br/><small>and out through the ai views</small>"]
+    W2 --> W3["semantic layer attaches a caveat;<br/>the LLM repeats it in the answer"]
+
+    S -->|"<b>info</b><br/>cosmetic, or no certified<br/>metric reads it"| I1["value standardised in stg<br/><small>original kept in *_raw</small>"]
+    I1 --> I2["counted in the DQ report;<br/>no reported number changes"]
+
+    classDef block fill:#fdecec,stroke:#991b1b,stroke-width:1.5px,color:#1f2a44
+    classDef warn fill:#fff4e5,stroke:#b45309,stroke-width:1.5px,color:#1f2a44
+    classDef info fill:#e8f3ec,stroke:#15803d,stroke-width:1.5px,color:#1f2a44
+    classDef neutral fill:#eef3fb,stroke:#1f3864,stroke-width:1.2px,color:#1f2a44
+    class B1,B2,B3 block
+    class W1,W2,W3 warn
+    class I1,I2 info
+    class R,S neutral

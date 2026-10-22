@@ -1,0 +1,33 @@
+%% Build-time pipeline: what happens to a row between a source file and the
+%% surface an AI consumer may query. Figures are from the measured run.
+flowchart LR
+    F["8 source .asc files<br/><small>1,079,680 rows</small>"]
+    RAW["<b>raw</b><br/>landing zone, every column text<br/><small>nothing cast, nothing dropped</small>"]
+    STG["<b>stg</b><br/>typed, decoded, lineage<br/><small>_source_file, _source_row, *_raw</small>"]
+    DQ["<b>dq</b> control plane<br/>123 rules, 6 dimensions"]
+    Q["dq.quarantine<br/><small>1 row</small>"]
+    FL["dq.flags<br/><small>440 rows</small>"]
+    CORE["<b>core</b><br/>star schema<br/><small>4 dims, 1 bridge, 3 facts, 3 views</small>"]
+    AI["<b>ai</b><br/>the only consumer surface<br/><small>11 entities, security_invoker</small>"]
+    INJ["<b>inject</b><br/>corrupted copy, 20 seeded defects<br/><small>self-test only</small>"]
+
+    F -->|"COPY verbatim<br/>SHA-256 per file"| RAW
+    RAW -->|"cast + decode<br/>original kept in *_raw"| STG
+    STG -->|"every row"| DQ
+    DQ -->|"block"| Q
+    DQ -->|"warn"| FL
+    STG -->|"rows that survive"| CORE
+    Q -.->|"excluded from core"| CORE
+    FL -.->|"_dq_flags on the row"| CORE
+    CORE -->|"business names,<br/>decoded labels"| AI
+    STG -.->|"copy + inject"| INJ
+    INJ -.->|"same 123 rules<br/>never reaches core"| DQ
+
+    classDef layer fill:#eef3fb,stroke:#1f3864,stroke-width:1.5px,color:#1f2a44
+    classDef control fill:#fff4e5,stroke:#b45309,stroke-width:1.5px,color:#1f2a44
+    classDef test fill:#f2f2f2,stroke:#8a8a8a,stroke-width:1.2px,color:#444,stroke-dasharray:4 3
+    classDef src fill:#ffffff,stroke:#5b6472,stroke-width:1.2px,color:#1f2a44
+    class RAW,STG,CORE,AI layer
+    class DQ,Q,FL control
+    class INJ test
+    class F src

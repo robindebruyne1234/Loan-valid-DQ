@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 430" width="1000" height="430"
+     role="img" aria-label="Star schema versus one big table. The ten questions have four grains: client, account, loan and posting. A star keeps each grain as its own table, so counting clients is a count over 5,369 rows and the entitlement filter applies to 5,369 client rows. One big table at posting grain forces count distinct over 1,056,319 rows and evaluates the entitlement predicate per posting. The star schema was chosen.">
+  <defs>
+    <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#5b6472"/>
+    </marker>
+  </defs>
+  <rect width="1000" height="430" fill="#ffffff"/>
+
+  <!-- panels -->
+  <rect x="10" y="14" width="480" height="346" rx="7" fill="#f1f8f3" stroke="#15803d" stroke-width="1.6"/>
+  <rect x="510" y="14" width="480" height="346" rx="7" fill="#fafafa" stroke="#c4cad3" stroke-width="1.2"/>
+
+  <g font-family="Segoe UI, Helvetica, Arial, sans-serif">
+    <!-- headers -->
+    <text x="28" y="42" font-size="14" font-weight="600" fill="#15803d">Star schema with a bridge</text>
+    <rect x="228" y="28" width="62" height="17" rx="8" fill="#15803d"/>
+    <text x="259" y="40" font-size="10" font-weight="600" fill="#ffffff" text-anchor="middle">CHOSEN</text>
+    <text x="28" y="60" font-size="11" fill="#5b6472">each grain is its own table (joined through a bridge -- see the ER diagram)</text>
+
+    <text x="528" y="42" font-size="14" font-weight="600" fill="#5b6472">One big table</text>
+    <text x="528" y="60" font-size="11" fill="#5b6472">everything flattened onto the posting</text>
+
+    <!-- LEFT sketch: three grains, three tables -->
+    <rect x="28" y="78" width="132" height="46" rx="5" fill="#ffffff" stroke="#1f3864" stroke-width="1.3"/>
+    <text x="94" y="97" font-size="11.5" fill="#1f2a44" text-anchor="middle">dim_client</text>
+    <text x="94" y="113" font-size="10.5" fill="#5b6472" text-anchor="middle">5,369 rows</text>
+
+    <rect x="174" y="78" width="132" height="46" rx="5" fill="#ffffff" stroke="#1f3864" stroke-width="1.3"/>
+    <text x="240" y="97" font-size="11.5" fill="#1f2a44" text-anchor="middle">dim_account</text>
+    <text x="240" y="113" font-size="10.5" fill="#5b6472" text-anchor="middle">4,500 rows</text>
+
+    <rect x="320" y="78" width="150" height="46" rx="5" fill="#ffffff" stroke="#1f3864" stroke-width="1.3"/>
+    <text x="395" y="97" font-size="11.5" fill="#1f2a44" text-anchor="middle">fact_transaction</text>
+    <text x="395" y="113" font-size="10.5" fill="#5b6472" text-anchor="middle">1,056,319 rows</text>
+
+    <text x="166" y="105" font-size="13" fill="#9aa3af" text-anchor="middle">+</text>
+    <text x="312" y="105" font-size="13" fill="#9aa3af" text-anchor="middle">+</text>
+
+    <!-- RIGHT sketch: one grain for everything -->
+    <rect x="528" y="78" width="444" height="46" rx="5" fill="#ffffff" stroke="#b45309" stroke-width="1.3"/>
+    <text x="750" y="97" font-size="11.5" fill="#1f2a44" text-anchor="middle">one row per posting -- 1,056,319 rows</text>
+    <text x="750" y="113" font-size="10.5" fill="#5b6472" text-anchor="middle">client_id, gender, region, card_type, loan_status ... all repeated</text>
+
+    <!-- divider labels -->
+    <line x1="28" y1="146" x2="470" y2="146" stroke="#cfe3d6" stroke-width="1"/>
+    <line x1="528" y1="146" x2="972" y2="146" stroke="#e3e7ed" stroke-width="1"/>
+
+    <!-- cost row 1: counting clients -->
+    <text x="28" y="172" font-size="11" fill="#5b6472">"How many clients per region?"</text>
+    <rect x="28" y="182" width="442" height="34" rx="4" fill="#ffffff" stroke="#cfe3d6" stroke-width="1"/>
+    <text x="40" y="203" font-size="11.5" font-family="Consolas, monospace" fill="#1f2a44">count(*) ... one row already means one client</text>
+
+    <text x="528" y="172" font-size="11" fill="#5b6472">"How many clients per region?"</text>
+    <rect x="528" y="182" width="444" height="34" rx="4" fill="#ffffff" stroke="#e3e7ed" stroke-width="1"/>
+    <text x="540" y="203" font-size="11.5" font-family="Consolas, monospace" fill="#1f2a44">count(DISTINCT client_id) over 1,056,319 rows</text>
+
+    <!-- cost row 2: entitlements -->
+    <text x="28" y="244" font-size="11" fill="#5b6472">Where the entitlement filter applies</text>
+    <rect x="28" y="254" width="442" height="34" rx="4" fill="#ffffff" stroke="#cfe3d6" stroke-width="1"/>
+    <text x="40" y="275" font-size="11.5" fill="#1f2a44">one predicate, on 5,369 client rows</text>
+
+    <text x="528" y="244" font-size="11" fill="#5b6472">Where the entitlement filter applies</text>
+    <rect x="528" y="254" width="444" height="34" rx="4" fill="#ffffff" stroke="#e3e7ed" stroke-width="1"/>
+    <text x="540" y="275" font-size="11.5" fill="#1f2a44">evaluated per posting, 1,056,319 times</text>
+
+    <!-- cost row 3: what a wrong query looks like -->
+    <text x="28" y="316" font-size="11" fill="#5b6472">If the query author forgets</text>
+    <rect x="28" y="326" width="442" height="22" rx="4" fill="#f1f8f3" stroke="#cfe3d6" stroke-width="1"/>
+    <text x="40" y="341" font-size="11" fill="#15803d">nothing to forget -- the grain is the table</text>
+
+    <text x="528" y="316" font-size="11" fill="#5b6472">If the query author forgets</text>
+    <rect x="528" y="326" width="444" height="22" rx="4" fill="#fdecec" stroke="#f0c9c9" stroke-width="1"/>
+    <text x="540" y="341" font-size="11" fill="#991b1b">a client with 300 postings is counted 300 times, silently</text>
+
+    <!-- footer claim -->
+    <text x="16" y="390" font-size="12" fill="#1f2a44">The ten questions have <tspan font-weight="600">four grains</tspan>: client, account, loan and posting. One table can only have one of them, so every</text>
+    <text x="16" y="408" font-size="12" fill="#1f2a44">other grain becomes a <tspan font-family="Consolas, monospace" font-size="11.5">DISTINCT</tspan> that an AI query author has to remember -- and gets wrong without any error.</text>
+  </g>
+</svg>

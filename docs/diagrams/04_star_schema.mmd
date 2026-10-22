@@ -1,0 +1,74 @@
+%% Core star schema. Grain and key are stated for every object in
+%% deliverables/model_explanation.md; this is the shape and the join paths.
+erDiagram
+    dim_district ||--o{ dim_client : "lives in"
+    dim_district ||--o{ dim_account : "registered in"
+    dim_client ||--o{ bridge_disposition : "may operate"
+    dim_account ||--o{ bridge_disposition : "is operated via"
+    bridge_disposition ||--o| dim_card : "holds"
+    dim_account ||--o{ fact_loan : "carries"
+    dim_account ||--o{ fact_transaction : "is posted to"
+    dim_account ||--o{ fact_account_month_end_balance : "snapshot of"
+    dim_date ||--o{ fact_transaction : "posted on"
+    dim_date ||--o{ fact_loan : "granted on"
+
+    dim_district {
+        int district_id PK
+        text district_name
+        text region
+        int inhabitants
+        numeric average_salary
+    }
+    dim_client {
+        int client_id PK
+        date birth_date
+        text gender
+        int district_id FK
+        bool birth_number_valid
+    }
+    dim_account {
+        int account_id PK
+        date open_date
+        text statement_frequency
+        int district_id FK
+    }
+    bridge_disposition {
+        int disp_id PK
+        int client_id FK
+        int account_id FK
+        bool is_owner
+    }
+    dim_card {
+        int card_id PK
+        int disp_id FK
+        text card_type
+        date issued_date
+    }
+    fact_loan {
+        int loan_id PK
+        int account_id FK
+        date loan_date
+        numeric amount
+        text loan_status
+        bool is_problematic
+    }
+    fact_transaction {
+        int trans_id PK
+        int account_id FK
+        date trans_date
+        numeric signed_amount
+        numeric balance_after
+        text direction
+    }
+    fact_account_month_end_balance {
+        int account_id FK
+        date month_end_date
+        numeric closing_balance
+        bool is_carried_forward
+    }
+    dim_date {
+        date date_key PK
+        int year
+        int month
+        bool is_month_end
+    }

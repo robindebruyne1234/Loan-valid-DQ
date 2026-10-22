@@ -35,6 +35,8 @@ INCLUDE_TREES: tuple[tuple[str, str], ...] = (
     ("dq/results", "*"),
     ("llm_logs", "*.json"),
     ("scripts", "*"),
+    ("docs", "*.md"),
+    ("docs/diagrams", "*"),
 )
 
 #: Individual files at the repository root.
@@ -65,27 +67,31 @@ Excel workbook, which is a separate deliverable.
 ## Read in this order
 
 1. `README.md` -- what was built, how to run it, and what the results were.
-2. `semantic/semantic_layer.yaml` -- **the semantic solution**: the single
+2. `docs/VISUAL_GUIDE.md` -- six figures: the pipeline, the query path and
+   where the entitlement filter lives, what each severity does, the star
+   schema, and two decision comparisons.
+3. `semantic/semantic_layer.yaml` -- **the semantic solution**: the single
    source of business meaning. Entities with their grain, certified metric
    definitions, a glossary that says what each word is NOT, the data quality
    caveats with row counts, and the traps each question contains.
-3. `semantic/context_pack.md` -- that file rendered into the exact text the LLM
+4. `semantic/context_pack.md` -- that file rendered into the exact text the LLM
    received. Nothing else was in its context.
-4. `semantic/prompt_template.md` -- the prompt around it.
-5. `src/sql_guard.py` -- what happens to the SQL the model produces before it
+5. `semantic/prompt_template.md` -- the prompt around it.
+6. `src/sql_guard.py` -- what happens to the SQL the model produces before it
    is allowed to run.
-6. `sql/50_sec_rls.sql` -- the entitlement model and the row level security
+7. `sql/50_sec_rls.sql` -- the entitlement model and the row level security
    policies (Task 3).
-7. `dq/dq_rules.yaml` -- the 88 hand-written data quality rules, each with its
+8. `dq/dq_rules.yaml` -- the 88 hand-written data quality rules, each with its
    severity and the reason for that severity (Task 1).
-8. `llm_logs/` -- one JSON file per model call: prompt, model, parameters, raw
+9. `llm_logs/` -- one JSON file per model call: prompt, model, parameters, raw
    response, timing and cost. This is the evidence behind the Questions tab.
-9. `dq/results/` -- the profile, the candidate defects, the data quality report,
+10. `dq/results/` -- the profile, the candidate defects, the data quality report,
    the reference answers, the LLM answers and the evaluation.
 
 ## Layout
 
 ```
+docs/         VISUAL_GUIDE.md and the diagram sources and renders
 semantic/     the semantic layer, the rendered context pack, the prompt
 sql/          numbered SQL, in execution order (00 schemas .. 70 defect injector)
 src/          Python orchestration; src/config.py holds every shared constant
