@@ -1,0 +1,645 @@
+# =============================================================================
+# semantic_layer.yaml -- the single source of business meaning
+#
+# This file is the semantic solution. It is the only thing an AI consumer is
+# told about the data: src/semantic_context.py renders it into the context pack
+# that goes into the prompt, and src/semantic_context.py --validate checks it
+# against the live database, so a column described here that does not exist
+# (or a column that exists and is not described) fails the build.
+#
+# What it deliberately contains:
+#   * the grain of every entity, because a wrong grain is how an AI assistant
+#     produces a confidently wrong number;
+#   * metrics with their exact SQL definition, so "problematic" and "incoming"
+#     mean one thing;
+#   * the data quality caveats, with the rule id and the row count, so a model
+#     can repeat the caveat instead of presenting a clean-looking number;
+#   * the ambiguities the questions contain, resolved and labelled with the
+#     assumption id from ASSUMPTIONS.md.
+#
+# What it deliberately does NOT contain: any answer, any reference value, and
+# any entitlement predicate. Answers would make the evaluation meaningless, and
+# an entitlement predicate in a prompt is a request rather than a control -- the
+# filter is a row level security policy in the database (see sql/50_sec_rls.sql).
+# =============================================================================
+
+meta:
+  name: Berka governed data product
+  version: 1.0.0
+  dialect: postgresql
+  dialect_version: "16"
+  query_schema: ai
+  description: >-
+    A governed, entitlement-aware view of a Czech retail bank's 1993-1998 book:
+    clients, accounts, dispositions, cards, loans, standing orders and
+    1.06 million transactions. Every entity below has been cleaned against 123
+    data quality rules; rows that broke a key, a join path or a certified
+    metric were quarantined and are not present.
+  currency: CZK
+  currency_note: >-
+    Every monetary column is in Czech koruna. There is no currency column and
+    no conversion anywhere in the product (assumption A19).
+  date_range:
+    from: "1993-01-01"
+    to: "1998-12-31"
+  date_range_note: >-
+    The book ends on 1998-12-31. A question about a later period has no data,
+    and the honest answer is to say so rather than to return an empty result as
+    if it were a zero.
+
+# -----------------------------------------------------------------------------
+# Rules the query author must follow. These are instructions to the model, and
+# they are also enforced: src/sql_guard.py rejects a query that breaks the
+# first four before it reaches the database.
+# -----------------------------------------------------------------------------
+query_rules:
+  - id: QR1
+    rule: Read only from the `ai` schema. Never reference `core`, `stg`, `raw`, `dq`, `sec` or `inject`.
+    why: >-
+      The ai schema is the governed surface: business names, decoded labels,
+      documented grains. The other schemas are internal and their shapes change.
+  - id: QR2
+    rule: Emit exactly one statement, a single SELECT (a leading WITH is fine). No semicolon-separated batches.
+    why: Anything else is rejected by the guard before execution.
+  - id: QR3
+    rule: Never emit DDL or DML -- no INSERT, UPDATE, DELETE, CREATE, ALTER, DROP, GRANT, SET, COPY or CALL.
+    why: The data product is read only for consumers; such a statement is rejected and logged.
+  - id: QR4
+    rule: Do not try to widen what you can see, and do not mention entitlements in the SQL.
+    why: >-
+      Results are already filtered to the caller's entitled clients by a
+      database policy. Nothing you can write changes that, so an attempt only
+      produces a rejected query.
+  - id: QR5
+    rule: Use the certified metric definitions below verbatim. Never re-derive `is_problematic`, `direction` or an age.
+    why: >-
+      These are the definitions the bank has agreed. Re-deriving them is how two
+      reports end up disagreeing about the same word.
+  - id: QR6
+    rule: When a question asks "per month" or "per year", join `ai.calendar` so periods with no activity are returned as zero.
+    why: >-
+      An omitted period reads as "no data", which is a different claim from
+      "nothing happened". Q6 is exactly this case.
+  - id: QR7
+    rule: Prefer the pre-joined entity over assembling the join yourself. `ai.loan` and `ai.account_owner` already carry the owner, their card type and the statement frequency.
+    why: >-
+      The owner join is the one most likely to go wrong: a card can belong to a
+      disponent rather than to the account owner, and these entities have
+      already resolved that.
+  - id: QR8
+    rule: Return the supporting counts next to a percentage or an average, and surface the relevant caveat from `caveats` below.
+    why: >-
+      A share over a small denominator and a share over a large one are
+      different facts. A number whose caveat is missing is not a governed answer.
+  - id: QR9
+    rule: Round percentages to two decimals. Do not round monetary sums.
+    why: Consistency with the rest of the product's reporting.
+  - id: QR10
+    rule: If a question cannot be answered from the entities below, say exactly what is missing instead of guessing a column.
+    why: >-
+      An invented column name produces an error; an invented *meaning* produces
+      a plausible wrong answer, which is worse.
+
+# -----------------------------------------------------------------------------
+# Glossary: the words the questions use, defined once.
+# -----------------------------------------------------------------------------
+glossary:
+  - term: account owner
+    definition: >-
+      The single client who legally holds the account: the disposition of type
+      OWNER. Exactly one per account, guaranteed by a block-severity data
+      quality rule.
+    not: >-
+      A disponent, who may operate the account but does not own it. A card held
+      by a disponent does NOT make the owner a card holder (assumption A5).
+    where: ai.account_owner (one row per account), ai.loan (owner columns)
+  - term: disponent
+    definition: >-
+      A client authorised to transact on an account they do not own, for example
+      a spouse. 869 of 4,500 accounts have one.
+    where: ai.card.holder_is_account_owner = false
+  - term: problematic loan
+    definition: >-
+      A loan with status B (finished, not repaid) or D (running, client in
+      debt). Available as the boolean `is_problematic`.
+    not: >-
+      Status A (finished, paid in full) or C (running, no problem). Counting
+      only B -- realised losses -- is a different and much smaller number
+      (assumption A4).
+    where: ai.loan.is_problematic
+  - term: incoming transaction
+    definition: >-
+      A credit posting: `direction = 'credit'` (source type PRIJEM). Money
+      arriving in the account.
+    not: >-
+      A net flow. For "incoming amount" sum the positive `amount`, not
+      `signed_amount` (assumption A7).
+    where: ai.transaction.direction
+  - term: new account
+    definition: An account whose `open_date` falls in the period asked about.
+    where: ai.account.open_date
+  - term: region
+    definition: >-
+      One of eight Czech regions, from the district. A client's region is the
+      region of the district the CLIENT lives in (`ai.client.region`); an
+      account's region is the region of the district the ACCOUNT is registered
+      in (`ai.account.region`).
+    careful: >-
+      The two differ for 409 of 4,500 account owners (9.1 percent). A question
+      about clients uses the client's region (assumption A1); a question about
+      money arriving at accounts uses the account's region (assumption A8).
+    where: ai.client.region, ai.account.region, ai.district.region
+  - term: statement frequency
+    definition: >-
+      How often the bank issues a statement for the account: monthly, weekly or
+      after transaction. Already in English.
+    where: ai.account.statement_frequency, ai.loan.statement_frequency
+  - term: month-end balance
+    definition: >-
+      The account balance after the last posting on or before the last day of
+      that month, with ties on a date broken by the highest transaction id, and
+      carried forward from the last known balance for months with no posting.
+    where: ai.account_month_end_balance
+    careful: >-
+      Use this entity rather than computing a balance from ai.transaction: the
+      tie-break and the carry-forward are already applied here, consistently
+      with every other balance figure the bank reports (assumption A14).
+  - term: age at loan start
+    definition: >-
+      The account owner's exact age in years, including the fractional part, on
+      the loan start date. Pre-computed.
+    where: ai.loan.owner_age_at_loan_start
+    careful: >-
+      Do not compute it as a difference of calendar years: that reports ages
+      about half a year too high (assumption A10).
+
+# -----------------------------------------------------------------------------
+# Certified metrics. Each one has the exact expression to use.
+# -----------------------------------------------------------------------------
+metrics:
+  - name: client_count
+    description: Number of clients.
+    expression: count(*)
+    entity: ai.client
+    grain_note: ai.client is one row per client, so no DISTINCT is needed.
+  - name: account_count
+    description: Number of accounts.
+    expression: count(*)
+    entity: ai.account
+  - name: loan_count
+    description: Number of loans.
+    expression: count(*)
+    entity: ai.loan
+    grain_note: >-
+      ai.loan is one row per loan, not per account. In this book every account
+      has at most one loan, but the model does not rely on that.
+  - name: total_loan_amount
+    description: Total principal granted.
+    expression: sum(amount)
+    entity: ai.loan
+    careful: >-
+      The principal, not `monthly_payment * duration_months`, which is the gross
+      repayment including interest (assumption A3).
+  - name: average_loan_amount
+    description: Average principal per loan.
+    expression: round(avg(amount), 2)
+    entity: ai.loan
+  - name: problematic_loan_share
+    description: Share of loans that are problematic, as a percentage.
+    expression: round(100.0 * count(*) FILTER (WHERE is_problematic) / count(*), 2)
+    entity: ai.loan
+    careful: >-
+      Always report `count(*)` and `count(*) FILTER (WHERE is_problematic)`
+      beside it, so the denominator is visible.
+  - name: incoming_transaction_amount
+    description: Total amount arriving in accounts.
+    expression: sum(amount)
+    entity: ai.transaction
+    filter: direction = 'credit'
+  - name: outgoing_transaction_amount
+    description: Total amount leaving accounts.
+    expression: sum(amount)
+    entity: ai.transaction
+    filter: direction = 'debit'
+  - name: net_flow
+    description: Net movement, credits minus debits.
+    expression: sum(signed_amount)
+    entity: ai.transaction
+  - name: average_month_end_balance
+    description: Average closing balance across accounts at a given month end.
+    expression: round(avg(closing_balance), 2)
+    entity: ai.account_month_end_balance
+    filter: "month_end_date = DATE 'YYYY-MM-DD'"
+    careful: >-
+      Average over accounts that have a known balance on that date. An account
+      with no posting has no balance and must not be counted as zero
+      (assumption A15). Report `count(*)` and
+      `count(*) FILTER (WHERE is_carried_forward)` beside the average.
+  - name: average_age_at_loan_start
+    description: Average exact age of the account owner when the loan started.
+    expression: round(avg(owner_age_at_loan_start), 2)
+    entity: ai.loan
+  - name: gender_share
+    description: Share of a population by gender, as a percentage.
+    expression: round(100.0 * count(*) / sum(count(*)) OVER (), 2)
+    entity: any entity with a gender column
+    careful: Percentages must sum to 100; report the counts as well.
+
+# -----------------------------------------------------------------------------
+# Entities. One per view in the ai schema.
+# Every column is listed with its business meaning; semantic_context.py
+# --validate fails if this list and the database disagree.
+# -----------------------------------------------------------------------------
+entities:
+
+  - name: ai.client
+    business_name: Client
+    description: >-
+      A person who banks with us. One row per client, including clients who
+      hold no account.
+    grain: one row per client
+    primary_key: [client_id]
+    row_count_unfiltered: 5369
+    answers: [Q1]
+    columns:
+      - {name: client_id, type: bigint, description: "Unique client identifier. The entitlement key."}
+      - {name: birth_date, type: date, description: "Date of birth, decoded from the source birth number."}
+      - {name: gender, type: text, description: "Gender, decoded from the source birth number.", allowed_values: [male, female]}
+      - {name: district_id, type: bigint, description: "District the client lives in."}
+      - {name: district_name, type: text, description: "Name of the district the client lives in."}
+      - {name: region, type: text, description: "Region the client lives in. This is the region Q1 groups by.", allowed_values: [Prague, "central Bohemia", "east Bohemia", "north Bohemia", "south Bohemia", "west Bohemia", "north Moravia", "south Moravia"]}
+      - {name: is_account_owner, type: boolean, description: "True when this client legally owns at least one account (rather than only being a disponent)."}
+      - {name: data_quality_flags, type: "text[]", description: "Warn-level data quality flags on this row; empty array when clean."}
+    joins:
+      - {to: ai.district, "on": "district_id", note: "The client's own district."}
+      - {to: ai.account_owner, "on": "client_id = owner_client_id", note: "The accounts this client owns."}
+
+  - name: ai.account
+    business_name: Account
+    description: A current account held at the bank. One row per account.
+    grain: one row per account
+    primary_key: [account_id]
+    row_count_unfiltered: 4500
+    answers: [Q6]
+    columns:
+      - {name: account_id, type: bigint, description: "Unique account identifier."}
+      - {name: open_date, type: date, description: "Date the account was opened. This is what 'new account' means."}
+      - {name: statement_frequency, type: text, description: "How often a statement is issued, in English.", allowed_values: [monthly, weekly, "after transaction"]}
+      - {name: district_id, type: bigint, description: "District the ACCOUNT is registered in (not necessarily where its owner lives)."}
+      - {name: district_name, type: text, description: "Name of the account's district."}
+      - {name: region, type: text, description: "Region of the account's district. Q5 uses this one."}
+      - {name: data_quality_flags, type: "text[]", description: "Warn-level data quality flags on this row."}
+    joins:
+      - {to: ai.district, "on": "district_id", note: "The account's own district."}
+      - {to: ai.account_owner, "on": "account_id", note: "Who owns the account."}
+      - {to: ai.transaction, "on": "account_id"}
+      - {to: ai.loan, "on": "account_id"}
+
+  - name: ai.account_owner
+    business_name: Account with its owner
+    description: >-
+      Each account together with its single legal owner, the owner's own
+      region, and the card the OWNER holds. The entity to use for anything
+      phrased "of the account owner".
+    grain: one row per account
+    primary_key: [account_id]
+    row_count_unfiltered: 4500
+    answers: [Q8]
+    columns:
+      - {name: account_id, type: bigint, description: "Account identifier."}
+      - {name: account_open_date, type: date, description: "Date the account was opened."}
+      - {name: statement_frequency, type: text, description: "Statement frequency of the account.", allowed_values: [monthly, weekly, "after transaction"]}
+      - {name: account_district_id, type: bigint, description: "District the account is registered in."}
+      - {name: account_district_name, type: text, description: "Name of the account's district."}
+      - {name: account_region, type: text, description: "Region of the account's district."}
+      - {name: owner_client_id, type: bigint, description: "Client who legally owns the account."}
+      - {name: owner_birth_date, type: date, description: "Owner's date of birth."}
+      - {name: owner_gender, type: text, description: "Owner's gender.", allowed_values: [male, female]}
+      - {name: owner_district_name, type: text, description: "Name of the district the OWNER lives in."}
+      - {name: owner_region, type: text, description: "Region the OWNER lives in. Differs from account_region for 9.1 percent of accounts."}
+      - {name: owner_card_id, type: bigint, description: "The owner's card, NULL when the owner holds no card."}
+      - {name: owner_card_type, type: text, description: "Type of the card held by the OWNER. NULL means the owner holds no card; a card held by a disponent is deliberately not shown here.", allowed_values: [junior, classic, gold]}
+      - {name: owner_card_issued_date, type: date, description: "When the owner's card was issued."}
+      - {name: data_quality_flags, type: "text[]", description: "Warn-level data quality flags on the account, owner or disposition."}
+    joins:
+      - {to: ai.client, "on": "owner_client_id = client_id"}
+      - {to: ai.loan, "on": "account_id"}
+      - {to: ai.account_month_end_balance, "on": "account_id"}
+
+  - name: ai.card
+    business_name: Payment card
+    description: >-
+      An issued payment card with its holder. A card belongs to a disposition,
+      so its holder is not always the account owner.
+    grain: one row per card
+    primary_key: [card_id]
+    row_count_unfiltered: 892
+    answers: []
+    columns:
+      - {name: card_id, type: bigint, description: "Unique card identifier."}
+      - {name: card_type, type: text, description: "Product tier of the card.", allowed_values: [junior, classic, gold]}
+      - {name: issued_date, type: date, description: "Date the card was issued."}
+      - {name: holder_client_id, type: bigint, description: "Client holding the card."}
+      - {name: account_id, type: bigint, description: "Account the card operates on."}
+      - {name: holder_is_account_owner, type: boolean, description: "True when the holder is the account OWNER; false when the holder is a disponent. Filter on true for any question about the owner's card."}
+    joins:
+      - {to: ai.account, "on": "account_id"}
+      - {to: ai.client, "on": "holder_client_id = client_id"}
+
+  - name: ai.loan
+    business_name: Loan
+    description: >-
+      A loan, pre-joined to its account owner, the owner's card type, the
+      owner's exact age at loan start and the account's statement frequency.
+      Answers Q2, Q3, Q4, Q7 and Q10 with no further joins.
+    grain: one row per loan
+    primary_key: [loan_id]
+    row_count_unfiltered: 682
+    answers: [Q2, Q3, Q4, Q7, Q10]
+    columns:
+      - {name: loan_id, type: bigint, description: "Unique loan identifier."}
+      - {name: account_id, type: bigint, description: "Account carrying the loan."}
+      - {name: loan_date, type: date, description: "Date the loan started. This is the date a loan is 'granted' on."}
+      - {name: loan_year, type: integer, description: "Year of loan_date, materialised so a yearly grouping needs no date function."}
+      - {name: amount, type: numeric, description: "Principal granted, in CZK. This is what 'loan amount' means."}
+      - {name: duration_months, type: bigint, description: "Term in months.", allowed_values: [12, 24, 36, 48, 60]}
+      - {name: monthly_payment, type: numeric, description: "Scheduled monthly repayment, in CZK."}
+      - {name: status_code, type: text, description: "Source status code.", allowed_values: [A, B, C, D]}
+      - {name: loan_status, type: text, description: "Status in business language.", allowed_values: ["finished, paid in full", "finished, unpaid (default)", "running, no problem", "running, client in debt"]}
+      - {name: is_problematic, type: boolean, description: "The certified definition of a problematic loan: status B or D. Use this column, never a status comparison of your own."}
+      - {name: statement_frequency, type: text, description: "Statement frequency of the loan's account. Q10 groups by this.", allowed_values: [monthly, weekly, "after transaction"]}
+      - {name: owner_client_id, type: bigint, description: "Client who owns the loan's account."}
+      - {name: owner_gender, type: text, description: "Gender of the account owner.", allowed_values: [male, female]}
+      - {name: owner_birth_date, type: date, description: "Date of birth of the account owner."}
+      - {name: owner_age_at_loan_start, type: numeric, description: "Exact age in years of the account owner on the loan start date, including the fractional part. Pre-computed; do not recompute."}
+      - {name: owner_card_type, type: text, description: "Card type of the account OWNER. The literal value 'no card' is used where the owner holds none, so grouping by this column covers every loan.", allowed_values: [junior, classic, gold, "no card"]}
+      - {name: account_district_name, type: text, description: "District the loan's account is registered in."}
+      - {name: account_region, type: text, description: "Region of the account's district."}
+      - {name: owner_region, type: text, description: "Region the account owner lives in."}
+      - {name: data_quality_flags, type: "text[]", description: "Warn-level flags, for example 'val_owner_age_at_loan_start' on the 6 loans whose owner is recorded as under 15."}
+    joins:
+      - {to: ai.account_owner, "on": "account_id"}
+      - {to: ai.account, "on": "account_id"}
+
+  - name: ai.transaction
+    business_name: Transaction
+    description: >-
+      One posting on an account. 1.06 million rows, the largest entity.
+      Pre-joined to the account's district and region.
+    grain: one row per posting
+    primary_key: [trans_id]
+    row_count_unfiltered: 1056319
+    answers: [Q5]
+    columns:
+      - {name: trans_id, type: bigint, description: "Unique posting identifier. Not chronological within a date."}
+      - {name: account_id, type: bigint, description: "Account the posting belongs to."}
+      - {name: trans_date, type: date, description: "Date of the posting."}
+      - {name: direction, type: text, description: "Whether money came in or went out. 'credit' is an incoming amount, which is what Q5 asks for.", allowed_values: [credit, debit]}
+      - {name: transaction_type, type: text, description: "Posting type in business language.", allowed_values: [credit, debit, "withdrawal (legacy debit)"]}
+      - {name: amount, type: numeric, description: "Amount of the posting, always positive. Sum this for 'incoming amount'."}
+      - {name: signed_amount, type: numeric, description: "Positive for credits, negative for debits. Sum this for a NET flow only."}
+      - {name: balance_after, type: numeric, description: "Account balance after this posting. Can be negative (overdraft), which is normal and must not be clipped."}
+      - {name: operation, type: text, description: "How the money moved. NULL means 'not applicable': the posting was generated by the bank's interest run, which has no customer operation. It is not a missing value.", allowed_values: ["cash deposit", "cash withdrawal", "credit card withdrawal", "collection from another bank", "remittance to another bank"]}
+      - {name: category, type: text, description: "What the posting was for. NULL where the source gives no category.", allowed_values: ["insurance payment", "payment for statement", "interest credited", "sanction interest for negative balance", "household payment", "old age pension", "loan payment"]}
+      - {name: account_district_id, type: bigint, description: "District of the account the posting belongs to."}
+      - {name: account_district_name, type: text, description: "Name of that district. Q5 ranks by this."}
+      - {name: account_region, type: text, description: "Region of that district."}
+    joins:
+      - {to: ai.account, "on": "account_id"}
+      - {to: ai.calendar, "on": "trans_date = date_key"}
+
+  - name: ai.account_month_end_balance
+    business_name: Account balance at month end
+    description: >-
+      The closing balance of each account at each month end, with the intra-day
+      tie-break and the carry-forward already applied. The right source for any
+      question about the balance at the end of a period.
+    grain: one row per account per month end
+    primary_key: [account_id, month_end_date]
+    row_count_unfiltered: 185615
+    answers: [Q9]
+    columns:
+      - {name: account_id, type: bigint, description: "Account identifier."}
+      - {name: month_end_date, type: date, description: "Last calendar day of the month this balance refers to, for example 1998-12-31."}
+      - {name: closing_balance, type: numeric, description: "Balance after the last posting on or before month_end_date, in CZK. Can be negative."}
+      - {name: is_carried_forward, type: boolean, description: "True when the account had no posting in that month and the balance is inherited from an earlier month. Report how many rows this applies to."}
+      - {name: balance_as_of_month_end, type: date, description: "The month end the balance was actually observed at. Equals month_end_date when is_carried_forward is false."}
+      - {name: account_data_quality_flags, type: "text[]", description: "Warn-level flags on the account, including 'con_balance_reconciliation_material' for the 55 accounts whose flows disagree with their reported balance by more than 100 CZK."}
+    joins:
+      - {to: ai.account, "on": "account_id"}
+      - {to: ai.account_owner, "on": "account_id"}
+
+  - name: ai.district
+    business_name: District
+    description: >-
+      Administrative district reference data, including the region. Not
+      entitlement filtered: it contains no client information.
+    grain: one row per district
+    primary_key: [district_id]
+    row_count_unfiltered: 77
+    answers: [Q1, Q5]
+    columns:
+      - {name: district_id, type: bigint, description: "Unique district identifier."}
+      - {name: district_name, type: text, description: "District name."}
+      - {name: region, type: text, description: "Region the district belongs to."}
+      - {name: inhabitants, type: bigint, description: "Population of the district."}
+      - {name: average_salary, type: numeric, description: "Average salary in the district, in CZK."}
+      - {name: unemployment_rate_1996, type: numeric, description: "Unemployment rate in 1996, as a percentage."}
+      - {name: entrepreneurs_per_1000, type: numeric, description: "Entrepreneurs per 1,000 inhabitants."}
+      - {name: crimes_1996, type: bigint, description: "Crimes committed in 1996."}
+
+  - name: ai.calendar
+    business_name: Calendar
+    description: >-
+      One row per day in the book's window. Join to it when a question asks per
+      month or per year, so that periods with no activity come back as zero
+      instead of being omitted.
+    grain: one row per calendar day
+    primary_key: [date_key]
+    row_count_unfiltered: 2191
+    answers: [Q6]
+    columns:
+      - {name: date_key, type: date, description: "The calendar day."}
+      - {name: year, type: integer, description: "Calendar year, 1993 to 1998."}
+      - {name: quarter, type: integer, description: "Calendar quarter, 1 to 4."}
+      - {name: month, type: integer, description: "Month number, 1 to 12."}
+      - {name: month_name, type: text, description: "Month name in English, for example 'January'."}
+      - {name: year_month, type: text, description: "Year and month as text, for example '1996-01'. Useful as a stable sort key."}
+      - {name: month_start, type: date, description: "First day of the month this day belongs to."}
+      - {name: month_end, type: date, description: "Last day of the month this day belongs to."}
+      - {name: is_month_end, type: boolean, description: "True when this day is the last day of its month. Filter on it to get one row per month."}
+
+  - name: ai.code_reference
+    business_name: Code catalogue
+    description: >-
+      The published mapping from source codes to business labels. The entities
+      above already expose the labels, so this is for explaining an answer
+      rather than for joining.
+    grain: one row per code per code set
+    primary_key: [code_set, code]
+    row_count_unfiltered: 27
+    answers: []
+    columns:
+      - {name: code_set, type: text, description: "Which code set the code belongs to, for example 'loan_status'."}
+      - {name: code, type: text, description: "The source code."}
+      - {name: label, type: text, description: "The business label."}
+      - {name: code_set_note, type: text, description: "What the code set means."}
+
+  - name: ai.my_entitlement
+    business_name: My entitlement
+    description: >-
+      One row describing the calling user's own entitlement. Query it to tell
+      "there are no such rows" apart from "you are not entitled to those rows".
+    grain: one row
+    primary_key: []
+    row_count_unfiltered: 1
+    answers: []
+    columns:
+      - {name: database_role, type: text, description: "The role the caller is authenticated as."}
+      - {name: entitled_clients, type: bigint, description: "How many clients the caller may see."}
+      - {name: entitled_accounts, type: bigint, description: "How many accounts the caller may see."}
+      - {name: portfolios, type: text, description: "The portfolios the caller holds, comma separated. NULL when none."}
+
+# -----------------------------------------------------------------------------
+# Data quality caveats the model must be able to repeat. Each one names the
+# rule that found it and the number of rows, so a caveat can be quantified
+# rather than hedged.
+# -----------------------------------------------------------------------------
+caveats:
+  - id: C1
+    applies_to: [ai.account_month_end_balance, ai.transaction]
+    metric: average_month_end_balance
+    rule_id: CON_BALANCE_RECONCILIATION_MATERIAL
+    severity: warn
+    rows: 55
+    caveat: >-
+      For 55 of 4,500 accounts the sum of all postings disagrees with the last
+      reported balance by more than 100 CZK (one by 1,200 CZK). The balance
+      column is used as reported, because it is what the bank's own statements
+      showed; the discrepancy means the flows cannot reproduce it. Flagged as
+      'con_balance_reconciliation_material' in account_data_quality_flags.
+  - id: C2
+    applies_to: [ai.account_month_end_balance]
+    metric: average_month_end_balance
+    rule_id: CON_INTRADAY_ORDER_AMBIGUOUS
+    severity: warn
+    rows: 183
+    caveat: >-
+      Transaction ids are not chronological within a day, so when an account has
+      several postings on its last active day the closing balance is a
+      documented choice (highest transaction id) rather than a fact. This
+      affects 183 accounts.
+  - id: C3
+    applies_to: [ai.loan, ai.account_owner]
+    metric: average_age_at_loan_start
+    rule_id: VAL_OWNER_AGE_AT_LOAN_START
+    severity: warn
+    rows: 6
+    caveat: >-
+      6 loans were granted to account owners recorded as under 15 years old
+      (minimum 10.3 years), which is not legally possible. The loans are kept
+      because their amount and status are sound, and they are flagged as
+      'val_owner_age_at_loan_start'. Report the average age with and without
+      them when asked about age.
+  - id: C4
+    applies_to: [ai.client, ai.account]
+    metric: null
+    rule_id: CON_CLIENT_ACCOUNT_DISTRICT_MISMATCH
+    severity: info
+    rows: 409
+    caveat: >-
+      409 of 4,500 account owners (9.1 percent) live in a different district
+      than their account is registered in. This is not a defect. It means a
+      question about regions must say whose region it means: use ai.client.region
+      for clients, ai.account.region for accounts and the money in them.
+  - id: C5
+    applies_to: [ai.transaction]
+    metric: null
+    rule_id: UNQ_TRANS_BUSINESS_KEY
+    severity: block
+    rows: 1
+    caveat: >-
+      One posting was a duplicate by business key (same account, date, type,
+      amount and resulting balance as another posting with a different id). It
+      was quarantined, so ai.transaction holds 1,056,319 rows rather than the
+      1,056,320 in the source file.
+  - id: C6
+    applies_to: [ai.transaction]
+    metric: null
+    rule_id: COMP_TRANS_OPERATION_STRUCTURAL
+    severity: info
+    rows: 183114
+    caveat: >-
+      183,114 postings have no operation. All of them are interest credits from
+      the bank's own interest run, which has no customer operation behind it.
+      The NULL means "not applicable" and must not be filtered out as missing
+      data, nor imputed.
+  - id: C7
+    applies_to: [ai.transaction]
+    metric: null
+    rule_id: VAL_TRANS_AMOUNT_POSITIVE
+    severity: info
+    rows: 14
+    caveat: >-
+      14 postings have an amount of exactly zero. They are interest runs that
+      accrued nothing. They are genuine events and change no sum.
+
+# -----------------------------------------------------------------------------
+# Entitlements, stated for the model's benefit so it does not misread an empty
+# result. This is a description of a control, not the control itself.
+# -----------------------------------------------------------------------------
+entitlements:
+  model: >-
+    Every entity except ai.district, ai.calendar and ai.code_reference is
+    filtered to the clients the calling user is entitled to. The filter is a
+    row level security policy inside the database, applied to every statement
+    on the connection.
+  implications_for_the_query_author:
+    - The filter is already applied. Never add an entitlement predicate, and never try to remove one.
+    - Two users running your identical SQL will correctly get different numbers. That is not an error.
+    - An empty result may mean "not entitled" rather than "nothing matches". ai.my_entitlement distinguishes them.
+    - A percentage or a share is computed over what the caller may see, so it is a statement about their portfolio.
+
+# -----------------------------------------------------------------------------
+# Phrase-to-entity hints. These are not answers: they point at the entity and
+# the trap, and the query is still the model's job.
+# -----------------------------------------------------------------------------
+question_patterns:
+  - phrase: "clients per region / how many clients"
+    use: ai.client
+    trap: Use the client's own region, not the account's (assumption A1).
+  - phrase: "loans per year / amount granted"
+    use: ai.loan with loan_year
+    trap: Sum amount (the principal), not monthly_payment * duration_months.
+  - phrase: "problematic / bad / defaulted loans"
+    use: ai.loan.is_problematic
+    trap: Do not redefine it from status_code; B and D are both problematic.
+  - phrase: "per card type of the account owner"
+    use: ai.loan.owner_card_type
+    trap: >-
+      It already means the OWNER's card and already contains the literal
+      'no card', so every loan is in exactly one group. Do not join ai.card.
+  - phrase: "incoming transaction amount / money received"
+    use: "ai.transaction with direction = 'credit'"
+    trap: Sum amount, not signed_amount, and take the district from the account.
+  - phrase: "new accounts per month"
+    use: ai.account.open_date joined to ai.calendar
+    trap: Join the calendar so a month with no new accounts is reported as zero.
+  - phrase: "age of the owner at loan start"
+    use: ai.loan.owner_age_at_loan_start
+    trap: Pre-computed and exact; do not derive it from birth dates.
+  - phrase: "gender split of gold card holders"
+    use: "ai.account_owner with owner_card_type = 'gold'"
+    trap: >-
+      Owners only. A disponent's gold card is not the owner's, and ai.card
+      would include it unless holder_is_account_owner is filtered.
+  - phrase: "balance at the end of <month>"
+    use: ai.account_month_end_balance
+    trap: >-
+      Filter month_end_date to the last day of that month, and report how many
+      balances were carried forward.
+  - phrase: "which statement frequency has the highest share"
+    use: ai.loan grouped by statement_frequency
+    trap: >-
+      A within-group rate (problematic / all loans of that frequency), not the
+      group's share of all problematic loans. Return the full ranking.
