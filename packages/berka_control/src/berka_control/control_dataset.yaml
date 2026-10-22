@@ -1,0 +1,201 @@
+# =============================================================================
+# control_dataset.yaml -- THE GOVERNED SURFACE
+#
+# The shared surface between the three layer agents is a dataset, not a Python
+# module. That is the whole point: a shared `config.py` is code that three
+# agents are tempted to edit, while a control dataset is data that they read
+# and may only change by proposal.
+#
+# It carries two things that look different and are not:
+#
+#   1. GOVERNANCE -- who owns which files, what each layer may import, and the
+#      contract each layer publishes to the next. Declarative, so a scope or
+#      contract violation is detectable rather than a matter of opinion.
+#
+#   2. A CONTROL DATASET in the experimental sense -- a small, canonical set of
+#      rows with the known-correct result at each layer. This is what lets one
+#      layer be changed, or one intermediate step re-run, without standing up
+#      1.06 m rows of PostgreSQL: the layer is verified against a known answer
+#      in milliseconds.
+#
+# frozen: true means agents may read this file and may not write it. A change
+# is raised through berka_control.proposals and applied by the human who owns
+# the surface. See docs/MEDALLION_REFACTOR.md section 2.
+# =============================================================================
+
+version: 1
+frozen: true
+
+governance:
+  surface_owner: human
+  change_policy: propose-only
+  rationale: >-
+    Three agents editing one shared constants file concurrently is the most
+    likely way a layered build corrupts itself. Freezing the surface and
+    requiring a proposal costs one round trip and removes the whole class.
+
+# -----------------------------------------------------------------------------
+# Constants every layer needs. The single source, as data.
+# -----------------------------------------------------------------------------
+shared_constants:
+  century_prefix: 1900
+  date_min: "1993-01-01"
+  date_max: "1998-12-31"
+  severities: [block, warn, info]
+  problematic_loan_statuses: [B, D]
+  min_age_at_event: 15
+  balance_tolerance_czk: 1.00
+
+# -----------------------------------------------------------------------------
+# The three layers: ownership, import direction, and the contract each
+# publishes. An agent is judged against the contract of the layer it owns.
+# -----------------------------------------------------------------------------
+layers:
+
+  bronze:
+    package: berka_bronze
+    goal: Land source data verbatim and prove what arrived.
+    owns:
+      - src/ingest.py
+      - sql/00_schemas.sql#raw
+      - data/raw/
+    may_import: [berka_control]
+    must_not_import: [berka_silver, berka_gold]
+    consumes: null
+    publishes:
+      name: bronze_landing
+      tables: [client, account, loan, trans]
+      row_guarantees:
+        all_columns_text: true
+        lineage_columns: [_source_file, _source_row]
+        preserves_empty_string_vs_null: true
+      audit:
+        per_file: [rows, sha256, source_file]
+      idempotent: true
+
+  silver:
+    package: berka_silver
+    goal: Type, decode, measure, and grade every defect with a stated reason.
+    owns:
+      - sql/10_stg.sql
+      - sql/70_inject_defects.sql
+      - src/profile_data.py
+      - src/dq_runner.py
+      - dq/dq_rules.yaml
+    may_import: [berka_control]
+    must_not_import: [berka_bronze, berka_gold]
+    consumes: bronze_landing
+    publishes:
+      name: silver_conformed
+      tables: [client, account, loan, trans]
+      row_guarantees:
+        row_count_equals_bronze: true
+        preserves_amount_sums: true
+        lineage_columns: [_source_file, _source_row]
+        conversion_audit: true
+      control_plane:
+        blocked: "(table, business_key) rejected by a block rule"
+        flags: "(table, business_key, flag) marked by a warn rule"
+        flag_keys_must_resolve: true
+
+  gold:
+    package: berka_gold
+    goal: Business meaning, certified metrics, and entitlement-filtered serving.
+    owns:
+      - sql/30_core.sql
+      - sql/40_ai_views.sql
+      - sql/50_sec_rls.sql
+      - src/build_model.py
+      - src/build_security.py
+      - semantic/semantic_layer.yaml
+    may_import: [berka_control]
+    must_not_import: [berka_bronze, berka_silver]
+    consumes: silver_conformed
+    publishes:
+      name: gold_served
+      entities: [client, account, loan]
+      row_guarantees:
+        equals_silver_minus_blocked: true
+        declared_grain_holds: true
+        warn_flags_visible: true
+      serving:
+        entitlement_filtered: true
+        filter_location: database_policy
+
+# -----------------------------------------------------------------------------
+# THE CONTROL DATASET
+#
+# Deliberately tiny and deliberately dirty: one defect per severity, so every
+# branch of the severity framework is exercised by a run that takes a
+# millisecond. Shaped like the real Berka data so the simulation is
+# recognisable, not so it is representative.
+#
+# Planted defects (the expectations below are derived from these by hand):
+#   - trans T5 duplicates T4 exactly except for its id   -> block
+#   - client C4 was 11 years old when A4 was opened      -> warn
+#   - trans T6 has an amount of exactly zero             -> info
+#   - account A9 on loan L3 does not exist               -> block (orphan)
+# -----------------------------------------------------------------------------
+control_dataset:
+  description: >-
+    Known-answer fixture. Each layer's expected output is stated, so a layer
+    can be changed and verified on its own without the database.
+
+  source_files:
+    client.asc: |
+      "client_id";"birth_number";"district_id"
+      1;"706213";18
+      2;"450204";1
+      3;"561201";5
+      4;"821115";18
+    account.asc: |
+      "account_id";"district_id";"frequency";"date"
+      1;18;"POPLATEK MESICNE";930101
+      2;1;"POPLATEK TYDNE";940215
+      3;5;"POPLATEK PO OBRATU";950630
+      4;18;"POPLATEK MESICNE";931010
+    loan.asc: |
+      "loan_id";"account_id";"date";"amount";"duration";"payments";"status"
+      1;1;930705;96396;12;8033.00;"B"
+      2;2;940801;165960;36;4610.00;"A"
+      3;9;950901;52788;12;4399.00;"C"
+    trans.asc: |
+      "trans_id";"account_id";"date";"type";"operation";"amount";"balance";"k_symbol"
+      1;1;930101;"PRIJEM";"VKLAD";1000.00;1000.00;""
+      2;1;930115;"VYDAJ";"VYBER";200.00;800.00;""
+      3;2;940215;"PRIJEM";"VKLAD";5000.00;5000.00;""
+      4;2;940301;"VYDAJ";"VYBER";1500.00;3500.00;""
+      5;2;940301;"VYDAJ";"VYBER";1500.00;3500.00;""
+      6;3;950630;"VYDAJ";"VYBER";0.00;0.00;"SANKC. UROK"
+
+  expectations:
+
+    bronze:
+      row_counts: {client: 4, account: 4, loan: 3, trans: 6}
+      all_columns_text: true
+      files_audited: 4
+
+    silver:
+      row_counts: {client: 4, account: 4, loan: 3, trans: 6}
+      amount_sums: {loan: 315144.00, trans: 9200.00}
+      blocked:
+        - {table: trans, business_key: "5", rule: UNQ_TRANS_BUSINESS_KEY}
+        - {table: loan, business_key: "3", rule: RI_LOAN_ACCOUNT}
+      flags:
+        - {table: client, business_key: "4", flag: val_owner_age_at_account_open}
+      info_only:
+        - {table: trans, business_key: "6", rule: VAL_TRANS_AMOUNT_POSITIVE}
+
+    gold:
+      row_counts: {client: 4, account: 4, loan: 2, trans: 5}
+      certified_metrics:
+        problematic_loan_pct: 50.00
+        total_loan_amount: 262356.00
+      grain_one_row_per:
+        client: client_id
+        account: account_id
+        loan: loan_id
+      entitlements:
+        NORTH_BOOK: {clients: [1, 4], visible_accounts: [1, 4], visible_loans: [1]}
+        SOUTH_BOOK: {clients: [2], visible_accounts: [2], visible_loans: [2]}
+        UNASSIGNED: {clients: [], visible_accounts: [], visible_loans: []}

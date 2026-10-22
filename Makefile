@@ -11,7 +11,8 @@ export PYTHONPATH
 
 .DEFAULT_GOAL := help
 .PHONY: help up down deps ingest profile dq model reference semantic questions \
-        entitlements evaluate workbook ddr zip deliverables test all clean status diagrams
+        entitlements evaluate workbook ddr zip deliverables test all clean status \
+        diagrams simulate
 
 help:  ## Show the available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -67,6 +68,18 @@ zip:  ## Package the semantic solution and code as a ZIP
 	$(PY) -m src.make_zip
 
 deliverables: workbook ddr zip  ## Build every deliverable
+
+simulate:  ## Run the three simulated layer agents (bronze -> silver -> gold)
+	$(PY) scripts/simulate_agents.py
+
+simulate-faults:  ## Prove each gate catches its fault, and that propose works
+	@for f in scope contract acceptance dangling-flag; do \
+		$(PY) scripts/simulate_agents.py --fault $$f >/dev/null \
+			&& echo "simulate | fault $$f -> caught" \
+			|| { echo "simulate | fault $$f -> NOT CAUGHT"; exit 1; }; \
+	done
+	@$(PY) scripts/simulate_agents.py --scenario propose >/dev/null \
+		&& echo "simulate | scenario propose -> passed, proposal recorded"
 
 diagrams:  ## Re-render docs/diagrams (optional; outputs are committed)
 	@bash scripts/render_diagrams.sh

@@ -1,7 +1,18 @@
 # Next step: three layer-owning agents on a medallion split
 
-**Status: proposal + first draft. Nothing has been refactored and no agent has
-been run.** The submitted pipeline on `ccr-46f6f45a-t9wtd4` is untouched.
+**Status: decided, and simulated. No production code has been refactored and
+no live agent has been run.** The submitted pipeline is untouched; the three
+layers now also exist as isolated Python packages running against a control
+dataset, so the structure can be judged before anything is migrated.
+
+Decisions taken (sections 8 and 9 record the reasoning and what is left):
+
+| | |
+|---|---|
+| Layers | **Three: bronze, silver, gold.** Sub-topics live inside a layer, not as a fourth. |
+| Isolated containers | **Isolated Python packages**, so one layer -- or one intermediate step -- can be changed and verified alone. Not Docker. |
+| Shared surface | **A control dataset**, frozen, changed only by proposal. |
+| Execution | **Simulated.** The agents are not triggered; the harness runs them with dummy work so the boundary can be tested without a model in the loop. |
 
 The goal is not "use agents". It is that someone opening this repository cold
 can see three self-contained pieces with a stated contract between them,
@@ -31,8 +42,13 @@ to change. Splitting them would give `gold-model` and `platinum-serving`, and
 would put the two hardest-won lessons in this repo -- grain verification and
 `security_invoker` -- in different agents' hands.
 
-Three was asked for, so the draft is three. **Decision 1 below is whether that
-is right.**
+**Decided: three.** Gold holds model, serving and entitlement as sub-topics of
+one layer rather than as separate layers. The consequence is accepted and worth
+stating: `gold-serving` owns both the grain verification and the
+`security_invoker` rule, which are the two failures this project actually hit.
+That agent's definition therefore carries both explicitly, and its acceptance
+criteria check both, because one owner with two known hazards needs them named
+rather than assumed.
 
 ---
 
@@ -55,21 +71,34 @@ lines), `src/db.py` (301), the `Makefile`, and the shared parts of
 constant lives, which is deliberate and worth keeping. Three agents editing
 one `config.py` concurrently is the single most likely way this goes wrong.
 
-Three ways to handle it, in order of preference:
+**Decided: the surface is a control dataset, frozen, changed by proposal.**
 
-1. **Freeze it and require a proposal.** Agents may read `config.py`; a change
-   is reported, not made. Cheapest, and it keeps the "one place for every
-   constant" property the project is built on. The orchestrator (or you)
-   applies the change once, then re-runs the affected agents.
-2. **Split by layer with a shared base**: `config/base.py`, `config/bronze.py`,
-   `config/silver.py`, `config/gold.py`. Cleaner ownership, but the constants
-   genuinely are shared -- `DATA_MIN_DATE` is used by a Silver validity rule and
-   a Gold date dimension -- so the split would duplicate or re-export, which is
-   worse than the problem.
-3. A fourth `platform` agent owning the shared surface. More coordination than
-   it saves at this size.
+The move that makes this work is that the shared surface stopped being code. A
+shared `config.py` is a module three agents are each tempted to edit; a control
+dataset is data they read. `packages/berka_control/src/berka_control/control_dataset.yaml`
+carries the shared constants, the ownership matrix, the import rules and the
+contract each layer publishes -- and `ControlDataset` has no setter. An agent
+reaching for one gets a `FrozenSurfaceError` whose message names the
+alternative:
 
-The draft assumes option 1.
+```
+the control surface is frozen: 'shared_constants.balance_tolerance_czk' cannot
+be set to 5.0 from a layer agent. Raise a proposal instead --
+LayerAgent.propose(target, current, proposed, reason) -- and a human applies it
+and bumps the surface version.
+```
+
+`make simulate` with `--scenario propose` runs that path end to end: Silver
+tries the edit, is refused, raises `prop_xxxxxxxx`, finishes its work, and the
+proposal is listed for a human. The run still passes -- being refused is not a
+failure, it is the design.
+
+The control dataset carries a second meaning that turned out to matter more
+than the governance one. It is also a **control dataset in the experimental
+sense**: a handful of rows with one planted defect per severity and the
+known-correct answer at each layer. That is what makes a layer verifiable on
+its own -- Silver is checked against a stated answer in 13 milliseconds, with
+no database, no Bronze run and no other agent.
 
 ---
 
@@ -122,52 +151,80 @@ Everything else is a move, not new work.
 
 ---
 
-## 5. What "isolated containers" could mean
+## 5. What "isolated containers" means here
 
-Three readings, with what each costs:
+**Decided: isolated Python distributions, one per layer**, each able to be
+changed and verified on its own. Not Docker -- a compose service per layer would
+add orchestration and image builds to a project whose brief says in bold that
+time spent on infrastructure means the brief was misread. It is the right shape
+for a real platform with separate release cadences and separate on-call owners,
+and it belongs in the walkthrough as that, not in this repository.
 
-**(a) Python packages — recommended.** `src/bronze/`, `src/silver/`,
-`src/gold/`, `src/shared/`, with an import rule enforced by a test: nothing in
-`bronze` may import `silver` or `gold`, nothing in `silver` may import `gold`.
-About half a day. Makes the dependency direction visible and un-violatable, and
-a reviewer can read one directory and stop.
-
-**(b) Per-layer test suites and make targets — recommended, do it first.**
-`make bronze`, `make silver`, `make gold`, each running its build and its
-tests. About an hour, and it is what turns the acceptance criteria above from
-prose into something an agent can check itself against. This is the highest
-value per hour in the whole proposal.
-
-**(c) Literal containers — not recommended for this submission.** A compose
-service per layer, or three repositories with a shared contract package. It is
-the right answer for a real platform with separate release cadences and
-separate on-call owners. Here it would add orchestration, image builds and
-inter-service wiring to a project whose brief says in bold that time spent on
-infrastructure means the brief was misread. Worth describing in the walkthrough
-as the production shape; not worth building.
-
-Target tree under (a) + (b):
+What exists now, built and runnable:
 
 ```
-src/
-  shared/      config.py  db.py            <- frozen, change by proposal
-  bronze/      ingest.py
-  silver/      profile_data.py  dq_runner.py  inject_defects.py
-  gold/        build_model.py  build_security.py  semantic_context.py
-               sql_guard.py  run_reference.py
-  consume/     llm_client.py  run_questions.py  evaluate.py
-  deliver/     make_workbook.py  make_ddr.py  make_zip.py  make_status.py
-tests/
-  bronze/  silver/  gold/  contracts/
+packages/
+  berka_control/    pyproject.toml   the governed surface
+    control_dataset.yaml             constants, ownership, contracts, known answers
+    dataset.py                       read-only access; set() always refuses
+    contracts.py                     the guarantees, and their verification
+    runtime.py                       the five gates every agent passes through
+    proposals.py                     raise a change instead of making one
+  berka_bronze/     depends on berka-control only
+  berka_silver/     depends on berka-control only
+  berka_gold/       depends on berka-control only
+scripts/simulate_agents.py           the ONLY module that imports all three
+tests/agentsim/                      21 tests
 ```
 
-Note that `consume/` and `deliver/` fall outside the three layers. They are not
-part of the medallion: one is the AI client, the other builds the submission
-documents. Pretending they belong to Gold would weaken the Gold contract.
+The dependency direction is a straight line into the surface, and it is
+enforced rather than documented: each agent's scope gate parses its own
+package with `ast` and fails on an import of a sibling layer. Each
+`pyproject.toml` is tested too, so a layer cannot acquire a sibling dependency
+at the distribution level either.
+
+Three things fall **outside** the medallion and say so: the LLM client, the
+question runner and the deliverable builders. One is a consumer of Gold, the
+others produce submission documents. Folding them into Gold to make the diagram
+tidy would weaken the Gold contract, which is the one that has to mean
+something.
 
 ---
 
-## 6. Risks
+## 6. The five gates, and the proof they work
+
+Every agent, in the simulation and in production, passes the same five gates:
+
+| Gate | What it catches | How it is proved |
+|---|---|---|
+| **Scope** | the layer imported a sibling | `--fault scope` writes a real `import berka_gold` into the Silver package; the gate reads the source and refuses |
+| **Input contract** | the upstream artefact is not what was promised | a layer that consumes a contract it did not receive stops before doing any work |
+| **Work** | - | the layer's own transformation, the only thing the agent writes |
+| **Output contract** | this layer broke what it declared | `--fault contract` drops one row and trips "this layer never filters"; `--fault dangling-flag` records a flag whose key resolves to nothing |
+| **Acceptance** | the output disagrees with the known answer | `--fault acceptance` miscomputes a certified metric |
+
+A harness that always passes demonstrates nothing, which is the same argument
+as the defect injector in the production pipeline. `make simulate-faults` runs
+all four and asserts each is caught; `tests/agentsim` asserts it again, plus
+that a failed layer hands **no artefact** downstream -- passing broken work on
+is how one layer's defect becomes three layers' debugging.
+
+The healthy run: 29 acceptance criteria across three layers, in about 20
+milliseconds.
+
+```
+bronze-agent [PASS]   5 criteria    silver-agent [PASS]  10 criteria
+gold-agent   [PASS]  14 criteria
+```
+
+`--only silver` re-runs one layer against the saved Bronze artefact. That is
+the practical payoff of the split and the reason artefacts are written to disk:
+changing Silver costs 13 milliseconds and needs neither a database nor the
+other two agents.
+
+---
+
+## 7. Risks
 
 - **The submission is finished, verified and pushed.** A refactor touches every
   import path and every `make` target. Do it on a new branch; leave
@@ -187,19 +244,66 @@ documents. Pretending they belong to Gold would weaken the Gold contract.
 
 ---
 
-## 7. What I need from you
+## 8. What would be done next, and why that order
 
-Seven decisions. The first five change the design; the last two change whether
-anything runs.
+This is the part worth arguing about, because the order is the decision.
 
-| # | Decision | My recommendation |
+**1. Write the Bronze tests first, before any migration.** Bronze has zero
+dedicated tests today; its guarantees are asserted inside `src/ingest.py` and
+never re-checked. Until they exist, `bronze-ingest` has no definition of done,
+and an agent with no stopping condition does not stop. Six tests, named in
+section 4. This is first because everything after it is verified *by* it.
+
+**2. Split the test suite by layer, and leave the code alone.** `tests/bronze`,
+`tests/silver`, `tests/gold`, plus `make bronze|silver|gold` running each
+layer's build and its own tests. An hour of work, no production code moves, and
+it converts the acceptance criteria from prose into something an agent can run
+against itself. The ordering matters: a test suite that is already partitioned
+makes the later package move boring, while moving packages first means
+debugging two changes at once.
+
+**3. Move the code into the packages, one layer at a time, Bronze first.**
+Bronze is 250 lines and has exactly one downstream consumer, so if the contract
+idea is wrong, it is wrong cheaply. Silver is 3,900 lines and should move last
+despite being the most valuable to isolate, because it is where a mistake is
+most expensive to find.
+
+**4. Promote the control dataset from simulation to production.** The constants
+in `src/config.py` become the `shared_constants` block; `src/config.py` becomes
+a thin reader over it. This is the step that makes freeze-and-propose real
+rather than demonstrated, and it is deliberately late: the surface should be
+frozen only once the layer boundaries have stopped moving, or every boundary
+change becomes a proposal.
+
+**5. Only then consider running a real agent**, on one layer, with the
+acceptance criteria already executable. My recommendation remains Silver, and
+remains one before three.
+
+**What I would not do.** Rename the database schemas to `bronze`/`silver`/
+`gold`; the mapping table buys the same understanding for nothing. Build
+containers. Split Gold into a fourth layer before someone has actually felt the
+pain of its two sub-topics sharing an owner.
+
+**The honest caveat on the whole exercise.** The simulation proves the boundary
+is *checkable*, not that it is *correct*. Its dummy work is 50 lines a layer
+against four tables; the real Silver is 3,900 lines against eight. What it
+genuinely de-risks is the design -- contracts, gates, the frozen surface,
+single-layer re-runs -- all of which would otherwise be discovered during the
+migration, which is the worst time to discover them. That is why it was worth
+building before the refactor rather than after.
+
+---
+
+## 9. What still needs a human
+
+Five decisions are taken and built. Four remain, and all four are judgement
+calls about cost and intent rather than about design:
+
+| # | Open question | What it changes |
 |---|---|---|
-| 1 | Three layers, or four (splitting Gold-model from serving)? | **Four** if this becomes a real platform, three for now. Three keeps the agent count you asked for and the contracts simple. |
-| 2 | Rename the schemas to `bronze`/`silver`/`gold`? | **No.** Keep `raw`/`stg`/`core`/`ai` and publish the mapping table. All cost, no behaviour. |
-| 3 | What does "isolated containers" mean to you? | **(b) then (a)**: per-layer make targets and test suites first, then the package split. Not Docker. |
-| 4 | How is the shared surface (`config.py`, `db.py`, `Makefile`) governed? | **Freeze and propose.** Agents read it, never write it. |
-| 5 | Is this for the take-home, or for the "what would you do next" answer? | **Next-step answer**, on a separate branch. Section 6 explains why. |
-| 6 | Do you want the agents actually spawned, and with what token budget? | Spawning three agents on a codebase this size is real cost. I would run **one** first (Silver, the largest at ~3,900 lines) to see whether the boundary holds, before committing to three. |
-| 7 | Who writes the missing Bronze tests? | **Me, before any agent runs.** Without them `bronze-ingest` has no acceptance criteria to meet, and an agent with no definition of done will keep going. |
+| 1 | Is the migration (step 3 above) in scope at all, or does the simulation answer the "what would you do next" question on its own? | If the simulation is enough, nothing further is needed: it is committed, runs in 20 ms and is covered by 21 tests. The migration is roughly a day and touches every import path in `src/`. |
+| 2 | Which branch? | The submitted pipeline runs in 4m28s and is pushed. I would keep it as the thing that demonstrably works and migrate on a branch of its own. |
+| 3 | Do you want a real agent run at any point, and with what budget? | Three agents against a 12,000-line codebase is real token cost. One, on Silver, with the acceptance criteria already executable, is the cheap way to find out whether the boundary holds under a model rather than under a script. |
+| 4 | Should the fixture in the control dataset grow? | It is four tables and six transactions, enough to exercise one defect per severity. Growing it makes the known answers more convincing and more tedious to maintain by hand -- worth doing only if the simulation becomes the main verification route rather than a design probe. |
 
-Answer 1 to 5 and the draft becomes a plan. Answer 6 and 7 and it becomes work.
+Nothing above blocks the submission. Everything above is reversible.

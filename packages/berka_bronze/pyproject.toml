@@ -1,0 +1,13 @@
+[project]
+name = "berka-bronze"
+version = "0.1.0"
+description = "The bronze layer of the Berka data product, as an isolated package"
+requires-python = ">=3.11"
+dependencies = ["berka-control"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

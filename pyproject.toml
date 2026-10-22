@@ -17,7 +17,13 @@ dev = ["pytest>=7.4"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
-pythonpath = ["."]
+pythonpath = [
+    ".",
+    "packages/berka_control/src",
+    "packages/berka_bronze/src",
+    "packages/berka_silver/src",
+    "packages/berka_gold/src",
+]
 
 [tool.ruff]
 line-length = 100
