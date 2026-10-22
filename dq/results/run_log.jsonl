@@ -20,3 +20,7 @@
 {"step": "questions", "command": "make questions (provider=claude_cli, model=claude-sonnet-5-5)", "executed_at_utc": "2026-10-22T10:38:40+00:00", "detail": {"answered": 10, "total": 10, "answered_first_attempt": 10, "run_as": "cro_global"}}
 {"step": "evaluate", "command": "make evaluate", "executed_at_utc": "2026-10-22T10:39:22+00:00", "detail": {"tally": {"match": 9, "mismatch": 1}}}
 {"step": "evaluate", "command": "make evaluate", "executed_at_utc": "2026-10-22T10:40:15+00:00", "detail": {"tally": {"match": 10}}}
+{"step": "workbook", "command": "make workbook", "executed_at_utc": "2026-10-22T10:44:08+00:00", "detail": {"tabs": ["Overview", "Defect types", "Model", "Questions", "Q detail", "DQ rules", "Assumptions", "Entitlements", "Run log"], "defect_types": 14}}
+{"step": "zip", "command": "make zip", "executed_at_utc": "2026-10-22T10:45:18+00:00", "detail": {"files": 74, "size_kb": 469.7}}
+{"step": "ddr", "command": "make ddr", "executed_at_utc": "2026-10-22T10:47:20+00:00", "detail": {"words": 1520, "pages": 2}}
+{"step": "zip", "command": "make zip", "executed_at_utc": "2026-10-22T10:49:22+00:00", "detail": {"files": 79, "size_kb": 483.0}}
