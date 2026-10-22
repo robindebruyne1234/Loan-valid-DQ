@@ -1,0 +1,28 @@
+# Portable database for this data product.
+#
+# The pipeline needs one thing from its environment: a PostgreSQL 16 server
+# reachable with the credentials in src/config.py. This compose file provides
+# one. Where a Docker daemon is not available (as in the container this
+# submission was built in), `make up` falls back to a natively installed
+# PostgreSQL 16 cluster and the pipeline is identical -- same DDL, same row
+# level security, same results. See DECISIONS.md D002.
+services:
+  db:
+    image: postgres:16
+    container_name: berka_pg
+    environment:
+      POSTGRES_DB: berka
+      POSTGRES_USER: berka_owner
+      POSTGRES_PASSWORD: berka_owner_pw
+    ports:
+      - "5432:5432"
+    volumes:
+      - berka_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U berka_owner -d berka"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  berka_pgdata:

@@ -1,0 +1,11 @@
+id,question
+Q1,How many clients do we have per region?
+Q2,What is the total amount of loans granted per year?
+Q3,What percentage of our loans are problematic?
+Q4,What is the average loan amount per card type of the account owner?
+Q5,Which 10 districts had the highest total incoming transaction amount in 1997?
+Q6,How many new accounts were opened per month in 1996?
+Q7,"What was the average age of the account owner at loan start, per loan status?"
+Q8,What is the gender split of account owners holding a gold card?
+Q9,What was the average account balance at the end of December 1998?
+Q10,Which statement frequency has the highest share of problematic loans?

@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+# Local scratch, never part of the submission
+scratch/
+# LibreOffice conversion leftovers
+.~lock.*
