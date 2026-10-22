@@ -201,7 +201,9 @@ def sheet_overview(book: Workbook, context: dict[str, Any]) -> None:
         ("Onboarding", "4 inserts and one credential; no policy, view or query "
                        "change"),
         ("", ""),
-        ("Tests", f"{context['test_count']} passing"),
+        ("Tests", f"{context['test_count']} passing"
+                   if isinstance(context["test_count"], int)
+                   else f"test count {context['test_count']}"),
         ("Full pipeline", "make up && make all -- 4m28s end to end from an empty database"),
     ]
     for label, value in facts:
@@ -444,6 +446,25 @@ def sheet_question_detail(book: Workbook, context: dict[str, Any]) -> None:
         row += 1
 
 
+def _rules_executed_last_run() -> int | str:
+    """Read how many rules the most recent run against staging executed.
+
+    :returns: The count, or :data:`src.config.NOT_EXECUTED` when no run exists.
+    """
+    with db.connect() as conn:
+        run_id = db.fetch_value(
+            conn,
+            "SELECT run_id FROM dq.run WHERE dataset = %s ORDER BY started_at DESC LIMIT 1",
+            (config.SCHEMA_STG,),
+        )
+        if run_id is None:
+            return config.NOT_EXECUTED
+        return int(
+            db.fetch_value(conn, "SELECT count(*) FROM dq.results WHERE run_id = %s", (run_id,))
+            or 0
+        )
+
+
 def sheet_rules(book: Workbook) -> dict[str, int]:
     """Write the DQ rules tab: every rule with its severity and justification.
 
@@ -457,13 +478,17 @@ def sheet_rules(book: Workbook) -> dict[str, int]:
     row = 1
     sheet.cell(row=row, column=1, value="The data quality rule set").font = TITLE_FONT
     row += 1
+    # Both figures are read from the rule file and the last run, never typed:
+    # a count in a deliverable that no command produced is the defect this
+    # workbook exists to avoid.
+    executed = _rules_executed_last_run()
     note = sheet.cell(
         row=row, column=1,
         value=f"{len(rules)} hand-written rules, plus a completeness sweep that expands to "
-              "one rule per column of every table at run time (123 executed in total). The "
-              "loader refuses to run a rule that lacks a severity, a justification or the "
-              "list of questions it affects. Results per run are in the dq.results table and "
-              "dq/results/dq_report.md.",
+              f"one rule per column of every table at run time ({executed} executed in the "
+              "last run). The loader refuses to run a rule that lacks a severity, a "
+              "justification or the list of questions it affects. Results per run are in the "
+              "dq.results table and dq/results/dq_report.md.",
     )
     note.font = SUBTLE_FONT
     note.alignment = WRAP
@@ -629,6 +654,43 @@ def sheet_run_log(book: Workbook) -> None:
         )
 
 
+def count_tests() -> int | str:
+    """Count the tests by collecting them, rather than by remembering.
+
+    The Overview tab previously carried a hand-written figure, which went
+    stale the moment a test was added -- a number in a deliverable that no
+    command produced, which is the one thing this project says it does not do.
+    Collecting them costs a few seconds and cannot drift.
+
+    :returns: The number of collected tests, or :data:`src.config.NOT_EXECUTED`
+        when collection failed.
+    """
+    import re
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["python3", "-m", "pytest", "tests/", "--collect-only", "-q"],
+            capture_output=True,
+            text=True,
+            timeout=300,
+            cwd=config.PROJECT_ROOT,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        LOGGER.warning("could not collect tests -> %s", exc)
+        return config.NOT_EXECUTED
+
+    # `pytest --collect-only -q` ends with one "<file>: <count>" line per file.
+    counts = [int(match) for match in re.findall(r"^\S+\.py: (\d+)$", result.stdout, re.MULTILINE)]
+    if not counts:
+        LOGGER.warning("could not parse a test count from pytest output")
+        return config.NOT_EXECUTED
+    total = sum(counts)
+    LOGGER.info("collected %d tests across %d files", total, len(counts))
+    return total
+
+
 def gather_context() -> dict[str, Any]:
     """Collect everything the workbook needs from the pipeline outputs.
 
@@ -715,7 +777,7 @@ def gather_context() -> dict[str, Any]:
         "semantic_columns": sum(len(e["columns"]) for e in layer["entities"]),
         "semantic_metrics": len(layer["metrics"]),
         "semantic_caveats": len(layer["caveats"]),
-        "test_count": 114,
+        "test_count": count_tests(),
         "dq_summary": {
             "rules_total": int(dq_rows["rules_total"] or 0),
             "fired": int(dq_rows["fired"] or 0),

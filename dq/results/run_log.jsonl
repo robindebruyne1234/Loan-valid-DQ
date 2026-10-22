@@ -41,3 +41,8 @@
 {"step": "workbook", "command": "make workbook", "executed_at_utc": "2026-10-22T10:55:23+00:00", "detail": {"tabs": ["Overview", "Defect types", "Model", "Questions", "Q detail", "DQ rules", "Assumptions", "Entitlements", "Run log"], "defect_types": 14}}
 {"step": "zip", "command": "make zip", "executed_at_utc": "2026-10-22T10:55:23+00:00", "detail": {"files": 79, "size_kb": 482.3}}
 {"step": "zip", "command": "make zip", "executed_at_utc": "2026-10-22T12:22:41+00:00", "detail": {"files": 99, "size_kb": 1265.5}}
+{"step": "workbook", "command": "make workbook", "executed_at_utc": "2026-10-22T21:57:19+00:00", "detail": {"tabs": ["Overview", "Defect types", "Model", "Questions", "Q detail", "DQ rules", "Assumptions", "Entitlements", "Run log"], "defect_types": 14}}
+{"step": "zip", "command": "make zip", "executed_at_utc": "2026-10-22T21:57:20+00:00", "detail": {"files": 123, "size_kb": 1320.7}}
+{"step": "workbook", "command": "make workbook", "executed_at_utc": "2026-10-22T21:58:04+00:00", "detail": {"tabs": ["Overview", "Defect types", "Model", "Questions", "Q detail", "DQ rules", "Assumptions", "Entitlements", "Run log"], "defect_types": 14}}
+{"step": "zip", "command": "make zip", "executed_at_utc": "2026-10-22T21:58:04+00:00", "detail": {"files": 123, "size_kb": 1321.0}}
+{"step": "zip", "command": "make zip", "executed_at_utc": "2026-10-22T21:59:11+00:00", "detail": {"files": 124, "size_kb": 1325.4}}

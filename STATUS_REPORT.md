@@ -1,6 +1,6 @@
 # STATUS REPORT
 
-Generated at 2026-10-22T10:54:58+00:00 (git b11c23f).
+Generated at 2026-10-22T21:57:19+00:00 (git 70f19af).
 
 This report exists because of the honesty rules: a step that did not run
 is marked `NOT EXECUTED` here and its cells in the deliverables are left
@@ -19,9 +19,9 @@ empty, rather than being filled with something plausible.
 | entitlements | `make entitlements` | executed | 2026-10-22T10:52:08+00:00 | database only |
 | questions | `make questions` | executed | 2026-10-22T10:54:03+00:00 | dq/results/llm_results.json |
 | evaluate | `make evaluate` | executed | 2026-10-22T10:54:04+00:00 | dq/results/evaluation.json |
-| workbook | `make workbook` | executed | 2026-10-22T10:54:55+00:00 | deliverables/Berka_TakeHome_Submission.xlsx |
-| ddr | `make ddr` | executed | 2026-10-22T10:54:57+00:00 | deliverables/DDR.docx |
-| zip | `make zip` | executed | 2026-10-22T10:54:57+00:00 | deliverables/semantic_solution.zip |
+| workbook | `make workbook` | executed | 2026-10-22T21:57:19+00:00 | deliverables/Berka_TakeHome_Submission.xlsx |
+| ddr | `make ddr` | executed | 2026-10-22T10:55:21+00:00 | deliverables/DDR.docx |
+| zip | `make zip` | executed | 2026-10-22T12:22:41+00:00 | deliverables/semantic_solution.zip |
 
 ## LLM execution
 

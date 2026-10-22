@@ -37,6 +37,15 @@ INCLUDE_TREES: tuple[tuple[str, str], ...] = (
     ("scripts", "*"),
     ("docs", "*.md"),
     ("docs/diagrams", "*"),
+    # Next-step material: the three layer agents and the simulation that
+    # exercises their boundary. Clearly labelled as such in the manifest --
+    # none of it is part of the assessed pipeline.
+    (".claude/agents", "*.md"),
+    ("tests/agentsim", "*.py"),
+    ("packages/berka_control/src/berka_control", "*"),
+    ("packages/berka_bronze/src/berka_bronze", "*.py"),
+    ("packages/berka_silver/src/berka_silver", "*.py"),
+    ("packages/berka_gold/src/berka_gold", "*.py"),
 )
 
 #: Individual files at the repository root.
@@ -54,9 +63,14 @@ INCLUDE_FILES: tuple[str, ...] = (
     "data/questions.csv",
     "deliverables/defects.csv",
     "deliverables/model_explanation.md",
+    "scripts/simulate_agents.py",
+    "packages/berka_control/pyproject.toml",
+    "packages/berka_bronze/pyproject.toml",
+    "packages/berka_silver/pyproject.toml",
+    "packages/berka_gold/pyproject.toml",
 )
 
-MANIFEST = """\
+MANIFEST_TEMPLATE = """\
 # semantic_solution.zip -- what is in here and where to start
 
 This archive is the "semantic solution and any code/agents" deliverable for the
@@ -81,12 +95,22 @@ Excel workbook, which is a separate deliverable.
    is allowed to run.
 7. `sql/50_sec_rls.sql` -- the entitlement model and the row level security
    policies (Task 3).
-8. `dq/dq_rules.yaml` -- the 88 hand-written data quality rules, each with its
+8. `dq/dq_rules.yaml` -- the {rule_count} hand-written data quality rules, each with its
    severity and the reason for that severity (Task 1).
 9. `llm_logs/` -- one JSON file per model call: prompt, model, parameters, raw
    response, timing and cost. This is the evidence behind the Questions tab.
 10. `dq/results/` -- the profile, the candidate defects, the data quality report,
    the reference answers, the LLM answers and the evaluation.
+
+## Not part of the assessed pipeline
+
+`packages/`, `.claude/agents/`, `tests/agentsim/`, `scripts/simulate_agents.py`
+and `docs/MEDALLION_REFACTOR.md` are **next-step material**, included because
+they show where this would go rather than what was built for the assessment.
+They are a simulation of three layer-owning agents (bronze, silver, gold) over
+an isolated-package split, run against a small control dataset. No production
+code was refactored for them and no agent was triggered; `make all` does not
+touch them. Run them with `make simulate`.
 
 ## Layout
 
@@ -104,11 +128,23 @@ deliverables/ defects.csv and the model explanation
 ## To run it
 
 ```
-make up     # PostgreSQL 16 (docker compose, or a native cluster)
-make all    # the whole pipeline, about 4.5 minutes
-make test   # the test suite
+make up        # PostgreSQL 16 (docker compose, or a native cluster)
+make all       # the whole pipeline, about 4.5 minutes
+make test      # the test suite
+make simulate  # the next-step agent simulation (no database needed)
 ```
 """
+
+
+def render_manifest() -> str:
+    """Render the manifest, reading the rule count rather than stating it.
+
+    :returns: The manifest text.
+    """
+    import yaml
+
+    rules = yaml.safe_load(config.DQ_RULES_YAML.read_text(encoding="utf-8"))["rules"]
+    return MANIFEST_TEMPLATE.format(rule_count=len(rules))
 
 
 def collect() -> list[tuple[Path, str]]:
@@ -139,7 +175,7 @@ def main() -> int:
     entries = collect()
     config.DELIVERABLES_DIR.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(config.SEMANTIC_ZIP, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
-        archive.writestr("MANIFEST.md", MANIFEST)
+        archive.writestr("MANIFEST.md", render_manifest())
         for path, name in entries:
             archive.write(path, name)
 
