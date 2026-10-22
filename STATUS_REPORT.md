@@ -1,6 +1,6 @@
 # STATUS REPORT
 
-Generated at 2026-10-22T10:49:22+00:00 (git 95de493).
+Generated at 2026-10-22T10:54:58+00:00 (git b11c23f).
 
 This report exists because of the honesty rules: a step that did not run
 is marked `NOT EXECUTED` here and its cells in the deliverables are left
@@ -10,18 +10,18 @@ empty, rather than being filled with something plausible.
 
 | step | command | status | last run (UTC) | evidence |
 |---|---|---|---|---|
-| ingest | `make ingest` | executed | 2026-10-22T09:40:30+00:00 | database only |
-| profile | `make profile` | executed | 2026-10-22T09:49:54+00:00 | dq/results/profile.json |
-| dq | `make dq` | executed | 2026-10-22T10:31:52+00:00 | deliverables/defects.csv |
-| model | `make model` | executed | 2026-10-22T10:32:03+00:00 | deliverables/model_explanation.md |
-| reference | `make reference` | executed | 2026-10-22T10:32:20+00:00 | dq/results/reference_results.json |
-| semantic | `make semantic` | executed | 2026-10-22T10:24:15+00:00 | semantic/context_pack.md |
-| entitlements | `make entitlements` | executed | 2026-10-22T10:36:21+00:00 | database only |
-| questions | `make questions` | executed | 2026-10-22T10:38:40+00:00 | dq/results/llm_results.json |
-| evaluate | `make evaluate` | executed | 2026-10-22T10:40:15+00:00 | dq/results/evaluation.json |
-| workbook | `make workbook` | executed | 2026-10-22T10:44:08+00:00 | deliverables/Berka_TakeHome_Submission.xlsx |
-| ddr | `make ddr` | executed | 2026-10-22T10:47:20+00:00 | deliverables/DDR.docx |
-| zip | `make zip` | executed | 2026-10-22T10:45:18+00:00 | deliverables/semantic_solution.zip |
+| ingest | `make ingest` | executed | 2026-10-22T10:50:34+00:00 | database only |
+| profile | `make profile` | executed | 2026-10-22T10:51:36+00:00 | dq/results/profile.json |
+| dq | `make dq` | executed | 2026-10-22T10:51:53+00:00 | deliverables/defects.csv |
+| model | `make model` | executed | 2026-10-22T10:52:04+00:00 | deliverables/model_explanation.md |
+| reference | `make reference` | executed | 2026-10-22T10:52:05+00:00 | dq/results/reference_results.json |
+| semantic | `make semantic` | executed | 2026-10-22T10:52:07+00:00 | semantic/context_pack.md |
+| entitlements | `make entitlements` | executed | 2026-10-22T10:52:08+00:00 | database only |
+| questions | `make questions` | executed | 2026-10-22T10:54:03+00:00 | dq/results/llm_results.json |
+| evaluate | `make evaluate` | executed | 2026-10-22T10:54:04+00:00 | dq/results/evaluation.json |
+| workbook | `make workbook` | executed | 2026-10-22T10:54:55+00:00 | deliverables/Berka_TakeHome_Submission.xlsx |
+| ddr | `make ddr` | executed | 2026-10-22T10:54:57+00:00 | deliverables/DDR.docx |
+| zip | `make zip` | executed | 2026-10-22T10:54:57+00:00 | deliverables/semantic_solution.zip |
 
 ## LLM execution
 

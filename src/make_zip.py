@@ -99,7 +99,7 @@ deliverables/ defects.csv and the model explanation
 
 ```
 make up     # PostgreSQL 16 (docker compose, or a native cluster)
-make all    # the whole pipeline, about 6 minutes
+make all    # the whole pipeline, about 4.5 minutes
 make test   # the test suite
 ```
 """

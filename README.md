@@ -5,7 +5,7 @@ product that an AI assistant can query correctly. Take-home submission.
 
 ```
 make up     # PostgreSQL 16 (docker compose if a daemon is available, else a native cluster)
-make all    # the whole pipeline and every deliverable, about 6 minutes
+make all    # the whole pipeline and every deliverable, 4m28s from an empty database
 make test   # 114 tests
 ```
 

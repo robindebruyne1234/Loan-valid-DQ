@@ -6,8 +6,8 @@
 product that an AI assistant can query correctly, and answer ten business
 questions through it. The brief warns that time spent on infrastructure is time
 misread, so the stack is one database, numbered SQL files, plain Python and a
-Makefile: `make up` starts it, `make all` runs it end to end in about six
-minutes.
+Makefile: `make up` starts it, `make all` runs it end to end in four and a half
+minutes, measured from an empty database.
 
 ### Decisions
 

@@ -6,8 +6,8 @@ honest answer is.
 
 ## The 10-minute version
 
-1. `make up && make all` -- one command, about six minutes, from eight `.asc`
-   files to every deliverable.
+1. `make up && make all` -- one command, 4m28s measured from an empty
+   database, from eight `.asc` files to every deliverable.
 2. **Task 1**: 123 rules across all six dimensions, every one with a severity
    *and* the reason for that severity written in terms of the ten questions.
    Show `deliverables/defects.csv`, then show `tests/test_dq.py` proving the
@@ -122,4 +122,4 @@ rows, rather than by reading the policies.
 | LLM | 10 of 10 answered first attempt, 10 of 10 match, ~2 minutes, ~USD 0.40 |
 | Entitlements | 1,481 / 1,386 / 5,369 / 0 clients visible to the four demo users |
 | Tests | 114 passing, including 9 bypass attempts and 20 seeded defects |
-| Pipeline | about 6 minutes end to end |
+| Pipeline | 4m28s end to end, from an empty database |

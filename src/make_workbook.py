@@ -202,7 +202,7 @@ def sheet_overview(book: Workbook, context: dict[str, Any]) -> None:
                        "change"),
         ("", ""),
         ("Tests", f"{context['test_count']} passing"),
-        ("Full pipeline", "make up && make all (about 6 minutes end to end)"),
+        ("Full pipeline", "make up && make all -- 4m28s end to end from an empty database"),
     ]
     for label, value in facts:
         if not label and not value:
