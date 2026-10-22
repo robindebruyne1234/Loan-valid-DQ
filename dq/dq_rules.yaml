@@ -1,0 +1,2173 @@
+# =============================================================================
+# dq_rules.yaml -- the data quality rule set
+#
+# Executed by src/dq_runner.py. Nothing here is hard-coded to one dataset: the
+# {s} placeholder is the schema the runner points the rules at, so the exact
+# same rule set runs against `stg` (the real data) and against `inject` (a
+# deliberately corrupted copy used to prove the rules fire). That is what makes
+# the rule set an asset rather than a one-off script.
+#
+# Every rule carries:
+#   rule_id             stable identifier, appears in dq.results and quarantine
+#   dimension           completeness | uniqueness | referential_integrity |
+#                       validity | consistency | reconciliation
+#   table               the table the defect belongs to (for reporting)
+#   description         the defect type, in business words
+#   severity            block | warn | info
+#   severity_rationale  WHY this severity, in terms of the 10 questions.
+#                       The brief is explicit: a rule without reasoning scores
+#                       the same as no rule.
+#   affects_questions   the questions whose answer changes if this fires
+#   handling            what the pipeline actually does about it
+#   sql                 returns one row per violation: business_key + reason
+#   total_sql           the denominator for the violation rate
+#   defect_type         optional: rules sharing one value are reported as a
+#                       single defect type in the Excel tab
+#
+# Severity contract (src/config.py):
+#   block  breaks a key, a join path or a certified metric -> row goes to
+#          dq.quarantine and never reaches core or the ai views
+#   warn   row stays usable, carries a flag, and the semantic layer attaches a
+#          caveat to every metric that touches it
+#   info   cosmetic or irrelevant to the current metrics -> standardise and log
+# =============================================================================
+
+version: 1
+
+# -----------------------------------------------------------------------------
+# Completeness sweep: null / empty / placeholder rate for EVERY column of EVERY
+# table. The sweep is the safety net for defects nobody predicted, which is the
+# situation the brief describes. Default severity is info because a null in a
+# column no certified metric reads cannot change an answer; the columns that do
+# feed answers are promoted to warn or block by the explicit rules below, and
+# the overrides map here.
+# -----------------------------------------------------------------------------
+sweeps:
+  - sweep_id: COMP_NULL
+    dimension: completeness
+    description_template: "Missing value in {table}.{column}"
+    defect_type: "Missing values in columns no certified metric reads"
+    severity_default: info
+    severity_rationale_default: >-
+      No answer to the 10 questions reads this column, so a null here cannot
+      change a reported number. It is logged with its null rate so that the
+      next metric built on this column starts from a known baseline, and it is
+      promoted to warn or block the moment a metric does read it.
+    handling_default: >-
+      Normalised to a real NULL in stg (placeholders '?', '', 'NA' and a bare
+      space all collapse), original text preserved in the matching *_raw audit
+      column, null rate published in dq/results/profile.md.
+    tables: [district, client, account, disp, card, loan, order, trans]
+    exclude_columns:
+      - _source_file
+      - _source_row
+      - _conversion_notes
+    # Columns whose nulls are explicitly covered by a hand-justified rule
+    # below. Excluded here so the same defect is not counted twice.
+    exclude_qualified:
+      - account.account_id
+      - account.open_date
+      - account.frequency_code
+      - account.frequency_label
+      - client.client_id
+      - client.birth_date
+      - client.birth_number
+      - client.gender
+      - client.district_id
+      - loan.loan_id
+      - loan.loan_date
+      - loan.amount
+      - loan.status_code
+      - loan.status_label
+      - trans.trans_id
+      - trans.trans_date
+      - trans.amount
+      - trans.signed_amount
+      - trans.balance_after
+      - trans.operation_code
+      - trans.operation_label
+      - trans.partner_bank
+      - trans.partner_account
+      - disp.disp_id
+      - disp.client_id
+      - disp.account_id
+      - disp.disp_type_code
+      - disp.disp_type_label
+      - card.card_type
+      - district.region
+      - district.unemployment_rate_1995
+      - district.crimes_1995
+
+rules:
+
+# =============================================================================
+# COMPLETENESS -- hand-justified, on the columns the answers depend on
+# =============================================================================
+
+  - rule_id: COMP_ACCOUNT_ID_MISSING
+    dimension: completeness
+    table: account
+    description: "Account identifier missing"
+    severity: block
+    severity_rationale: >-
+      account_id is the join key from accounts to dispositions, loans and
+      transactions. A row without it cannot be attributed to a client, so it
+      can neither be counted (Q6) nor entitlement-filtered, which makes it a
+      governance problem and not only a quality one.
+    affects_questions: [Q1, Q4, Q5, Q6, Q7, Q8, Q9, Q10]
+    handling: "Quarantine the row; never reaches core or the ai views."
+    total_sql: "SELECT count(*) FROM {s}.account"
+    sql: |
+      SELECT coalesce(_source_row::text, 'unknown-row') AS business_key,
+             'account_id is NULL' AS reason
+      FROM {s}.account
+      WHERE account_id IS NULL
+
+  - rule_id: COMP_ACCOUNT_OPEN_DATE_MISSING
+    dimension: completeness
+    table: account
+    description: "Account opening date missing"
+    severity: block
+    severity_rationale: >-
+      Q6 counts new accounts per month of 1996. A row with no opening date
+      cannot be placed in a month, and silently dropping it would understate
+      exactly the number being asked for. Blocking makes the loss visible and
+      countable instead.
+    affects_questions: [Q6, Q7]
+    handling: "Quarantine the row; the quarantine count is reported next to Q6."
+    total_sql: "SELECT count(*) FROM {s}.account"
+    sql: |
+      SELECT account_id::text AS business_key,
+             'open_date is NULL (raw value: ' || coalesce(open_date_raw, 'NULL') || ')' AS reason
+      FROM {s}.account
+      WHERE open_date IS NULL
+
+  - rule_id: COMP_ACCOUNT_FREQUENCY_MISSING
+    dimension: completeness
+    table: account
+    description: "Statement frequency missing"
+    severity: warn
+    severity_rationale: >-
+      Q10 groups the problematic-loan share by statement frequency. A missing
+      frequency does not corrupt the loan itself, so the row stays; but it
+      cannot join a frequency bucket, so it would silently disappear from the
+      denominator. It is kept in an explicit 'unknown' bucket and flagged, so
+      the ranking Q10 asks for stays honest.
+    affects_questions: [Q10]
+    handling: "Row kept, flagged; grouped as 'unknown' rather than dropped."
+    total_sql: "SELECT count(*) FROM {s}.account"
+    sql: |
+      SELECT account_id::text AS business_key,
+             'frequency_code is NULL' AS reason
+      FROM {s}.account
+      WHERE frequency_code IS NULL
+
+  - rule_id: COMP_CLIENT_ID_MISSING
+    dimension: completeness
+    table: client
+    description: "Client identifier missing"
+    severity: block
+    severity_rationale: >-
+      client_id is the entitlement key: the sec schema grants access per
+      client. A client row with no id cannot be assigned to a portfolio, so
+      under row level security it would be invisible to every user, or worse,
+      visible to all of them. Block.
+    affects_questions: [Q1, Q7, Q8]
+    handling: "Quarantine the row."
+    total_sql: "SELECT count(*) FROM {s}.client"
+    sql: |
+      SELECT coalesce(_source_row::text, 'unknown-row') AS business_key,
+             'client_id is NULL' AS reason
+      FROM {s}.client
+      WHERE client_id IS NULL
+
+  - rule_id: COMP_CLIENT_BIRTH_MISSING
+    dimension: completeness
+    table: client
+    description: "Client birth date or gender not derivable from birth_number"
+    severity: warn
+    severity_rationale: >-
+      Q7 averages the owner's age at loan start and Q8 splits gold card holders
+      by gender. Both come from birth_number alone, so an undecodable value
+      removes the client from those two answers. The client is still a valid
+      client for every other metric, so the row stays, is flagged, and the two
+      affected answers report their coverage.
+    affects_questions: [Q7, Q8]
+    handling: >-
+      Row kept and flagged (birth_number_valid = false); excluded from the age
+      and gender metrics, which publish how many clients they covered.
+    total_sql: "SELECT count(*) FROM {s}.client"
+    sql: |
+      SELECT client_id::text AS business_key,
+             'birth_number ' || coalesce(birth_number_raw, coalesce(birth_number, 'NULL'))
+               || ' does not decode to a date and gender' AS reason
+      FROM {s}.client
+      WHERE birth_date IS NULL OR gender IS NULL
+
+  - rule_id: COMP_CLIENT_DISTRICT_MISSING
+    dimension: completeness
+    table: client
+    description: "Client district missing"
+    severity: warn
+    severity_rationale: >-
+      Q1 counts clients per region, and the region comes from the client's
+      district. A client with no district cannot be placed in a region. The
+      client is not corrupt, so it stays and is counted in an explicit
+      'unknown region' bucket: dropping it would make the regional totals
+      disagree with the client count, which is worse than an honest bucket.
+    affects_questions: [Q1]
+    handling: "Row kept and flagged; reported as 'unknown region' in Q1."
+    total_sql: "SELECT count(*) FROM {s}.client"
+    sql: |
+      SELECT client_id::text AS business_key,
+             'district_id is NULL' AS reason
+      FROM {s}.client
+      WHERE district_id IS NULL
+
+  - rule_id: COMP_DISP_KEY_MISSING
+    dimension: completeness
+    table: disp
+    description: "Disposition key, client or account missing"
+    severity: block
+    severity_rationale: >-
+      The disposition table is the only bridge between clients and accounts. A
+      broken bridge row breaks the entitlement path (which clients may a user
+      see) and the owner lookup that Q4, Q7, Q8 and Q9 all depend on. There is
+      no safe partial interpretation, so it is blocked.
+    affects_questions: [Q4, Q7, Q8, Q9]
+    handling: "Quarantine the row."
+    total_sql: "SELECT count(*) FROM {s}.disp"
+    sql: |
+      SELECT coalesce(disp_id::text, _source_row::text) AS business_key,
+             concat_ws('; ',
+               CASE WHEN disp_id IS NULL    THEN 'disp_id is NULL' END,
+               CASE WHEN client_id IS NULL  THEN 'client_id is NULL' END,
+               CASE WHEN account_id IS NULL THEN 'account_id is NULL' END) AS reason
+      FROM {s}.disp
+      WHERE disp_id IS NULL OR client_id IS NULL OR account_id IS NULL
+
+  - rule_id: COMP_DISP_TYPE_MISSING
+    dimension: completeness
+    table: disp
+    description: "Disposition type (owner or disponent) missing"
+    severity: block
+    severity_rationale: >-
+      Four of the ten questions say "account owner" explicitly (Q4, Q7, Q8, and
+      Q9 by implication). Without the type we cannot tell an owner from a
+      disponent, so the row would either be counted as an owner it is not, or
+      drop an owner that exists. Both corrupt the answer, so block.
+    affects_questions: [Q4, Q7, Q8, Q9]
+    handling: "Quarantine the row."
+    total_sql: "SELECT count(*) FROM {s}.disp"
+    sql: |
+      SELECT disp_id::text AS business_key,
+             'disp_type_code is NULL' AS reason
+      FROM {s}.disp
+      WHERE disp_type_code IS NULL
+
+  - rule_id: COMP_CARD_TYPE_MISSING
+    dimension: completeness
+    table: card
+    description: "Card type missing"
+    severity: warn
+    severity_rationale: >-
+      Q4 groups average loan amount by the owner's card type and Q8 filters on
+      gold cards. A card with no type cannot be put in either bucket, but it is
+      still a real card, so removing it would overstate the 'no card' group in
+      Q4. It is kept in an explicit 'unknown card type' bucket and flagged.
+    affects_questions: [Q4, Q8]
+    handling: "Row kept and flagged; grouped as 'unknown card type'."
+    total_sql: "SELECT count(*) FROM {s}.card"
+    sql: |
+      SELECT card_id::text AS business_key,
+             'card_type is NULL' AS reason
+      FROM {s}.card
+      WHERE card_type IS NULL
+
+  - rule_id: COMP_LOAN_KEY_MISSING
+    dimension: completeness
+    table: loan
+    description: "Loan identifier or account reference missing"
+    severity: block
+    severity_rationale: >-
+      Without loan_id the loan cannot be deduplicated; without account_id it
+      cannot be attributed to an owner, a card type (Q4), a district or a
+      statement frequency (Q10), and it cannot be entitlement filtered.
+    affects_questions: [Q2, Q3, Q4, Q7, Q10]
+    handling: "Quarantine the row."
+    total_sql: "SELECT count(*) FROM {s}.loan"
+    sql: |
+      SELECT coalesce(loan_id::text, _source_row::text) AS business_key,
+             concat_ws('; ',
+               CASE WHEN loan_id IS NULL    THEN 'loan_id is NULL' END,
+               CASE WHEN account_id IS NULL THEN 'account_id is NULL' END) AS reason
+      FROM {s}.loan
+      WHERE loan_id IS NULL OR account_id IS NULL
+
+  - rule_id: COMP_LOAN_DATE_MISSING
+    dimension: completeness
+    table: loan
+    description: "Loan start date missing"
+    severity: block
+    severity_rationale: >-
+      Q2 sums loan amounts per year of the loan date. A loan with no date has no
+      year: including it would create a NULL year bucket that no business user
+      can act on, and excluding it silently would understate a yearly total
+      that is compared against a reference value. Block, so the exclusion is
+      recorded and reportable.
+    affects_questions: [Q2, Q7]
+    handling: "Quarantine the row; the count is reported next to Q2."
+    total_sql: "SELECT count(*) FROM {s}.loan"
+    sql: |
+      SELECT loan_id::text AS business_key,
+             'loan_date is NULL (raw value: ' || coalesce(loan_date_raw, 'NULL') || ')' AS reason
+      FROM {s}.loan
+      WHERE loan_date IS NULL
+
+  - rule_id: COMP_LOAN_AMOUNT_MISSING
+    dimension: completeness
+    table: loan
+    description: "Loan amount missing"
+    severity: block
+    severity_rationale: >-
+      Q2 sums and Q4 averages the loan amount. A NULL amount is silently
+      skipped by both SUM and AVG, so the answer would look complete while
+      being wrong, and the reported loan count would no longer explain the
+      reported total. Block.
+    affects_questions: [Q2, Q4]
+    handling: "Quarantine the row."
+    total_sql: "SELECT count(*) FROM {s}.loan"
+    sql: |
+      SELECT loan_id::text AS business_key,
+             'amount is NULL (raw value: ' || coalesce(amount_raw, 'NULL') || ')' AS reason
+      FROM {s}.loan
+      WHERE amount IS NULL
+
+  - rule_id: COMP_LOAN_STATUS_MISSING
+    dimension: completeness
+    table: loan
+    description: "Loan status missing"
+    severity: block
+    severity_rationale: >-
+      The status is the definition of "problematic" for Q3 and Q10 and the
+      grouping key for Q7. A missing status cannot be classified as problematic
+      or not, and a loan that is neither in the numerator nor the denominator
+      makes a percentage meaningless. Block.
+    affects_questions: [Q3, Q7, Q10]
+    handling: "Quarantine the row; the count is reported next to Q3 and Q10."
+    total_sql: "SELECT count(*) FROM {s}.loan"
+    sql: |
+      SELECT loan_id::text AS business_key,
+             'status_code is NULL' AS reason
+      FROM {s}.loan
+      WHERE status_code IS NULL
+
+  - rule_id: COMP_TRANS_KEY_MISSING
+    dimension: completeness
+    table: trans
+    description: "Transaction identifier or account reference missing"
+    severity: block
+    severity_rationale: >-
+      1.06 m transactions carry every balance and flow metric. A posting with no
+      account cannot be attributed to a district (Q5) or a balance (Q9), and
+      cannot be entitlement filtered, so it would leak across portfolios if it
+      were kept.
+    affects_questions: [Q5, Q9]
+    handling: "Quarantine the row."
+    total_sql: "SELECT count(*) FROM {s}.trans"
+    sql: |
+      SELECT coalesce(trans_id::text, _source_row::text) AS business_key,
+             concat_ws('; ',
+               CASE WHEN trans_id IS NULL   THEN 'trans_id is NULL' END,
+               CASE WHEN account_id IS NULL THEN 'account_id is NULL' END) AS reason
+      FROM {s}.trans
+      WHERE trans_id IS NULL OR account_id IS NULL
+
+  - rule_id: COMP_TRANS_DATE_MISSING
+    dimension: completeness
+    table: trans
+    description: "Transaction date missing"
+    severity: block
+    severity_rationale: >-
+      Q5 restricts to 1997 and Q9 to the balance at 1998-12-31. An undated
+      posting cannot be placed on either side of a cut-off, and in a running
+      balance it cannot be ordered at all, which corrupts every later balance
+      for that account rather than just its own row.
+    affects_questions: [Q5, Q9]
+    handling: "Quarantine the row; the affected accounts are flagged for Q9."
+    total_sql: "SELECT count(*) FROM {s}.trans"
+    sql: |
+      SELECT trans_id::text AS business_key,
+             'trans_date is NULL (raw value: ' || coalesce(trans_date_raw, 'NULL') || ')' AS reason
+      FROM {s}.trans
+      WHERE trans_date IS NULL
+
+  - rule_id: COMP_TRANS_AMOUNT_MISSING
+    dimension: completeness
+    table: trans
+    description: "Transaction amount missing"
+    severity: block
+    severity_rationale: >-
+      Q5 ranks districts by total incoming amount. A NULL amount is skipped by
+      SUM, so a district's total would be understated with no visible symptom,
+      and a top-10 ranking is exactly the kind of answer where a quiet
+      understatement changes the order.
+    affects_questions: [Q5]
+    handling: "Quarantine the row."
+    total_sql: "SELECT count(*) FROM {s}.trans"
+    sql: |
+      SELECT trans_id::text AS business_key,
+             'amount is NULL (raw value: ' || coalesce(amount_raw, 'NULL') || ')' AS reason
+      FROM {s}.trans
+      WHERE amount IS NULL
+
+  - rule_id: COMP_TRANS_BALANCE_MISSING
+    dimension: completeness
+    table: trans
+    description: "Balance after transaction missing"
+    severity: warn
+    severity_rationale: >-
+      Q9 reads the balance, not the amount, so a missing balance costs that
+      account its month-end value. The posting is still valid for every flow
+      metric (Q5), so quarantining it would damage more answers than it saves.
+      Kept, flagged, and carried forward from the last known balance with an
+      is_carried_forward marker.
+    affects_questions: [Q9]
+    handling: >-
+      Row kept and flagged; the month-end balance falls back to the last known
+      balance and the fact row is marked is_carried_forward.
+    total_sql: "SELECT count(*) FROM {s}.trans"
+    sql: |
+      SELECT trans_id::text AS business_key,
+             'balance_after is NULL (raw value: ' || coalesce(balance_raw, 'NULL') || ')' AS reason
+      FROM {s}.trans
+      WHERE balance_after IS NULL
+
+  - rule_id: COMP_DISTRICT_REGION_MISSING
+    dimension: completeness
+    table: district
+    description: "District name or region missing"
+    severity: block
+    severity_rationale: >-
+      Q1 groups clients by region and Q5 ranks districts by name. A district
+      row with no region silently moves every client in that district into a
+      NULL bucket, which is the single most likely way for Q1 to disagree with
+      a reference value. 77 rows of reference data have no excuse for being
+      incomplete, so block.
+    affects_questions: [Q1, Q5]
+    handling: "Quarantine the district row; dependent rows are reported as orphans."
+    total_sql: "SELECT count(*) FROM {s}.district"
+    sql: |
+      SELECT coalesce(district_id::text, _source_row::text) AS business_key,
+             concat_ws('; ',
+               CASE WHEN district_name IS NULL THEN 'district_name is NULL' END,
+               CASE WHEN region IS NULL        THEN 'region is NULL' END) AS reason
+      FROM {s}.district
+      WHERE district_name IS NULL OR region IS NULL
+
+  - rule_id: COMP_DISTRICT_1995_PLACEHOLDER
+    dimension: completeness
+    table: district
+    description: "Placeholder '?' in the 1995 unemployment and crime columns"
+    severity: info
+    severity_rationale: >-
+      One district (69, Jesenik) carries '?' instead of a number in
+      unemployment_rate_1995 and crimes_1995. None of the 10 questions reads
+      either column, so no reported number changes. It is info *today* and
+      becomes warn the moment a metric uses the 1995 series, because an average
+      over 76 of 77 districts silently answers a different question than the one
+      asked. The rule stays in place to make that promotion a one-line change.
+    affects_questions: []
+    handling: >-
+      '?' normalised to NULL in stg, original text kept in
+      unemployment_rate_1995_raw / crimes_1995_raw, district row otherwise used
+      normally.
+    total_sql: "SELECT count(*) FROM {s}.district"
+    sql: |
+      SELECT district_id::text AS business_key,
+             concat_ws('; ',
+               CASE WHEN unemployment_rate_1995_raw IS NOT NULL
+                    THEN 'unemployment_rate_1995 = ' || unemployment_rate_1995_raw END,
+               CASE WHEN crimes_1995_raw IS NOT NULL
+                    THEN 'crimes_1995 = ' || crimes_1995_raw END) AS reason
+      FROM {s}.district
+      WHERE unemployment_rate_1995_raw IS NOT NULL OR crimes_1995_raw IS NOT NULL
+
+  - rule_id: COMP_TRANS_OPERATION_STRUCTURAL
+    dimension: completeness
+    table: trans
+    description: "Transaction operation absent (structurally, for interest postings)"
+    severity: info
+    severity_rationale: >-
+      183,114 postings have no operation. Every one of them is an interest
+      credit (k_symbol = UROK): the bank's own interest run has no customer
+      operation behind it, so the NULL means "not applicable" rather than
+      "unknown". None of the 10 questions groups by operation. It is reported as
+      info precisely so that nobody later imputes a value into it, which would
+      invent an operation that never happened.
+    affects_questions: []
+    handling: >-
+      Left as NULL by design, labelled 'not applicable (bank-generated
+      posting)' in the semantic layer so an LLM does not treat it as missing.
+    total_sql: "SELECT count(*) FROM {s}.trans"
+    sql: |
+      SELECT trans_id::text AS business_key,
+             'operation_code is NULL; k_symbol = ' || coalesce(k_symbol_code, 'NULL') AS reason
+      FROM {s}.trans
+      WHERE operation_code IS NULL
+
+  - rule_id: COMP_TRANS_PARTNER_STRUCTURAL
+    dimension: completeness
+    table: trans
+    description: "Counterparty bank and account absent for non-transfer postings"
+    severity: info
+    severity_rationale: >-
+      760,931 postings have neither partner bank nor partner account. These are
+      cash operations and bank-generated postings, which have no counterparty by
+      construction. No question reads the counterparty. Reported as info with
+      the cross-check that it never happens on a transfer operation, which is
+      the version of this that *would* be a defect.
+    affects_questions: []
+    handling: "Left as NULL by design; documented as structural in the semantic layer."
+    total_sql: "SELECT count(*) FROM {s}.trans"
+    sql: |
+      SELECT trans_id::text AS business_key,
+             'partner_bank and partner_account are both NULL; operation = '
+               || coalesce(operation_code, 'NULL') AS reason
+      FROM {s}.trans
+      WHERE partner_bank IS NULL AND partner_account IS NULL
+
+  - rule_id: COMP_TRANS_PARTNER_ON_TRANSFER
+    dimension: completeness
+    table: trans
+    description: "Counterparty missing on a transfer posting"
+    severity: warn
+    severity_rationale: >-
+      This is the non-structural half of the rule above: a remittance or
+      collection (PREVOD NA UCET / PREVOD Z UCTU) with no counterparty is a
+      genuine gap, because a transfer by definition has another side. No
+      certified metric reads it today, but it is evidence of a broken feed
+      rather than a design choice, so it is warn and not info.
+    affects_questions: []
+    handling: "Row kept and flagged; counted separately from the structural NULLs."
+    total_sql: |
+      SELECT count(*) FROM {s}.trans
+      WHERE operation_code IN ('PREVOD NA UCET', 'PREVOD Z UCTU')
+    sql: |
+      SELECT trans_id::text AS business_key,
+             'transfer posting without counterparty; operation = ' || operation_code AS reason
+      FROM {s}.trans
+      WHERE operation_code IN ('PREVOD NA UCET', 'PREVOD Z UCTU')
+        AND (partner_bank IS NULL OR partner_account IS NULL)
+
+  - rule_id: COMP_RAW_MISSING_ENCODING_INCONSISTENT
+    dimension: completeness
+    table: trans
+    description: "The same column encodes 'missing' three different ways in the source"
+    severity: info
+    severity_rationale: >-
+      In raw.trans.k_symbol, "no category" arrives as a quoted empty string
+      (481,871 rows), as an unquoted empty field that loads as NULL (10 rows)
+      and as a single space. The three spellings mean one thing. No answer
+      changes because stg collapses them, but it is reported because any
+      consumer reading raw directly -- including an LLM pointed at the wrong
+      layer -- would have to know about all three to filter correctly. That is
+      exactly the kind of knowledge a semantic layer exists to remove.
+    affects_questions: []
+    handling: >-
+      Collapsed to a single NULL by stg.norm_text; the raw spelling is kept in
+      k_symbol_raw. Rule runs against raw, so it keeps reporting even after stg
+      is clean.
+    runs_against_raw: true
+    total_sql: "SELECT count(*) FROM raw.trans"
+    sql: |
+      SELECT trans_id AS business_key,
+             'k_symbol encodes missing as [' || coalesce(k_symbol, '<NULL>') || ']' AS reason
+      FROM raw.trans
+      WHERE k_symbol IS NULL OR btrim(k_symbol) = ''
+
+# =============================================================================
+# UNIQUENESS -- primary keys and business keys
+# Every primary key duplicate is block: when two rows claim the same identity
+# there is no way to know which one is right, so both are quarantined rather
+# than silently picking one. A pipeline that de-duplicates by MIN(id) hides the
+# incident; this one reports it.
+# =============================================================================
+
+  - rule_id: UNQ_ACCOUNT_PK
+    dimension: uniqueness
+    table: account
+    description: "Duplicate account_id"
+    defect_type: "Duplicate primary key"
+    severity: block
+    severity_rationale: >-
+      A duplicated account_id fans out every join it takes part in: one extra
+      account row doubles that account's transactions in Q5, its loan in Q2/Q3
+      and its balance in Q9. Fan-out is the most damaging class of defect for
+      an AI consumer, because the query is correct and the number is not.
+    affects_questions: [Q1, Q4, Q5, Q6, Q7, Q8, Q9, Q10]
+    handling: "Quarantine every row carrying the duplicated key, not just the extras."
+    total_sql: "SELECT count(*) FROM {s}.account"
+    sql: |
+      SELECT account_id::text AS business_key,
+             'account_id occurs ' || count(*) || ' times' AS reason
+      FROM {s}.account
+      WHERE account_id IS NOT NULL
+      GROUP BY account_id HAVING count(*) > 1
+
+  - rule_id: UNQ_CLIENT_PK
+    dimension: uniqueness
+    table: client
+    description: "Duplicate client_id"
+    defect_type: "Duplicate primary key"
+    severity: block
+    severity_rationale: >-
+      Q1 counts clients, so a duplicate inflates the headline number directly.
+      It also breaks entitlements: two rows with one client_id can belong to two
+      different portfolios, and the row level security predicate would then
+      resolve differently depending on which row a plan happens to read.
+    affects_questions: [Q1, Q7, Q8]
+    handling: "Quarantine every row carrying the duplicated key."
+    total_sql: "SELECT count(*) FROM {s}.client"
+    sql: |
+      SELECT client_id::text AS business_key,
+             'client_id occurs ' || count(*) || ' times' AS reason
+      FROM {s}.client
+      WHERE client_id IS NOT NULL
+      GROUP BY client_id HAVING count(*) > 1
+
+  - rule_id: UNQ_DISP_PK
+    dimension: uniqueness
+    table: disp
+    description: "Duplicate disp_id"
+    defect_type: "Duplicate primary key"
+    severity: block
+    severity_rationale: >-
+      disp_id is the key cards hang off. A duplicate turns one card into two
+      card-holder relationships, which lands straight in Q4 (average loan
+      amount per card type) and Q8 (gold card gender split).
+    affects_questions: [Q4, Q8]
+    handling: "Quarantine every row carrying the duplicated key."
+    total_sql: "SELECT count(*) FROM {s}.disp"
+    sql: |
+      SELECT disp_id::text AS business_key,
+             'disp_id occurs ' || count(*) || ' times' AS reason
+      FROM {s}.disp
+      WHERE disp_id IS NOT NULL
+      GROUP BY disp_id HAVING count(*) > 1
+
+  - rule_id: UNQ_CARD_PK
+    dimension: uniqueness
+    table: card
+    description: "Duplicate card_id"
+    defect_type: "Duplicate primary key"
+    severity: block
+    severity_rationale: >-
+      Q8 counts gold card holders; a duplicated card_id counts a holder twice
+      and shifts the gender split percentages.
+    affects_questions: [Q4, Q8]
+    handling: "Quarantine every row carrying the duplicated key."
+    total_sql: "SELECT count(*) FROM {s}.card"
+    sql: |
+      SELECT card_id::text AS business_key,
+             'card_id occurs ' || count(*) || ' times' AS reason
+      FROM {s}.card
+      WHERE card_id IS NOT NULL
+      GROUP BY card_id HAVING count(*) > 1
+
+  - rule_id: UNQ_LOAN_PK
+    dimension: uniqueness
+    table: loan
+    description: "Duplicate loan_id"
+    defect_type: "Duplicate primary key"
+    severity: block
+    severity_rationale: >-
+      Q2 sums and Q3 counts loans. A duplicate loan_id adds its amount twice to
+      a yearly total and shifts the problematic share in Q3 and Q10 in whichever
+      direction its status points.
+    affects_questions: [Q2, Q3, Q4, Q7, Q10]
+    handling: "Quarantine every row carrying the duplicated key."
+    total_sql: "SELECT count(*) FROM {s}.loan"
+    sql: |
+      SELECT loan_id::text AS business_key,
+             'loan_id occurs ' || count(*) || ' times' AS reason
+      FROM {s}.loan
+      WHERE loan_id IS NOT NULL
+      GROUP BY loan_id HAVING count(*) > 1
+
+  - rule_id: UNQ_ORDER_PK
+    dimension: uniqueness
+    table: order
+    description: "Duplicate order_id"
+    defect_type: "Duplicate primary key"
+    severity: block
+    severity_rationale: >-
+      No current question reads standing orders, but a duplicate key is still
+      blocked: the table is published in the data product, and the first metric
+      built on it would inherit the fan-out. Consistency of the key contract
+      across the product is cheaper than a per-table judgement call.
+    affects_questions: []
+    handling: "Quarantine every row carrying the duplicated key."
+    total_sql: "SELECT count(*) FROM {s}.\"order\""
+    sql: |
+      SELECT order_id::text AS business_key,
+             'order_id occurs ' || count(*) || ' times' AS reason
+      FROM {s}."order"
+      WHERE order_id IS NOT NULL
+      GROUP BY order_id HAVING count(*) > 1
+
+  - rule_id: UNQ_TRANS_PK
+    dimension: uniqueness
+    table: trans
+    description: "Duplicate trans_id"
+    defect_type: "Duplicate primary key"
+    severity: block
+    severity_rationale: >-
+      Over 1.06 m rows a duplicated posting id double counts an amount in Q5 and
+      breaks the running balance chain for its account, which then propagates to
+      every later balance including the one Q9 reports.
+    affects_questions: [Q5, Q9]
+    handling: "Quarantine every row carrying the duplicated key."
+    total_sql: "SELECT count(*) FROM {s}.trans"
+    sql: |
+      SELECT trans_id::text AS business_key,
+             'trans_id occurs ' || count(*) || ' times' AS reason
+      FROM {s}.trans
+      WHERE trans_id IS NOT NULL
+      GROUP BY trans_id HAVING count(*) > 1
+
+  - rule_id: UNQ_DISTRICT_PK
+    dimension: uniqueness
+    table: district
+    description: "Duplicate district_id"
+    defect_type: "Duplicate primary key"
+    severity: block
+    severity_rationale: >-
+      District is reference data joined by both clients and accounts, so a
+      duplicate fans out Q1 (clients per region) and Q5 (district ranking) at
+      once. 77 rows of reference data must be exact.
+    affects_questions: [Q1, Q5]
+    handling: "Quarantine every row carrying the duplicated key."
+    total_sql: "SELECT count(*) FROM {s}.district"
+    sql: |
+      SELECT district_id::text AS business_key,
+             'district_id occurs ' || count(*) || ' times' AS reason
+      FROM {s}.district
+      WHERE district_id IS NOT NULL
+      GROUP BY district_id HAVING count(*) > 1
+
+  - rule_id: UNQ_ACCOUNT_SINGLE_OWNER
+    dimension: uniqueness
+    table: disp
+    description: "Account has more than one OWNER disposition"
+    severity: block
+    severity_rationale: >-
+      "The account owner" is a singular phrase in Q4, Q7, Q8 and Q9, and the
+      model relies on it: core.v_account_owner is one row per account. Two
+      owners silently duplicate that account's loan in Q4 and Q7 and its
+      balance in Q9. Blocking the disposition rows keeps the one-row-per-account
+      guarantee the semantic layer advertises to the LLM.
+    affects_questions: [Q4, Q7, Q8, Q9]
+    handling: >-
+      Quarantine the competing OWNER dispositions; the account itself survives
+      and is reported as owner-less by RI_ACCOUNT_WITHOUT_OWNER.
+    total_sql: "SELECT count(DISTINCT account_id) FROM {s}.disp"
+    sql: |
+      SELECT account_id::text AS business_key,
+             'account has ' || count(*) || ' OWNER dispositions' AS reason
+      FROM {s}.disp
+      WHERE disp_type_code = 'OWNER' AND account_id IS NOT NULL
+      GROUP BY account_id HAVING count(*) > 1
+
+  - rule_id: UNQ_LOAN_ONE_PER_ACCOUNT
+    dimension: uniqueness
+    table: loan
+    description: "Account has more than one loan"
+    severity: warn
+    severity_rationale: >-
+      In this dataset every account has at most one loan, and the model and the
+      questions are written on that basis. A second loan is not impossible in
+      real banking, though, so it is warn and not block: the data may be right
+      and the assumption wrong. It is flagged because Q4 (average loan amount
+      per card type) and Q10 (share per statement frequency) would then weight
+      an account twice through the same owner and frequency.
+    affects_questions: [Q4, Q10]
+    handling: >-
+      Rows kept and flagged. The grain of core.fact_loan is one row per loan
+      (not per account), so the extra loan is representable; the warning exists
+      to make the assumption break loudly rather than quietly.
+    total_sql: "SELECT count(DISTINCT account_id) FROM {s}.loan"
+    sql: |
+      SELECT account_id::text AS business_key,
+             'account has ' || count(*) || ' loans' AS reason
+      FROM {s}.loan
+      WHERE account_id IS NOT NULL
+      GROUP BY account_id HAVING count(*) > 1
+
+  - rule_id: UNQ_CARD_ONE_PER_DISP
+    dimension: uniqueness
+    table: card
+    description: "Disposition holds more than one card"
+    severity: warn
+    severity_rationale: >-
+      Q4 and Q8 assume one card type per owner. Two cards on one disposition
+      make "the owner's card type" ambiguous and would count one owner in two
+      card type buckets, so the percentages in Q8 would no longer sum to 100.
+      Warn rather than block: holding two cards is legitimate, the defect is in
+      the assumption, and the fix is a documented tie-break, not deletion.
+    affects_questions: [Q4, Q8]
+    handling: >-
+      Rows kept and flagged. The owner's card type is resolved by a documented
+      precedence (gold > classic > junior, then most recent issue date), stated
+      in the semantic layer so the LLM reports the same tie-break.
+    total_sql: "SELECT count(DISTINCT disp_id) FROM {s}.card"
+    sql: |
+      SELECT disp_id::text AS business_key,
+             'disposition holds ' || count(*) || ' cards (' ||
+             string_agg(coalesce(card_type, 'unknown'), ', ' ORDER BY card_type) || ')' AS reason
+      FROM {s}.card
+      WHERE disp_id IS NOT NULL
+      GROUP BY disp_id HAVING count(*) > 1
+
+  - rule_id: UNQ_TRANS_BUSINESS_KEY
+    dimension: uniqueness
+    table: trans
+    description: "Duplicate transaction by business key (distinct id, identical content)"
+    severity: block
+    severity_rationale: >-
+      Two postings on the same account, same date, same type, same operation,
+      same amount and the same resulting balance are the same event recorded
+      twice: a genuinely distinct second posting would have moved the balance.
+      The primary key cannot catch this, which is exactly why the rule exists.
+      It double counts flows in Q5 and breaks the balance chain behind Q9. One
+      instance fires on this copy of the data.
+    affects_questions: [Q5, Q9]
+    handling: >-
+      Keep the lowest trans_id, quarantine the rest with the reason naming the
+      surviving row, so the decision is auditable rather than implicit.
+    total_sql: "SELECT count(*) FROM {s}.trans"
+    sql: |
+      WITH dup AS (
+          SELECT account_id, trans_date, trans_type_code,
+                 coalesce(operation_code, '~') AS op, amount, balance_after,
+                 min(trans_id) AS keep_id, count(*) AS n
+          FROM {s}.trans
+          GROUP BY 1, 2, 3, 4, 5, 6
+          HAVING count(*) > 1
+      )
+      SELECT t.trans_id::text AS business_key,
+             'identical to trans_id ' || d.keep_id || ' (account ' || t.account_id
+               || ', ' || t.trans_date || ', amount ' || t.amount
+               || ', balance ' || t.balance_after || '); group size ' || d.n AS reason
+      FROM {s}.trans t
+      JOIN dup d
+        ON d.account_id = t.account_id
+       AND d.trans_date = t.trans_date
+       AND d.trans_type_code = t.trans_type_code
+       AND d.op = coalesce(t.operation_code, '~')
+       AND d.amount = t.amount
+       AND d.balance_after = t.balance_after
+      WHERE t.trans_id <> d.keep_id
+
+  - rule_id: UNQ_CLIENT_SAME_BIRTH_DISTRICT
+    dimension: uniqueness
+    table: client
+    description: "Two clients share birth number and district (possible duplicate person)"
+    severity: info
+    severity_rationale: >-
+      A repeated birth number within one district is a candidate duplicate
+      person, which would inflate Q1 and Q8. It is info rather than warn because
+      the birth number only encodes date of birth and sex, so collisions are
+      expected in a 5,369 client book and most of them are genuinely different
+      people. It is reported so that a real master-data process can pick it up,
+      and so that nobody mistakes the collision rate for a defect rate.
+    affects_questions: [Q1, Q8]
+    handling: "Logged only; no row is changed or removed."
+    total_sql: "SELECT count(*) FROM {s}.client"
+    sql: |
+      SELECT min(client_id)::text AS business_key,
+             'birth_number ' || birth_number || ' occurs ' || count(*)
+               || ' times in district ' || district_id
+               || ' (client_ids: ' || string_agg(client_id::text, ',' ORDER BY client_id) || ')' AS reason
+      FROM {s}.client
+      WHERE birth_number IS NOT NULL AND district_id IS NOT NULL
+      GROUP BY birth_number, district_id
+      HAVING count(*) > 1
+
+# =============================================================================
+# REFERENTIAL INTEGRITY -- every foreign key, in both directions
+# Forward direction (child without parent) is block: the join silently drops
+# rows. Reverse direction (parent without child) is warn or info depending on
+# whether a missing child is a defect or a legitimate business state.
+# =============================================================================
+
+  - rule_id: RI_DISP_CLIENT
+    dimension: referential_integrity
+    table: disp
+    description: "Disposition references a client that does not exist"
+    defect_type: "Orphan foreign key (child without parent)"
+    severity: block
+    severity_rationale: >-
+      An inner join to client drops the disposition, which removes the account's
+      owner. Q4, Q7, Q8 and Q9 all resolve the owner through this path, so the
+      account quietly disappears from four answers. Worse for governance: an
+      account whose owner cannot be resolved cannot be entitlement filtered.
+    affects_questions: [Q4, Q7, Q8, Q9]
+    handling: "Quarantine the disposition row."
+    total_sql: "SELECT count(*) FROM {s}.disp"
+    sql: |
+      SELECT d.disp_id::text AS business_key,
+             'client_id ' || d.client_id || ' not found in client' AS reason
+      FROM {s}.disp d
+      LEFT JOIN {s}.client c ON c.client_id = d.client_id
+      WHERE d.client_id IS NOT NULL AND c.client_id IS NULL
+
+  - rule_id: RI_DISP_ACCOUNT
+    dimension: referential_integrity
+    table: disp
+    description: "Disposition references an account that does not exist"
+    defect_type: "Orphan foreign key (child without parent)"
+    severity: block
+    severity_rationale: >-
+      The same break seen from the other side: a client would appear to have
+      access to an account the bank does not have. In an entitlement model built
+      on client-to-account paths, a dangling account reference is a security
+      finding, not only a quality one.
+    affects_questions: [Q4, Q7, Q8, Q9]
+    handling: "Quarantine the disposition row."
+    total_sql: "SELECT count(*) FROM {s}.disp"
+    sql: |
+      SELECT d.disp_id::text AS business_key,
+             'account_id ' || d.account_id || ' not found in account' AS reason
+      FROM {s}.disp d
+      LEFT JOIN {s}.account a ON a.account_id = d.account_id
+      WHERE d.account_id IS NOT NULL AND a.account_id IS NULL
+
+  - rule_id: RI_ACCOUNT_DISTRICT
+    dimension: referential_integrity
+    table: account
+    description: "Account references a district that does not exist"
+    defect_type: "Orphan foreign key (child without parent)"
+    severity: block
+    severity_rationale: >-
+      Q5 ranks districts by incoming transaction amount using the account's
+      district. An unknown district code sends that account's whole 1997 flow
+      into a bucket with no name, which both loses the amount and can displace a
+      genuine district from the top 10.
+    affects_questions: [Q5, Q6]
+    handling: "Quarantine the account row."
+    total_sql: "SELECT count(*) FROM {s}.account"
+    sql: |
+      SELECT a.account_id::text AS business_key,
+             'district_id ' || a.district_id || ' not found in district' AS reason
+      FROM {s}.account a
+      LEFT JOIN {s}.district d ON d.district_id = a.district_id
+      WHERE a.district_id IS NOT NULL AND d.district_id IS NULL
+
+  - rule_id: RI_CLIENT_DISTRICT
+    dimension: referential_integrity
+    table: client
+    description: "Client references a district that does not exist"
+    defect_type: "Orphan foreign key (child without parent)"
+    severity: block
+    severity_rationale: >-
+      Q1 is "clients per region" and the region comes from the client's
+      district. An unresolvable district means the client is counted nowhere, so
+      the regional totals stop adding up to the client count -- the exact
+      symptom a reference-value comparison catches.
+    affects_questions: [Q1]
+    handling: "Quarantine the client row."
+    total_sql: "SELECT count(*) FROM {s}.client"
+    sql: |
+      SELECT c.client_id::text AS business_key,
+             'district_id ' || c.district_id || ' not found in district' AS reason
+      FROM {s}.client c
+      LEFT JOIN {s}.district d ON d.district_id = c.district_id
+      WHERE c.district_id IS NOT NULL AND d.district_id IS NULL
+
+  - rule_id: RI_CARD_DISP
+    dimension: referential_integrity
+    table: card
+    description: "Card references a disposition that does not exist"
+    defect_type: "Orphan foreign key (child without parent)"
+    severity: block
+    severity_rationale: >-
+      A card is attached to a disposition, never directly to a client. With the
+      disposition gone there is no holder, so the card cannot be attributed to an
+      owner in Q4 or counted in the gold card split in Q8, and it would inflate
+      the 'no card' bucket instead.
+    affects_questions: [Q4, Q8]
+    handling: "Quarantine the card row."
+    total_sql: "SELECT count(*) FROM {s}.card"
+    sql: |
+      SELECT k.card_id::text AS business_key,
+             'disp_id ' || k.disp_id || ' not found in disp' AS reason
+      FROM {s}.card k
+      LEFT JOIN {s}.disp d ON d.disp_id = k.disp_id
+      WHERE k.disp_id IS NOT NULL AND d.disp_id IS NULL
+
+  - rule_id: RI_LOAN_ACCOUNT
+    dimension: referential_integrity
+    table: loan
+    description: "Loan references an account that does not exist"
+    defect_type: "Orphan foreign key (child without parent)"
+    severity: block
+    severity_rationale: >-
+      Q4, Q7 and Q10 reach the owner, the card type and the statement frequency
+      through the account. An orphan loan still carries an amount and a status,
+      so it would land in Q2 and Q3 but vanish from Q4, Q7 and Q10 -- answers
+      that no longer reconcile with each other, which is the hardest kind of
+      inconsistency for a business user to spot.
+    affects_questions: [Q2, Q3, Q4, Q7, Q10]
+    handling: "Quarantine the loan row."
+    total_sql: "SELECT count(*) FROM {s}.loan"
+    sql: |
+      SELECT l.loan_id::text AS business_key,
+             'account_id ' || l.account_id || ' not found in account' AS reason
+      FROM {s}.loan l
+      LEFT JOIN {s}.account a ON a.account_id = l.account_id
+      WHERE l.account_id IS NOT NULL AND a.account_id IS NULL
+
+  - rule_id: RI_ORDER_ACCOUNT
+    dimension: referential_integrity
+    table: order
+    description: "Standing order references an account that does not exist"
+    defect_type: "Orphan foreign key (child without parent)"
+    severity: block
+    severity_rationale: >-
+      No certified metric reads standing orders yet, but an orphan payment
+      instruction is a real-world problem (money leaving an account the bank
+      cannot identify) and the key contract is applied uniformly across the
+      product rather than per table.
+    affects_questions: []
+    handling: "Quarantine the order row."
+    total_sql: "SELECT count(*) FROM {s}.\"order\""
+    sql: |
+      SELECT o.order_id::text AS business_key,
+             'account_id ' || o.account_id || ' not found in account' AS reason
+      FROM {s}."order" o
+      LEFT JOIN {s}.account a ON a.account_id = o.account_id
+      WHERE o.account_id IS NOT NULL AND a.account_id IS NULL
+
+  - rule_id: RI_TRANS_ACCOUNT
+    dimension: referential_integrity
+    table: trans
+    description: "Transaction references an account that does not exist"
+    defect_type: "Orphan foreign key (child without parent)"
+    severity: block
+    severity_rationale: >-
+      An orphan posting cannot be attributed to a district (Q5) or to a balance
+      (Q9), and it cannot be filtered by entitlements, so under row level
+      security it would either leak to every user or to none. On 1.06 m rows
+      this is also the most likely place for a feed to break.
+    affects_questions: [Q5, Q9]
+    handling: "Quarantine the transaction row."
+    total_sql: "SELECT count(*) FROM {s}.trans"
+    sql: |
+      SELECT t.trans_id::text AS business_key,
+             'account_id ' || t.account_id || ' not found in account' AS reason
+      FROM {s}.trans t
+      LEFT JOIN {s}.account a ON a.account_id = t.account_id
+      WHERE t.account_id IS NOT NULL AND a.account_id IS NULL
+
+  - rule_id: RI_ACCOUNT_WITHOUT_OWNER
+    dimension: referential_integrity
+    table: account
+    description: "Account has no OWNER disposition"
+    defect_type: "Missing child row (parent without required child)"
+    severity: block
+    severity_rationale: >-
+      An account with no owner has no client, and therefore no portfolio and no
+      entitlement. Under row level security it is invisible to every user, which
+      means the data product would quietly answer Q9 over a smaller population
+      than the one the business thinks it has. Every account must have exactly
+      one owner, so the absence is blocked and reported rather than tolerated.
+    affects_questions: [Q4, Q7, Q8, Q9]
+    handling: >-
+      Quarantine the account; its transactions and loan follow through the
+      orphan rules, so the exclusion is complete and visible in one place.
+    total_sql: "SELECT count(*) FROM {s}.account"
+    sql: |
+      SELECT a.account_id::text AS business_key,
+             'no disposition of type OWNER' AS reason
+      FROM {s}.account a
+      WHERE NOT EXISTS (
+          SELECT 1 FROM {s}.disp d
+          WHERE d.account_id = a.account_id AND d.disp_type_code = 'OWNER'
+      )
+
+  - rule_id: RI_CLIENT_WITHOUT_DISP
+    dimension: referential_integrity
+    table: client
+    description: "Client has no disposition on any account"
+    defect_type: "Missing child row (parent without required child)"
+    severity: warn
+    severity_rationale: >-
+      Unlike an owner-less account, a client with no account is a legitimate
+      business state (a prospect, or a closed relationship), so it is not
+      blocked. It is warn because Q1 counts clients and a book padded with
+      clients who hold nothing answers a different question than a book of
+      banking clients. The count is published so the reader can choose.
+    affects_questions: [Q1]
+    handling: >-
+      Row kept and flagged. Q1 counts all clients (documented in ASSUMPTIONS);
+      the flagged count is reported alongside it.
+    total_sql: "SELECT count(*) FROM {s}.client"
+    sql: |
+      SELECT c.client_id::text AS business_key,
+             'client has no disposition' AS reason
+      FROM {s}.client c
+      WHERE NOT EXISTS (SELECT 1 FROM {s}.disp d WHERE d.client_id = c.client_id)
+
+  - rule_id: RI_ACCOUNT_WITHOUT_TRANS
+    dimension: referential_integrity
+    table: account
+    description: "Account has no transactions"
+    defect_type: "Missing child row (parent without required child)"
+    severity: warn
+    severity_rationale: >-
+      Q9 averages the closing balance per account. An account with no posting
+      has no balance to carry forward, so it either drops out of the average or
+      enters it as a zero -- two different answers, which is why the choice must
+      be explicit rather than emergent. Warn, with the population stated in the
+      answer.
+    affects_questions: [Q9]
+    handling: >-
+      Row kept and flagged. Q9 averages over accounts that have a known balance
+      on the as-of date and states that population; accounts with no posting are
+      excluded rather than counted as zero.
+    total_sql: "SELECT count(*) FROM {s}.account"
+    sql: |
+      SELECT a.account_id::text AS business_key,
+             'account has no transactions' AS reason
+      FROM {s}.account a
+      WHERE NOT EXISTS (SELECT 1 FROM {s}.trans t WHERE t.account_id = a.account_id)
+
+  - rule_id: RI_DISTRICT_WITHOUT_CLIENT
+    dimension: referential_integrity
+    table: district
+    description: "District has no clients and no accounts"
+    defect_type: "Unused reference data"
+    severity: info
+    severity_rationale: >-
+      An unused district is reference data the bank has no presence in. Nothing
+      is wrong with the row. It is reported as info because it explains why Q1
+      can legitimately return fewer regions than the district table suggests,
+      which otherwise looks like a missing group.
+    affects_questions: [Q1, Q5]
+    handling: "Logged only; the district stays in core.dim_district."
+    total_sql: "SELECT count(*) FROM {s}.district"
+    sql: |
+      SELECT d.district_id::text AS business_key,
+             'district ' || coalesce(d.district_name, '?') || ' has no clients and no accounts' AS reason
+      FROM {s}.district d
+      WHERE NOT EXISTS (SELECT 1 FROM {s}.client c  WHERE c.district_id = d.district_id)
+        AND NOT EXISTS (SELECT 1 FROM {s}.account a WHERE a.district_id = d.district_id)
+
+# =============================================================================
+# VALIDITY -- parsability, ranges, allowed value lists, plausibility
+# =============================================================================
+
+  - rule_id: VAL_ACCOUNT_OPEN_DATE_UNPARSABLE
+    dimension: validity
+    table: account
+    description: "Account opening date present in the source but not a real date"
+    defect_type: "Unparsable date"
+    severity: block
+    severity_rationale: >-
+      A value like 930231 looks like a date and is not one. It is worse than a
+      NULL because a lenient parser would turn it into 1993-03-03 and Q6 would
+      report a new account in a month where none was opened. Blocked, and the
+      original text is kept in open_date_raw so the fix is a data fix, not a
+      guess.
+    affects_questions: [Q6, Q7]
+    handling: "Quarantine the row; original text retained in open_date_raw."
+    total_sql: "SELECT count(*) FROM {s}.account"
+    sql: |
+      SELECT account_id::text AS business_key,
+             'open_date_raw = ' || open_date_raw AS reason
+      FROM {s}.account
+      WHERE open_date_raw IS NOT NULL
+
+  - rule_id: VAL_LOAN_DATE_UNPARSABLE
+    dimension: validity
+    table: loan
+    description: "Loan start date present in the source but not a real date"
+    defect_type: "Unparsable date"
+    severity: block
+    severity_rationale: >-
+      Q2 groups loan amounts by year. An unparsable date either lands in the
+      wrong year or in no year, and the brief compares yearly totals against
+      reference values, so a single misparsed date is directly visible as a
+      wrong answer.
+    affects_questions: [Q2, Q7]
+    handling: "Quarantine the row; original text retained in loan_date_raw."
+    total_sql: "SELECT count(*) FROM {s}.loan"
+    sql: |
+      SELECT loan_id::text AS business_key,
+             'loan_date_raw = ' || loan_date_raw AS reason
+      FROM {s}.loan
+      WHERE loan_date_raw IS NOT NULL
+
+  - rule_id: VAL_TRANS_DATE_UNPARSABLE
+    dimension: validity
+    table: trans
+    description: "Transaction date present in the source but not a real date"
+    defect_type: "Unparsable date"
+    severity: block
+    severity_rationale: >-
+      Q5 filters on 1997 and Q9 on a December 1998 cut-off. An unparsable
+      posting date cannot be ordered, so it corrupts the running balance of its
+      whole account and not just its own row.
+    affects_questions: [Q5, Q9]
+    handling: "Quarantine the row; original text retained in trans_date_raw."
+    total_sql: "SELECT count(*) FROM {s}.trans"
+    sql: |
+      SELECT trans_id::text AS business_key,
+             'trans_date_raw = ' || trans_date_raw AS reason
+      FROM {s}.trans
+      WHERE trans_date_raw IS NOT NULL
+
+  - rule_id: VAL_CARD_ISSUED_UNPARSABLE
+    dimension: validity
+    table: card
+    description: "Card issue date present in the source but not a real date"
+    defect_type: "Unparsable date"
+    severity: warn
+    severity_rationale: >-
+      No question groups by card issue date; Q4 and Q8 only need the card type.
+      So an unparsable issue date does not change a reported number and the card
+      stays usable. It is warn rather than info because the date is the
+      tie-break when one disposition holds several cards, and because a broken
+      date in a column with a non-standard format ("931107 00:00:00") is a
+      likely sign of a feed change.
+    affects_questions: [Q4, Q8]
+    handling: "Row kept and flagged; original text retained in issued_raw."
+    total_sql: "SELECT count(*) FROM {s}.card"
+    sql: |
+      SELECT card_id::text AS business_key,
+             'issued_raw = ' || issued_raw AS reason
+      FROM {s}.card
+      WHERE issued_raw IS NOT NULL
+
+  - rule_id: VAL_DATE_OUT_OF_RANGE
+    dimension: validity
+    table: account
+    description: "Business date outside the dataset's plausibility window (1993-01-01 to 1998-12-31)"
+    severity: block
+    severity_rationale: >-
+      The dataset covers 1993 to 1998. A date outside that window is either a
+      century error (a YYMMDD value read as 20xx) or a corrupted value, and it
+      lands in a year or month bucket that should not exist: Q2 would gain a
+      year, Q6 a month outside 1996, Q9 a balance after the as-of date. All
+      three are visible as wrong answers against a reference value. The window
+      is a single constant in src/config.py, so it moves when the data does.
+    affects_questions: [Q2, Q5, Q6, Q9]
+    handling: "Quarantine the offending row in whichever table it occurs."
+    total_sql: |
+      SELECT (SELECT count(*) FROM {s}.account) + (SELECT count(*) FROM {s}.loan)
+           + (SELECT count(*) FROM {s}.card)    + (SELECT count(*) FROM {s}.trans)
+    sql: |
+      SELECT 'account:' || account_id AS business_key,
+             'open_date ' || open_date || ' outside 1993-01-01..1998-12-31' AS reason
+      FROM {s}.account
+      WHERE open_date IS NOT NULL AND open_date NOT BETWEEN DATE '1993-01-01' AND DATE '1998-12-31'
+      UNION ALL
+      SELECT 'loan:' || loan_id,
+             'loan_date ' || loan_date || ' outside 1993-01-01..1998-12-31'
+      FROM {s}.loan
+      WHERE loan_date IS NOT NULL AND loan_date NOT BETWEEN DATE '1993-01-01' AND DATE '1998-12-31'
+      UNION ALL
+      SELECT 'card:' || card_id,
+             'issued_date ' || issued_date || ' outside 1993-01-01..1998-12-31'
+      FROM {s}.card
+      WHERE issued_date IS NOT NULL AND issued_date NOT BETWEEN DATE '1993-01-01' AND DATE '1998-12-31'
+      UNION ALL
+      SELECT 'trans:' || trans_id,
+             'trans_date ' || trans_date || ' outside 1993-01-01..1998-12-31'
+      FROM {s}.trans
+      WHERE trans_date IS NOT NULL AND trans_date NOT BETWEEN DATE '1993-01-01' AND DATE '1998-12-31'
+
+  - rule_id: VAL_LOAN_STATUS_DOMAIN
+    dimension: validity
+    table: loan
+    description: "Loan status outside the allowed set A, B, C, D"
+    defect_type: "Value outside the allowed list"
+    severity: block
+    severity_rationale: >-
+      "Problematic" is defined as status B or D. An unknown status cannot be
+      classified either way, so Q3 and Q10 would report a percentage whose
+      denominator includes loans that belong to neither group. A percentage
+      built on an undefined classification is not a number a bank can publish.
+    affects_questions: [Q3, Q7, Q10]
+    handling: "Quarantine the loan; the count is reported next to Q3 and Q10."
+    total_sql: "SELECT count(*) FROM {s}.loan"
+    sql: |
+      SELECT loan_id::text AS business_key,
+             'status_code = ' || status_code || ' not in (A, B, C, D)' AS reason
+      FROM {s}.loan
+      WHERE status_code IS NOT NULL AND status_code NOT IN ('A', 'B', 'C', 'D')
+
+  - rule_id: VAL_CARD_TYPE_DOMAIN
+    dimension: validity
+    table: card
+    description: "Card type outside the allowed set junior, classic, gold"
+    defect_type: "Value outside the allowed list"
+    severity: block
+    severity_rationale: >-
+      Q8 asks specifically about gold cards and Q4 groups by card type. An
+      unexpected type (or a casing variant such as "Gold") would create a
+      parallel bucket and halve the gold population without any error being
+      raised. Blocked so that the card type domain stays closed, which is also
+      what the semantic layer promises the LLM.
+    affects_questions: [Q4, Q8]
+    handling: >-
+      Quarantine the card row. Note the stg layer already lower-cases the value,
+      so a pure casing variant is normalised rather than blocked.
+    total_sql: "SELECT count(*) FROM {s}.card"
+    sql: |
+      SELECT card_id::text AS business_key,
+             'card_type = ' || card_type || ' not in (junior, classic, gold)' AS reason
+      FROM {s}.card
+      WHERE card_type IS NOT NULL AND card_type NOT IN ('junior', 'classic', 'gold')
+
+  - rule_id: VAL_FREQUENCY_DOMAIN
+    dimension: validity
+    table: account
+    description: "Statement frequency outside the allowed set"
+    defect_type: "Value outside the allowed list"
+    severity: block
+    severity_rationale: >-
+      Q10 ranks statement frequencies by problematic loan share, so the set of
+      frequencies is the answer's own axis. An unknown code adds a group that
+      the business does not recognise and that cannot be translated to an
+      English label, which is how an LLM would end up reporting a Czech code
+      string back to a business user.
+    affects_questions: [Q10]
+    handling: "Quarantine the account row."
+    total_sql: "SELECT count(*) FROM {s}.account"
+    sql: |
+      SELECT account_id::text AS business_key,
+             'frequency_code = ' || frequency_code || ' is not a known statement frequency' AS reason
+      FROM {s}.account
+      WHERE frequency_code IS NOT NULL
+        AND frequency_code NOT IN ('POPLATEK MESICNE', 'POPLATEK TYDNE', 'POPLATEK PO OBRATU')
+
+  - rule_id: VAL_DISP_TYPE_DOMAIN
+    dimension: validity
+    table: disp
+    description: "Disposition type outside the allowed set OWNER, DISPONENT"
+    defect_type: "Value outside the allowed list"
+    severity: block
+    severity_rationale: >-
+      The owner / disponent distinction decides who "the account owner" is in
+      Q4, Q7, Q8 and Q9, and it decides which accounts a user may see once the
+      entitlement model resolves clients to accounts. A third, unknown type
+      would be silently treated as not-an-owner, so an account could lose its
+      owner without any rule firing.
+    affects_questions: [Q4, Q7, Q8, Q9]
+    handling: "Quarantine the disposition row."
+    total_sql: "SELECT count(*) FROM {s}.disp"
+    sql: |
+      SELECT disp_id::text AS business_key,
+             'disp_type_code = ' || disp_type_code || ' not in (OWNER, DISPONENT)' AS reason
+      FROM {s}.disp
+      WHERE disp_type_code IS NOT NULL AND disp_type_code NOT IN ('OWNER', 'DISPONENT')
+
+  - rule_id: VAL_TRANS_TYPE_DOMAIN
+    dimension: validity
+    table: trans
+    description: "Transaction type outside the allowed set PRIJEM, VYDAJ, VYBER"
+    defect_type: "Value outside the allowed list"
+    severity: block
+    severity_rationale: >-
+      The type is what makes an amount a credit or a debit. Q5 sums *incoming*
+      amounts only, and the signed amount used by the balance reconciliation is
+      derived from it. An unknown type has no sign, so it would be excluded from
+      Q5 while still appearing in the balance, breaking the one reconciliation
+      that ties flows to balances.
+    affects_questions: [Q5, Q9]
+    handling: "Quarantine the transaction row."
+    total_sql: "SELECT count(*) FROM {s}.trans"
+    sql: |
+      SELECT trans_id::text AS business_key,
+             'trans_type_code = ' || trans_type_code || ' not in (PRIJEM, VYDAJ, VYBER)' AS reason
+      FROM {s}.trans
+      WHERE trans_type_code IS NOT NULL
+        AND trans_type_code NOT IN ('PRIJEM', 'VYDAJ', 'VYBER')
+
+  - rule_id: VAL_TRANS_OPERATION_DOMAIN
+    dimension: validity
+    table: trans
+    description: "Transaction operation outside the documented set"
+    defect_type: "Value outside the allowed list"
+    severity: warn
+    severity_rationale: >-
+      No certified metric groups by operation, so an unknown operation changes
+      no answer today and the posting stays. It is warn and not info because the
+      operation is how the semantic layer explains a posting to the LLM in
+      English: an undocumented code would be passed through untranslated, and
+      the model would present a Czech string as a business category.
+    affects_questions: []
+    handling: "Row kept and flagged; the unknown code is listed in the DQ report."
+    total_sql: "SELECT count(*) FROM {s}.trans WHERE operation_code IS NOT NULL"
+    sql: |
+      SELECT trans_id::text AS business_key,
+             'operation_code = ' || operation_code || ' is not a documented operation' AS reason
+      FROM {s}.trans
+      WHERE operation_code IS NOT NULL
+        AND operation_code NOT IN ('VKLAD', 'VYBER', 'VYBER KARTOU', 'PREVOD Z UCTU', 'PREVOD NA UCET')
+
+  - rule_id: VAL_KSYMBOL_DOMAIN
+    dimension: validity
+    table: trans
+    description: "Transaction category (k_symbol) outside the documented set"
+    defect_type: "Value outside the allowed list"
+    severity: info
+    severity_rationale: >-
+      k_symbol is a free-ish annotation column, no question reads it, and the
+      documented list is known to be incomplete in the original dataset. An
+      unknown value is therefore expected rather than alarming. It is logged so
+      the semantic layer's allowed-value list can be extended deliberately
+      instead of drifting.
+    affects_questions: []
+    handling: "Logged only; value passes through to core with no English label."
+    total_sql: "SELECT count(*) FROM {s}.trans WHERE k_symbol_code IS NOT NULL"
+    sql: |
+      SELECT trans_id::text AS business_key,
+             'k_symbol_code = ' || k_symbol_code || ' is not a documented category' AS reason
+      FROM {s}.trans
+      WHERE k_symbol_code IS NOT NULL
+        AND k_symbol_code NOT IN ('POJISTNE', 'SLUZBY', 'UROK', 'SANKC. UROK', 'SIPO', 'DUCHOD', 'UVER')
+
+  - rule_id: VAL_LOAN_AMOUNT_POSITIVE
+    dimension: validity
+    table: loan
+    description: "Loan amount is zero or negative"
+    defect_type: "Implausible amount"
+    severity: block
+    severity_rationale: >-
+      A loan of zero or less is not a loan. Q2 sums loan amounts per year and Q4
+      averages them per card type: a negative amount would reduce a yearly total
+      below the sum of its real loans, and an average can be dragged anywhere by
+      one bad sign. There is no defensible interpretation, so block.
+    affects_questions: [Q2, Q4]
+    handling: "Quarantine the loan row."
+    total_sql: "SELECT count(*) FROM {s}.loan"
+    sql: |
+      SELECT loan_id::text AS business_key,
+             'amount = ' || amount || ' is not positive' AS reason
+      FROM {s}.loan
+      WHERE amount IS NOT NULL AND amount <= 0
+
+  - rule_id: VAL_LOAN_PAYMENT_POSITIVE
+    dimension: validity
+    table: loan
+    description: "Monthly payment is zero or negative"
+    defect_type: "Implausible amount"
+    severity: warn
+    severity_rationale: >-
+      No question reads the monthly payment directly, so the loan stays usable
+      for Q2, Q3, Q4, Q7 and Q10. It is warn rather than info because the
+      payment is one side of the payments * duration = amount cross-check: a
+      non-positive payment makes that reconciliation meaningless for the row,
+      so the row must be excluded from the check rather than counted as a
+      failure of it.
+    affects_questions: []
+    handling: "Row kept and flagged; excluded from the payment schedule check."
+    total_sql: "SELECT count(*) FROM {s}.loan"
+    sql: |
+      SELECT loan_id::text AS business_key,
+             'monthly_payment = ' || monthly_payment || ' is not positive' AS reason
+      FROM {s}.loan
+      WHERE monthly_payment IS NOT NULL AND monthly_payment <= 0
+
+  - rule_id: VAL_LOAN_DURATION_DOMAIN
+    dimension: validity
+    table: loan
+    description: "Loan duration outside the offered terms (12, 24, 36, 48, 60 months)"
+    defect_type: "Value outside the allowed list"
+    severity: block
+    severity_rationale: >-
+      The bank offers five fixed terms. A duration outside them means either the
+      product catalogue is wrong or the row is corrupt, and in both cases the
+      payments * duration = amount reconciliation cannot be trusted for that
+      loan. Because the loan's amount feeds Q2 and Q4, a row whose internal
+      arithmetic cannot be verified is excluded rather than quietly averaged in.
+    affects_questions: [Q2, Q4]
+    handling: "Quarantine the loan row."
+    total_sql: "SELECT count(*) FROM {s}.loan"
+    sql: |
+      SELECT loan_id::text AS business_key,
+             'duration_months = ' || duration_months || ' not in (12, 24, 36, 48, 60)' AS reason
+      FROM {s}.loan
+      WHERE duration_months IS NOT NULL AND duration_months NOT IN (12, 24, 36, 48, 60)
+
+  - rule_id: VAL_TRANS_AMOUNT_POSITIVE
+    dimension: validity
+    table: trans
+    description: "Transaction amount is zero or negative"
+    defect_type: "Implausible amount"
+    severity: info
+    severity_rationale: >-
+      14 postings have an amount of exactly zero. All of them are interest or
+      sanction-interest runs that accrued nothing, so they are genuine events
+      with no monetary effect: they change no sum in Q5 and no balance in Q9.
+      The naive form of this rule ("amount must be > 0") would quarantine 14
+      valid postings and break the balance chain of 14 accounts, which is a
+      worked example of a defensible rule with the wrong severity doing more
+      damage than the defect. A *negative* amount, by contrast, would be
+      blocked: the split is in the rule below.
+    affects_questions: []
+    handling: "Logged only; the postings stay in core with amount = 0."
+    total_sql: "SELECT count(*) FROM {s}.trans"
+    sql: |
+      SELECT trans_id::text AS business_key,
+             'amount = ' || amount || ' (type ' || coalesce(trans_type_code, 'NULL')
+               || ', category ' || coalesce(k_symbol_code, 'none') || ')' AS reason
+      FROM {s}.trans
+      WHERE amount IS NOT NULL AND amount = 0
+
+  - rule_id: VAL_TRANS_AMOUNT_NEGATIVE
+    dimension: validity
+    table: trans
+    description: "Transaction amount is negative"
+    defect_type: "Implausible amount"
+    severity: block
+    severity_rationale: >-
+      Direction is carried by the type (PRIJEM / VYDAJ), so the amount column is
+      a magnitude and must never be signed. A negative magnitude means the sign
+      has been applied twice, which flips a debit into a credit: it would add to
+      the incoming total in Q5 and move the balance the wrong way in Q9. Unlike
+      the zero case above there is no valid reading, so block.
+    affects_questions: [Q5, Q9]
+    handling: "Quarantine the transaction row."
+    total_sql: "SELECT count(*) FROM {s}.trans"
+    sql: |
+      SELECT trans_id::text AS business_key,
+             'amount = ' || amount || ' is negative; direction belongs in trans_type_code' AS reason
+      FROM {s}.trans
+      WHERE amount IS NOT NULL AND amount < 0
+
+  - rule_id: VAL_TRANS_BALANCE_NEGATIVE
+    dimension: validity
+    table: trans
+    description: "Balance after the transaction is negative (overdraft)"
+    severity: info
+    severity_rationale: >-
+      2,999 postings leave a negative balance. This is overdraft, which is
+      normal banking, not a defect -- and it matters that the rule says so,
+      because the tempting "fix" (clipping balances at zero) would bias the Q9
+      average upwards. Reported as info so the number is known and explicitly
+      not acted on.
+    affects_questions: [Q9]
+    handling: "Logged only; balances are never clipped."
+    total_sql: "SELECT count(*) FROM {s}.trans"
+    sql: |
+      SELECT trans_id::text AS business_key,
+             'balance_after = ' || balance_after AS reason
+      FROM {s}.trans
+      WHERE balance_after IS NOT NULL AND balance_after < 0
+
+  - rule_id: VAL_ORDER_AMOUNT_POSITIVE
+    dimension: validity
+    table: order
+    description: "Standing order amount is zero or negative"
+    defect_type: "Implausible amount"
+    severity: info
+    severity_rationale: >-
+      No certified metric reads standing orders, so nothing is at risk today. A
+      zero-amount instruction is also a plausible dormant order. Logged so that
+      the first metric built on this table starts from a known baseline.
+    affects_questions: []
+    handling: "Logged only."
+    total_sql: "SELECT count(*) FROM {s}.\"order\""
+    sql: |
+      SELECT order_id::text AS business_key,
+             'amount = ' || amount || ' is not positive' AS reason
+      FROM {s}."order"
+      WHERE amount IS NOT NULL AND amount <= 0
+
+  - rule_id: VAL_BIRTH_NUMBER_DECODABLE
+    dimension: validity
+    table: client
+    description: "birth_number does not decode (bad month, impossible day, wrong length)"
+    severity: warn
+    severity_rationale: >-
+      birth_number is the only source of both age and gender, so an undecodable
+      value removes a client from Q7 and Q8 but from nothing else. Warn, with
+      the coverage of those two answers published. It is not block because a
+      client with an unreadable birth number is still a real client who holds
+      real accounts and real loans, and quarantining them would corrupt Q1, Q2,
+      Q5 and Q9 to protect Q7 and Q8.
+    affects_questions: [Q7, Q8]
+    handling: >-
+      Row kept, birth_number_valid = false, excluded from the age and gender
+      metrics which report how many clients they covered.
+    total_sql: "SELECT count(*) FROM {s}.client"
+    sql: |
+      SELECT client_id::text AS business_key,
+             'birth_number ' || coalesce(birth_number, 'NULL') || ' is not decodable' AS reason
+      FROM {s}.client
+      WHERE NOT coalesce(birth_number_valid, false)
+
+  - rule_id: VAL_BIRTH_DATE_PLAUSIBLE
+    dimension: validity
+    table: client
+    description: "Client birth date outside a plausible range for a 1990s bank client"
+    severity: warn
+    severity_rationale: >-
+      A birth date before 1900 or after the dataset's own window is a decoding
+      error rather than a person. It would distort the Q7 average age without
+      being obviously wrong in the output, which is the dangerous case. Warn
+      because the client remains valid for every other metric; the age metrics
+      exclude them and say so.
+    affects_questions: [Q7]
+    handling: "Row kept and flagged; excluded from age metrics."
+    total_sql: "SELECT count(*) FROM {s}.client"
+    sql: |
+      SELECT client_id::text AS business_key,
+             'birth_date = ' || birth_date || ' is outside 1900-01-01..1998-12-31' AS reason
+      FROM {s}.client
+      WHERE birth_date IS NOT NULL
+        AND (birth_date < DATE '1900-01-01' OR birth_date > DATE '1998-12-31')
+
+  - rule_id: VAL_OWNER_AGE_AT_ACCOUNT_OPEN
+    dimension: validity
+    table: client
+    description: "Account owner was younger than 15 at account opening"
+    defect_type: "Implausible age"
+    severity: warn
+    severity_rationale: >-
+      114 owners were under 15 when their account was opened, the youngest 10.3
+      years. A ten year old cannot be the legal holder of a current account, so
+      either the birth number or the owner flag is wrong. It is warn rather than
+      block because the accounts and their transactions are otherwise
+      well-formed and feed Q5, Q6 and Q9 correctly: quarantining 114 accounts to
+      protect the age metric would damage four answers to improve one. Q7 and Q8
+      report their coverage instead.
+    affects_questions: [Q7, Q8]
+    handling: >-
+      Rows kept and flagged (_dq_flags carries 'owner_age_implausible'); the
+      semantic layer attaches the caveat to the age metric so the LLM can repeat
+      it.
+    total_sql: "SELECT count(*) FROM {s}.disp WHERE disp_type_code = 'OWNER'"
+    sql: |
+      SELECT c.client_id::text AS business_key,
+             'owner was ' || round((a.open_date - c.birth_date) / 365.25, 1)
+               || ' years old when account ' || a.account_id || ' was opened' AS reason
+      FROM {s}.disp d
+      JOIN {s}.client c  ON c.client_id = d.client_id
+      JOIN {s}.account a ON a.account_id = d.account_id
+      WHERE d.disp_type_code = 'OWNER'
+        AND c.birth_date IS NOT NULL AND a.open_date IS NOT NULL
+        AND (a.open_date - c.birth_date) / 365.25 < 15
+
+  - rule_id: VAL_OWNER_AGE_AT_LOAN_START
+    dimension: validity
+    table: loan
+    description: "Account owner was younger than 15 at loan start"
+    defect_type: "Implausible age"
+    severity: warn
+    severity_rationale: >-
+      6 loans were granted to owners recorded as under 15. Q7 reports exactly
+      this number -- the average age of the owner at loan start, per status -- so
+      these rows pull the answer directly. Warn rather than block because the
+      loan amount and status are themselves sound and feed Q2, Q3, Q4 and Q10:
+      removing the loans would make the certified loan total disagree with the
+      source. Q7 publishes the flagged count next to the average, which is the
+      honest treatment of a value that is probably wrong but not certainly so.
+    affects_questions: [Q7]
+    handling: >-
+      Rows kept and flagged; Q7 reports the average with and without the
+      flagged loans so the sensitivity is visible.
+    total_sql: "SELECT count(*) FROM {s}.loan"
+    sql: |
+      SELECT l.loan_id::text AS business_key,
+             'owner was ' || round((l.loan_date - c.birth_date) / 365.25, 1)
+               || ' years old at loan start' AS reason
+      FROM {s}.loan l
+      JOIN {s}.disp d ON d.account_id = l.account_id AND d.disp_type_code = 'OWNER'
+      JOIN {s}.client c ON c.client_id = d.client_id
+      WHERE l.loan_date IS NOT NULL AND c.birth_date IS NOT NULL
+        AND (l.loan_date - c.birth_date) / 365.25 < 15
+
+  - rule_id: VAL_DISTRICT_NUMERIC_NONNEGATIVE
+    dimension: validity
+    table: district
+    description: "District demographic figure is negative"
+    defect_type: "Implausible amount"
+    severity: info
+    severity_rationale: >-
+      Inhabitants, salaries, unemployment rates and crime counts cannot be
+      negative. None of the 10 questions reads these columns, so nothing is at
+      risk now; the rule ships because these are the columns a "clients per
+      region, weighted by average salary" style follow-up question would use
+      first, and it would then be promoted to block.
+    affects_questions: []
+    handling: "Logged only."
+    total_sql: "SELECT count(*) FROM {s}.district"
+    sql: |
+      SELECT district_id::text AS business_key,
+             'negative demographic value' AS reason
+      FROM {s}.district
+      WHERE inhabitants < 0 OR average_salary < 0 OR unemployment_rate_1995 < 0
+         OR unemployment_rate_1996 < 0 OR crimes_1995 < 0 OR crimes_1996 < 0
+         OR entrepreneurs_per_1000 < 0 OR cities < 0
+
+  - rule_id: VAL_GENDER_DOMAIN
+    dimension: validity
+    table: client
+    description: "Decoded gender outside the allowed set"
+    defect_type: "Value outside the allowed list"
+    severity: block
+    severity_rationale: >-
+      Q8 reports a gender split whose percentages must sum to 100. A third
+      value, however it arose, would break that invariant, and the decode is
+      fully deterministic from birth_number, so a non-conforming value means the
+      decoder itself is wrong. That is a code defect and must stop the pipeline
+      rather than reach a report.
+    affects_questions: [Q8]
+    handling: >-
+      Quarantine the client row; in practice a hit here means the decode
+      function regressed and the build should be investigated, not the data.
+    total_sql: "SELECT count(*) FROM {s}.client"
+    sql: |
+      SELECT client_id::text AS business_key,
+             'gender = ' || gender || ' not in (male, female)' AS reason
+      FROM {s}.client
+      WHERE gender IS NOT NULL AND gender NOT IN ('male', 'female')
+
+# =============================================================================
+# CROSS-TABLE CONSISTENCY
+# =============================================================================
+
+  - rule_id: CON_LOAN_BEFORE_ACCOUNT_OPEN
+    dimension: consistency
+    table: loan
+    description: "Loan starts before the account was opened"
+    defect_type: "Event out of chronological order"
+    severity: block
+    severity_rationale: >-
+      A loan cannot predate the account that carries it. Either the loan date or
+      the opening date is wrong, and both feed year and month groupings (Q2, Q6)
+      as well as the age calculation in Q7. Because it is impossible rather than
+      merely unlikely, and because the pair cannot be repaired by choosing one
+      side, the loan is blocked.
+    affects_questions: [Q2, Q7]
+    handling: "Quarantine the loan row; both dates are named in the reason."
+    total_sql: "SELECT count(*) FROM {s}.loan"
+    sql: |
+      SELECT l.loan_id::text AS business_key,
+             'loan_date ' || l.loan_date || ' precedes account open_date ' || a.open_date AS reason
+      FROM {s}.loan l
+      JOIN {s}.account a ON a.account_id = l.account_id
+      WHERE l.loan_date IS NOT NULL AND a.open_date IS NOT NULL
+        AND l.loan_date < a.open_date
+
+  - rule_id: CON_CARD_BEFORE_ACCOUNT_OPEN
+    dimension: consistency
+    table: card
+    description: "Card issued before the account was opened"
+    defect_type: "Event out of chronological order"
+    severity: warn
+    severity_rationale: >-
+      Also impossible, but harmless to the certified answers: Q4 and Q8 use the
+      card *type*, never its issue date. Warn rather than block because
+      quarantining the card would move its owner into the 'no card' bucket in
+      Q4 and out of the gold population in Q8 -- that is, a date defect would
+      silently change a type-based answer. Flagging keeps the type and records
+      the impossibility.
+    affects_questions: [Q4, Q8]
+    handling: "Row kept and flagged; the card type still counts."
+    total_sql: "SELECT count(*) FROM {s}.card"
+    sql: |
+      SELECT k.card_id::text AS business_key,
+             'issued_date ' || k.issued_date || ' precedes account open_date ' || a.open_date AS reason
+      FROM {s}.card k
+      JOIN {s}.disp d ON d.disp_id = k.disp_id
+      JOIN {s}.account a ON a.account_id = d.account_id
+      WHERE k.issued_date IS NOT NULL AND a.open_date IS NOT NULL
+        AND k.issued_date < a.open_date
+
+  - rule_id: CON_TRANS_BEFORE_ACCOUNT_OPEN
+    dimension: consistency
+    table: trans
+    description: "Transaction posted before the account was opened"
+    defect_type: "Event out of chronological order"
+    severity: warn
+    severity_rationale: >-
+      A posting before the opening date means one of the two dates is wrong. It
+      is warn, not block, because the posting is part of the balance chain: a
+      removed posting makes the running balance jump, so quarantining it would
+      corrupt the Q9 balance of that account in order to fix a date. Flagged and
+      counted, with the account marked so Q9 can report affected coverage.
+    affects_questions: [Q5, Q9]
+    handling: "Row kept and flagged; the account is marked in the balance fact."
+    total_sql: "SELECT count(*) FROM {s}.trans"
+    sql: |
+      SELECT t.trans_id::text AS business_key,
+             'trans_date ' || t.trans_date || ' precedes account open_date ' || a.open_date AS reason
+      FROM {s}.trans t
+      JOIN {s}.account a ON a.account_id = t.account_id
+      WHERE t.trans_date IS NOT NULL AND a.open_date IS NOT NULL
+        AND t.trans_date < a.open_date
+
+  - rule_id: CON_LOAN_PAYMENT_SCHEDULE
+    dimension: consistency
+    table: loan
+    description: "monthly_payment * duration does not equal the loan amount"
+    severity: warn
+    severity_rationale: >-
+      The three columns are arithmetically linked, so a mismatch means one of
+      them is wrong -- and the amount is the one Q2 sums and Q4 averages. Warn
+      rather than block because the check cannot say *which* column is wrong,
+      and quarantining a loan whose amount may well be correct would understate
+      the yearly totals Q2 reports. The tolerance is 1 percent, held in
+      src/config.py, which is wide enough for the dataset's one-decimal rounding
+      and narrow enough to catch a real inconsistency.
+    affects_questions: [Q2, Q4]
+    handling: >-
+      Rows kept and flagged; the flag travels into core.fact_loan so a user can
+      exclude them. The tolerance is published in the semantic layer.
+    total_sql: "SELECT count(*) FROM {s}.loan"
+    sql: |
+      SELECT loan_id::text AS business_key,
+             'monthly_payment ' || monthly_payment || ' * duration ' || duration_months
+               || ' = ' || (monthly_payment * duration_months)
+               || ' but amount = ' || amount AS reason
+      FROM {s}.loan
+      WHERE amount IS NOT NULL AND monthly_payment IS NOT NULL AND duration_months IS NOT NULL
+        AND monthly_payment > 0
+        AND abs(monthly_payment * duration_months - amount) > 0.01 * amount
+
+  - rule_id: CON_TYPE_OPERATION_DIRECTION
+    dimension: consistency
+    table: trans
+    description: "Operation contradicts the credit/debit direction of the transaction type"
+    severity: block
+    severity_rationale: >-
+      A deposit (VKLAD) or an incoming transfer (PREVOD Z UCTU) on a debit type,
+      or a withdrawal on a credit type, is a self-contradictory posting. The
+      direction decides whether the amount counts in Q5's incoming total and
+      which way it moves the Q9 balance, so a contradiction means one of the two
+      columns is corrupt and the posting cannot be signed. Block.
+    affects_questions: [Q5, Q9]
+    handling: "Quarantine the transaction row."
+    total_sql: "SELECT count(*) FROM {s}.trans WHERE operation_code IS NOT NULL"
+    sql: |
+      SELECT trans_id::text AS business_key,
+             'type ' || trans_type_code || ' (' || direction || ') with operation '
+               || operation_code AS reason
+      FROM {s}.trans
+      WHERE operation_code IS NOT NULL AND direction IS NOT NULL
+        AND (
+              (direction = 'debit'  AND operation_code IN ('VKLAD', 'PREVOD Z UCTU'))
+           OR (direction = 'credit' AND operation_code IN ('VYBER', 'VYBER KARTOU', 'PREVOD NA UCET'))
+            )
+
+  - rule_id: CON_BALANCE_RECONCILIATION_ROUNDING
+    dimension: consistency
+    table: trans
+    description: "Per-account balance chain off by more than 1 CZK but at most 100 CZK"
+    defect_type: "Running balance does not reconcile"
+    severity: warn
+    severity_rationale: >-
+      Tested order independently: the sum of all signed amounts on an account
+      should equal its last reported balance, whatever order the postings are
+      read in. 136 accounts breach a 1 CZK tolerance; 81 of those are within 100
+      CZK and sit in the rounding band (every amount in the source carries a
+      single decimal, so residuals accumulate). Warn, because the account is
+      still usable and the Q9 average moves by cents; the band is reported so
+      nobody confuses it with the material tier below.
+    affects_questions: [Q9]
+    handling: >-
+      Account flagged; the month-end balance fact carries the residual so a user
+      can see the size of the discrepancy next to the balance.
+    total_sql: "SELECT count(DISTINCT account_id) FROM {s}.trans"
+    sql: |
+      WITH final AS (
+          SELECT account_id, balance_after
+          FROM (
+              SELECT account_id, balance_after,
+                     row_number() OVER (PARTITION BY account_id
+                                        ORDER BY trans_date DESC, trans_id DESC) AS rn
+              FROM {s}.trans
+          ) x WHERE rn = 1
+      ), summed AS (
+          SELECT account_id, sum(signed_amount) AS total FROM {s}.trans GROUP BY 1
+      )
+      SELECT s.account_id::text AS business_key,
+             'sum(signed_amount) = ' || s.total || ' but last reported balance = '
+               || f.balance_after || ' (difference ' || round(s.total - f.balance_after, 2) || ')' AS reason
+      FROM summed s JOIN final f USING (account_id)
+      WHERE abs(s.total - f.balance_after) > 1.00
+        AND abs(s.total - f.balance_after) <= 100.00
+
+  - rule_id: CON_BALANCE_RECONCILIATION_MATERIAL
+    dimension: consistency
+    table: trans
+    description: "Per-account balance chain off by more than 100 CZK"
+    defect_type: "Running balance does not reconcile"
+    severity: warn
+    severity_rationale: >-
+      55 accounts are off by more than 100 CZK and one by exactly 1,200.00 CZK
+      with only 55 postings, which is a missing or extra posting rather than
+      rounding. This is the single most material finding for Q9, because the
+      answer is an average balance and these accounts' balances cannot be
+      derived from their own flows. It stays warn rather than block on purpose:
+      the balance column is what Q9 reads, and it is internally plausible -- it
+      is the *flows* that disagree with it. Quarantining the accounts would
+      remove real balances from an average; blocking the postings would break
+      the chain further. The defensible treatment is to publish the answer with
+      the affected population and the residual attached, which is what the
+      semantic layer makes the LLM do.
+    affects_questions: [Q9]
+    handling: >-
+      Account flagged as balance_unreconciled; Q9 reports the average together
+      with the number of affected accounts and the total residual, so the reader
+      can size the uncertainty instead of guessing at it.
+    total_sql: "SELECT count(DISTINCT account_id) FROM {s}.trans"
+    sql: |
+      WITH final AS (
+          SELECT account_id, balance_after
+          FROM (
+              SELECT account_id, balance_after,
+                     row_number() OVER (PARTITION BY account_id
+                                        ORDER BY trans_date DESC, trans_id DESC) AS rn
+              FROM {s}.trans
+          ) x WHERE rn = 1
+      ), summed AS (
+          SELECT account_id, sum(signed_amount) AS total FROM {s}.trans GROUP BY 1
+      )
+      SELECT s.account_id::text AS business_key,
+             'sum(signed_amount) = ' || s.total || ' but last reported balance = '
+               || f.balance_after || ' (difference ' || round(s.total - f.balance_after, 2) || ')' AS reason
+      FROM summed s JOIN final f USING (account_id)
+      WHERE abs(s.total - f.balance_after) > 100.00
+
+  - rule_id: CON_INTRADAY_ORDER_AMBIGUOUS
+    dimension: consistency
+    table: trans
+    description: "Closing balance of the account's last day is not uniquely determined"
+    severity: warn
+    severity_rationale: >-
+      trans_id is not chronological within a date, so when an account has
+      several postings on one day there is no way to tell which one closed the
+      day. For 183 accounts that ambiguity falls on their most recent date,
+      which is precisely the balance Q9 reports. The answer is therefore a
+      documented choice (highest trans_id on the latest date) rather than a
+      fact, and the count of affected accounts belongs next to the answer. Warn:
+      the data is not wrong, the determinism is missing.
+    affects_questions: [Q9]
+    handling: >-
+      Tie-break documented in the semantic layer and applied identically in the
+      reference SQL and in core.fact_account_month_end_balance; affected
+      accounts flagged so the caveat can be quantified.
+    total_sql: "SELECT count(DISTINCT account_id) FROM {s}.trans"
+    sql: |
+      SELECT account_id::text AS business_key,
+             'account has ' || n || ' postings on its latest date ' || trans_date
+               || '; the closing balance depends on the tie-break' AS reason
+      FROM (
+          SELECT account_id, trans_date, count(*) AS n,
+                 row_number() OVER (PARTITION BY account_id ORDER BY trans_date DESC) AS rn
+          FROM {s}.trans
+          GROUP BY account_id, trans_date
+      ) d
+      WHERE rn = 1 AND n > 1
+
+  - rule_id: CON_INTEREST_WITHOUT_OPERATION
+    dimension: consistency
+    table: trans
+    description: "Interest posting carries an operation (or a non-interest posting carries none)"
+    severity: info
+    severity_rationale: >-
+      The dataset's own pattern is that interest postings (k_symbol = UROK) have
+      no operation and everything else does. This rule states that invariant
+      explicitly so that a feed change breaking it is visible. It is info
+      because no certified metric reads the operation, and because the invariant
+      is an observation about this dataset rather than a documented business
+      rule -- treating an observation as a hard rule is how a pipeline starts
+      rejecting correct data.
+    affects_questions: []
+    handling: "Logged only."
+    total_sql: "SELECT count(*) FROM {s}.trans"
+    sql: |
+      SELECT trans_id::text AS business_key,
+             'k_symbol = ' || coalesce(k_symbol_code, 'none') || ' with operation = '
+               || coalesce(operation_code, 'none') AS reason
+      FROM {s}.trans
+      WHERE (k_symbol_code = 'UROK' AND operation_code IS NOT NULL)
+         OR (operation_code IS NULL AND coalesce(k_symbol_code, '') <> 'UROK')
+
+  - rule_id: CON_CLIENT_ACCOUNT_DISTRICT_MISMATCH
+    dimension: consistency
+    table: disp
+    description: "Owner's own district differs from the district of the account they own"
+    severity: info
+    severity_rationale: >-
+      409 of 4,500 owners (9.1 percent) live in a different district than their
+      account is registered in. This is not a defect: people move, and they bank
+      where they opened the account. It is reported as info with an
+      interpretation because it is a modelling fork, not a data error -- Q1
+      (clients per region) and Q5 (districts by transaction volume) would give
+      different answers depending on which district is used, so both questions
+      state their choice, and the 9.1 percent figure is what tells a reviewer
+      the choice is material.
+    affects_questions: [Q1, Q5]
+    handling: >-
+      Logged with its rate. Q1 uses the client's own district, Q5 uses the
+      account's district; both are stated in the semantic layer and in
+      ASSUMPTIONS so an LLM cannot pick silently.
+    total_sql: "SELECT count(*) FROM {s}.disp WHERE disp_type_code = 'OWNER'"
+    sql: |
+      SELECT d.disp_id::text AS business_key,
+             'client ' || c.client_id || ' lives in district ' || c.district_id
+               || ' but owns account ' || a.account_id || ' in district ' || a.district_id AS reason
+      FROM {s}.disp d
+      JOIN {s}.client c  ON c.client_id = d.client_id
+      JOIN {s}.account a ON a.account_id = d.account_id
+      WHERE d.disp_type_code = 'OWNER'
+        AND c.district_id IS NOT NULL AND a.district_id IS NOT NULL
+        AND c.district_id <> a.district_id
+
+  - rule_id: CON_CARD_HELD_BY_DISPONENT
+    dimension: consistency
+    table: card
+    description: "Card is held by a disponent rather than by the account owner"
+    severity: info
+    severity_rationale: >-
+      Cards attach to a disposition, so a card can belong to someone who is not
+      the owner. Q4 and Q8 both say "of the account owner", so such a card must
+      not be attributed to the owner. Zero rows fire on this copy, but the rule
+      is the guard that keeps the owner-card join honest: without it, a
+      disponent's gold card would silently make the owner a gold card holder in
+      Q8. Info, because the data is correct by construction; the rule exists to
+      protect the query, not the data.
+    affects_questions: [Q4, Q8]
+    handling: >-
+      Logged. The model enforces it structurally: core.v_loan_enriched joins the
+      card through the OWNER disposition only.
+    total_sql: "SELECT count(*) FROM {s}.card"
+    sql: |
+      SELECT k.card_id::text AS business_key,
+             'card held by disposition type ' || d.disp_type_code AS reason
+      FROM {s}.card k
+      JOIN {s}.disp d ON d.disp_id = k.disp_id
+      WHERE d.disp_type_code <> 'OWNER'
+
+  - rule_id: CON_GENDER_MATCHES_BIRTH_NUMBER
+    dimension: consistency
+    table: client
+    description: "Decoded gender disagrees with the birth_number month encoding"
+    severity: block
+    severity_rationale: >-
+      This is a self-check on the decoder rather than on the data: gender is
+      derived from the same six digits, so a disagreement can only mean the
+      decode logic is inconsistent with itself. Q8's percentages depend on it
+      entirely. A code defect must stop the build, so block.
+    affects_questions: [Q8]
+    handling: "Quarantine the row and treat a hit as a build failure to investigate."
+    total_sql: "SELECT count(*) FROM {s}.client"
+    sql: |
+      SELECT client_id::text AS business_key,
+             'gender ' || gender || ' disagrees with birth_number ' || birth_number AS reason
+      FROM {s}.client
+      WHERE birth_number ~ '^[0-9]{6}$'
+        AND gender IS NOT NULL
+        AND gender <> CASE
+              WHEN substr(birth_number, 3, 2)::int BETWEEN 51 AND 62 THEN 'female'
+              WHEN substr(birth_number, 3, 2)::int BETWEEN 1 AND 12  THEN 'male'
+              ELSE 'undecodable' END
+
+# =============================================================================
+# RECONCILIATION -- raw to stg, and layer populations
+# =============================================================================
+
+  - rule_id: REC_ROWCOUNT_RAW_TO_STG
+    dimension: reconciliation
+    table: all
+    description: "Row count differs between raw and stg"
+    severity: block
+    severity_rationale: >-
+      Staging casts and decodes but must never add or lose a row: that is the
+      contract that makes every later number traceable to a line in a source
+      file. A difference means the build itself is unsound, so every answer
+      derived from it is suspect, not just one. Block.
+    affects_questions: [Q1, Q2, Q3, Q4, Q5, Q6, Q7, Q8, Q9, Q10]
+    handling: "Build failure; investigated before any deliverable is produced."
+    total_sql: "SELECT 8"
+    skip_quarantine: true
+    sql: |
+      SELECT t.name AS business_key,
+             'raw has ' || t.raw_rows || ' rows, stg has ' || t.stg_rows AS reason
+      FROM (
+          SELECT 'account'  AS name, (SELECT count(*) FROM raw.account)  AS raw_rows, (SELECT count(*) FROM {s}.account)  AS stg_rows
+          UNION ALL SELECT 'client',   (SELECT count(*) FROM raw.client),   (SELECT count(*) FROM {s}.client)
+          UNION ALL SELECT 'disp',     (SELECT count(*) FROM raw.disp),     (SELECT count(*) FROM {s}.disp)
+          UNION ALL SELECT 'card',     (SELECT count(*) FROM raw.card),     (SELECT count(*) FROM {s}.card)
+          UNION ALL SELECT 'loan',     (SELECT count(*) FROM raw.loan),     (SELECT count(*) FROM {s}.loan)
+          UNION ALL SELECT 'order',    (SELECT count(*) FROM raw."order"),  (SELECT count(*) FROM {s}."order")
+          UNION ALL SELECT 'trans',    (SELECT count(*) FROM raw.trans),    (SELECT count(*) FROM {s}.trans)
+          UNION ALL SELECT 'district', (SELECT count(*) FROM raw.district), (SELECT count(*) FROM {s}.district)
+      ) t
+      WHERE t.raw_rows <> t.stg_rows
+
+  - rule_id: REC_AMOUNT_SUM_RAW_TO_STG
+    dimension: reconciliation
+    table: all
+    description: "Sum of amounts differs between raw and stg"
+    severity: block
+    severity_rationale: >-
+      The money must survive the cast. If the sum of trans.amount or loan.amount
+      changes between raw text and typed staging, a decimal separator or a
+      locale assumption is wrong, and every monetary answer (Q2, Q4, Q5) is
+      wrong with it -- plausibly, which is worse than obviously. Block.
+    affects_questions: [Q2, Q4, Q5]
+    handling: "Build failure; investigated before any deliverable is produced."
+    total_sql: "SELECT 3"
+    skip_quarantine: true
+    sql: |
+      SELECT t.name AS business_key,
+             'raw sum ' || t.raw_sum || ' vs stg sum ' || t.stg_sum AS reason
+      FROM (
+          SELECT 'trans.amount' AS name,
+                 (SELECT round(sum(amount::numeric), 2) FROM raw.trans)  AS raw_sum,
+                 (SELECT round(sum(amount), 2)          FROM {s}.trans)  AS stg_sum
+          UNION ALL
+          SELECT 'loan.amount',
+                 (SELECT round(sum(amount::numeric), 2) FROM raw.loan),
+                 (SELECT round(sum(amount), 2)          FROM {s}.loan)
+          UNION ALL
+          SELECT 'order.amount',
+                 (SELECT round(sum(amount::numeric), 2) FROM raw."order"),
+                 (SELECT round(sum(amount), 2)          FROM {s}."order")
+      ) t
+      WHERE coalesce(t.raw_sum, -1) <> coalesce(t.stg_sum, -1)
+
+  - rule_id: REC_LOAN_STATUS_DISTRIBUTION
+    dimension: reconciliation
+    table: loan
+    description: "Problematic loan count differs from the published reference figure"
+    severity: info
+    severity_rationale: >-
+      The public copy of this dataset is documented as having 76 problematic
+      loans out of 682 (11.14 percent), which is the cross-check the brief
+      itself suggests for Q3. A difference is not a defect: it is the expected
+      signal that the copy being processed is the bank's own, with defects
+      injected. It is info because it drives investigation rather than
+      rejection, and it is the first place to look when reference values
+      disagree.
+    affects_questions: [Q3, Q10]
+    handling: >-
+      Logged with both numbers. On a non-public copy this result is the entry
+      point for the diff_public_vs_provided report.
+    total_sql: "SELECT count(*) FROM {s}.loan"
+    skip_quarantine: true
+    sql: |
+      SELECT 'loan_status_distribution' AS business_key,
+             'problematic loans = ' || count(*) FILTER (WHERE status_code IN ('B', 'D'))
+               || ' of ' || count(*) || ' (expected 76 of 682 on the public copy)' AS reason
+      FROM {s}.loan
+      HAVING count(*) FILTER (WHERE status_code IN ('B', 'D')) <> 76 OR count(*) <> 682
