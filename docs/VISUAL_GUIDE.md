@@ -1,8 +1,14 @@
 # Visual guide
 
-Six figures. Each one is here because it shows a mechanism that would otherwise
+Ten figures. Each one is here because it shows a mechanism that would otherwise
 have to be assembled from prose; where a sentence says it faster, there is a
 sentence instead.
+
+They fall into three sets:
+
+- **1-4, how it works** -- the pipeline, the query path, what a severity does, the schema.
+- **5-6, why it is built this way** -- two decisions, each drawn as the difference between the options.
+- **7-10, the defects and the system** -- every defect and how to solve it, and the whole proof of concept as built.
 
 Sources are in `docs/diagrams/`. The four flow and schema figures are Mermaid
 (`.mmd`), which GitHub renders inline, and the two decision comparisons are
@@ -125,13 +131,95 @@ considered"), the Design Decision Record section 2.
 
 ---
 
+## 7. The life of a defect
+
+![How a defect travels, and how each kind is permanently solved](diagrams/07_defect_lifecycle.svg)
+
+**What it shows:** that nothing is deleted quietly, and -- the part usually left
+out -- what *resolving* a defect actually means, which is different for each
+grade. A block row is fixed at source and reloaded, and the quarantine entry
+holds enough detail for an operations team to find it. A warn row has two
+honest endings: correct it at source, or accept that it is reality and keep
+the caveat forever. An info row usually needs nothing, and the rule stays in
+place so the grade can be promoted the day a metric starts reading that column.
+
+The claim in the header is the one worth arguing with: **a wrong grade does
+more damage than the defect.** Blocking the 14 zero-value postings would have
+broken 14 balance chains to fix nothing.
+
+**Read it alongside:** `dq/dq_rules.yaml`, `docs/HOW_WE_WORKED_SIMPLY.md`.
+
+---
+
+## 8. Every defect found, and what would solve it
+
+![All 14 defect types by severity, with row counts and remedies](diagrams/08_defect_catalogue.svg)
+
+**What it shows:** all fourteen defect types at once, on a log scale, with the
+questions each touches and the remedy for each. The shape is the point:
+**volume and harm run in opposite directions here.** The red band holds one row
+and changes two answers; the green band holds 2,556,535 rows and changes none.
+
+Nine of the fourteen need no fix at all, and they are reported precisely so
+that nobody "cleans" them later -- clipping overdrafts would bias the Q9
+average upwards, and blocking the zero-value postings would break balance
+chains. Writing down *why not to act* is as much of the job as acting.
+
+**This figure is generated** from `deliverables/defects.csv` by
+`scripts/make_defect_catalogue.py`, so it cannot drift from the data. Only the
+remedy column is held in the script, because a remedy is a judgement and
+belongs with a person. A defect type with no recorded remedy renders as a
+visible gap rather than a silent blank.
+
+---
+
+## 9. The whole proof of concept, in one picture
+
+![The seven schemas, what builds each, who reads each, and what it all produces](diagrams/09_system_map.svg)
+
+**What it shows:** everything that was stood up, arranged as *for each layer,
+the code that builds it and who is allowed to read it*. Seven schemas are the
+spine. Around them: what it runs on (one database, one language, no cloud
+service and no orchestrator), who may read the consumer layer and how many rows
+each of them actually sees, and what one command produces.
+
+The four consumer boxes are measured, not described -- produced by logging in
+as each role and counting. `rm_unassigned` seeing **0** is the one to point at:
+a badly built system defaults to showing everything.
+
+---
+
+## 10. What `make all` actually does
+
+![The 13 pipeline steps, what each produces, and which can stop the build](diagrams/10_build_sequence.svg)
+
+**What it shows:** the thirteen steps in order, what each produces, and -- marked
+in red -- the six that can **halt** the build. That is the mechanism behind the
+honesty claim: a wrong row count, a broken key, a false grain, a semantic layer
+that has drifted, a failing test or a decision record over two pages each stop
+the pipeline before a deliverable is written.
+
+It also shows what is deliberately *not* in the chain: the diagram renderer and
+the agent simulation. Neither is part of the data product, so neither can break
+a build.
+
+---
+
 ## Regenerating
 
 ```
 make diagrams
 ```
 
-Renders every `.mmd` to SVG and PNG with mermaid-cli, and rasterises the
-hand-authored SVGs to PNG with the bundled Chromium. It needs `npx` and a
-Chromium binary and is **not** part of `make all`: the diagrams are committed,
-and no part of the data pipeline depends on them.
+Renders every `.mmd` to SVG and PNG with mermaid-cli, regenerates the defect
+catalogue from `defects.csv`, and rasterises the hand-authored SVGs to PNG with
+the bundled Chromium. It needs `npx` and a Chromium binary and is **not** part
+of `make all`: the diagrams are committed, and no part of the data pipeline
+depends on them.
+
+| figure | source | kind |
+|---|---|---|
+| 1-4 | `*.mmd` | Mermaid, rendered |
+| 5-6, 9-10 | `*.svg` | hand-authored, rasterised to PNG for slides |
+| 7 | `*.svg` | hand-authored |
+| 8 | `scripts/make_defect_catalogue.py` | **generated from the data** |
