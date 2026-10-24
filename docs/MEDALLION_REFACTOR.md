@@ -299,11 +299,22 @@ building before the refactor rather than after.
 Five decisions are taken and built. Four remain, and all four are judgement
 calls about cost and intent rather than about design:
 
-| # | Open question | What it changes |
-|---|---|---|
-| 1 | Is the migration (step 3 above) in scope at all, or does the simulation answer the "what would you do next" question on its own? | If the simulation is enough, nothing further is needed: it is committed, runs in 20 ms and is covered by 21 tests. The migration is roughly a day and touches every import path in `src/`. |
-| 2 | Which branch? | The submitted pipeline runs in 4m28s and is pushed. I would keep it as the thing that demonstrably works and migrate on a branch of its own. |
-| 3 | Do you want a real agent run at any point, and with what budget? | Three agents against a 12,000-line codebase is real token cost. One, on Silver, with the acceptance criteria already executable, is the cheap way to find out whether the boundary holds under a model rather than under a script. |
-| 4 | Should the fixture in the control dataset grow? | It is four tables and six transactions, enough to exercise one defect per severity. Growing it makes the known answers more convincing and more tedious to maintain by hand -- worth doing only if the simulation becomes the main verification route rather than a design probe. |
+**Answered, and closed.**
 
-Nothing above blocks the submission. Everything above is reversible.
+| # | Question | Answer |
+|---|---|---|
+| 1 | Is the migration in scope? | **No.** No production code will be refactored. The simulation stands as the answer to "what would you do next"; the layered design is demonstrated rather than adopted. |
+| 2 | Which branch? | Moot, since there is no migration. Everything stays on the submitted branch. |
+| 3 | A real agent run? | **No.** No agent will be triggered and no tokens spent on one. The three definitions in `.claude/agents/` and the simulation in `packages/` are design artefacts; they describe how the work *would* be divided, and the harness proves the division is checkable. |
+| 4 | Grow the fixture? | **No.** Four tables and six transactions exercise one defect per severity, which is what a design probe needs. Growing it would only pay off if the simulation became the main verification route, and it will not.
+
+What this means in practice: `packages/`, `.claude/agents/`, `scripts/simulate_agents.py`
+and `tests/agentsim/` are **finished as they stand**. They are not a staging
+post on the way to a refactor. `make all` does not touch them, the submitted
+pipeline does not import them, and the ZIP manifest says so.
+
+The value they carry is the reasoning, not the code: three layers with a stated
+contract between them, acceptance criteria an owner can check itself against,
+a shared surface that is data rather than code, and a harness that proves the
+boundary catches a violation. That is the "what would you do next" answer, and
+it is answerable without spending a day migrating or a budget on agents.

@@ -1,6 +1,6 @@
 # STATUS REPORT
 
-Generated at 2026-10-22T21:57:19+00:00 (git 70f19af).
+Generated at 2026-10-24T20:55:43+00:00 (git 806e001).
 
 This report exists because of the honesty rules: a step that did not run
 is marked `NOT EXECUTED` here and its cells in the deliverables are left
@@ -18,10 +18,10 @@ empty, rather than being filled with something plausible.
 | semantic | `make semantic` | executed | 2026-10-22T10:52:07+00:00 | semantic/context_pack.md |
 | entitlements | `make entitlements` | executed | 2026-10-22T10:52:08+00:00 | database only |
 | questions | `make questions` | executed | 2026-10-22T10:54:03+00:00 | dq/results/llm_results.json |
-| evaluate | `make evaluate` | executed | 2026-10-22T10:54:04+00:00 | dq/results/evaluation.json |
-| workbook | `make workbook` | executed | 2026-10-22T21:57:19+00:00 | deliverables/Berka_TakeHome_Submission.xlsx |
+| evaluate | `make evaluate` | executed | 2026-10-24T20:50:44+00:00 | dq/results/evaluation.json |
+| workbook | `make workbook` | executed | 2026-10-22T21:58:04+00:00 | deliverables/Berka_TakeHome_Submission.xlsx |
 | ddr | `make ddr` | executed | 2026-10-22T10:55:21+00:00 | deliverables/DDR.docx |
-| zip | `make zip` | executed | 2026-10-22T12:22:41+00:00 | deliverables/semantic_solution.zip |
+| zip | `make zip` | executed | 2026-10-24T20:55:43+00:00 | deliverables/semantic_solution.zip |
 
 ## LLM execution
 
@@ -36,7 +36,7 @@ empty, rather than being filled with something plausible.
 
 ## Evaluation against the hand-written reference answers
 
-- comparison: value based: every (dimension, measure) pair in the reference answer must appear on some row of the LLM answer, within a relative tolerance of 1e-4; row order is additionally checked for the three questions that ask for a ranking
+- comparison: value based: every (dimension, measure) pair in the reference answer must appear on some row of the LLM answer, within an absolute tolerance of 0.011 (enough to absorb two-decimal rounding, not enough to absorb a wrong number); row order is additionally checked for the three questions that ask for a ranking
 
 | verdict | questions |
 |---|---:|

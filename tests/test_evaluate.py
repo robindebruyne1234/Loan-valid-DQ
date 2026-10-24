@@ -103,3 +103,43 @@ def test_booleans_are_not_treated_as_numbers() -> None:
     assert evaluate.numeric(True) is None
     assert not evaluate.row_matches({"flag": True}, (), 1.0)
     assert evaluate.row_matches({"n": 1}, (), 1.0)
+
+
+def test_tolerance_is_absolute_not_relative(payloads: tuple[dict, dict]) -> None:
+    """A large money sum must not carry a proportionally large slack.
+
+    The evaluator originally used a relative tolerance of 1e-4. On Q5's top
+    district -- 115,130,200.10 CZK of incoming transactions -- that accepted an
+    answer wrong by 11,513 CZK and called it a match. The tolerance exists
+    only to absorb two-decimal rounding, so it is absolute.
+    """
+    reference, llm = payloads
+    corrupted = copy.deepcopy(llm["Q5"])
+    biggest = max(
+        value
+        for row in corrupted["rows"]
+        for value in row.values()
+        if isinstance(value, (int, float)) and not isinstance(value, bool)
+    )
+    assert biggest > 1_000_000, "expected Q5 to carry a large monetary sum"
+
+    for row in corrupted["rows"]:
+        for key, value in row.items():
+            if value == biggest:
+                row[key] = value + 1_000.0   # 0.00087% -- inside the old slack
+
+    verdict = evaluate.evaluate_question("Q5", reference["Q5"], corrupted)
+    assert verdict["verdict"] != "match", (
+        "a 1,000 CZK error on a 115 m sum was accepted; the tolerance is relative again"
+    )
+
+
+def test_two_decimal_rounding_still_matches() -> None:
+    """Tightening the tolerance must not break the case it exists for.
+
+    A model that reports 43808.9388 where the reference rounds to 43808.94 is
+    right, and must still match.
+    """
+    assert evaluate.close(43808.9388, 43808.94)
+    assert evaluate.close(11.1437, 11.14)
+    assert not evaluate.close(43808.94, 43810.00)

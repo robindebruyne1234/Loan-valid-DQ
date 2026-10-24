@@ -1,12 +1,12 @@
 {
-  "generated_at_utc": "2026-10-22T10:54:04+00:00",
-  "git_commit": "b11c23f",
+  "generated_at_utc": "2026-10-24T20:50:44+00:00",
+  "git_commit": "806e001",
   "command": "make evaluate",
   "reference_source": "sql/60_reference_queries.sql (hand written)",
   "llm_provider": "claude_cli",
   "llm_model": "claude-sonnet-5-5",
   "llm_run_as_role": "cro_global",
-  "comparison_method": "value based: every (dimension, measure) pair in the reference answer must appear on some row of the LLM answer, within a relative tolerance of 1e-4; row order is additionally checked for the three questions that ask for a ranking",
+  "comparison_method": "value based: every (dimension, measure) pair in the reference answer must appear on some row of the LLM answer, within an absolute tolerance of 0.011 (enough to absorb two-decimal rounding, not enough to absorb a wrong number); row order is additionally checked for the three questions that ask for a ranking",
   "tally": {
     "match": 10
   },

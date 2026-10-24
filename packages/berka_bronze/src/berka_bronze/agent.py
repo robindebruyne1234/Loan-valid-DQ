@@ -70,11 +70,38 @@ class BronzeAgent(LayerAgent):
             )
 
         payload: dict[str, Any] = {"tables": tables, "load_audit": audit}
-        # Idempotence is a contract guarantee, so it is demonstrated rather
-        # than asserted: the same input is landed twice and the digests compared.
         payload["digest"] = self._digest(payload)
-        payload["second_run_digest"] = payload["digest"]
+        # Idempotence is a contract guarantee, so it is demonstrated rather
+        # than asserted: the sources are landed a SECOND time, independently,
+        # and the two digests are compared. Copying the first digest into
+        # second_run_digest -- which an earlier version of this method did --
+        # makes the acceptance check tautological, and a check that cannot
+        # fail is worse than no check because it reads as coverage.
+        payload["second_run_digest"] = self._digest({"tables": self._land()})
         return payload
+
+    def _land(self) -> dict[str, Any]:
+        """Parse every fixture source file into all-text rows with lineage.
+
+        Separated from :meth:`work` so the landing can be performed twice and
+        the results compared, which is what makes the idempotence guarantee
+        testable rather than stated.
+
+        :returns: Mapping of table name to its landed rows and columns.
+        """
+        tables: dict[str, Any] = {}
+        for file_name, contents in sorted(self.control.source_files.items()):
+            table_name = file_name.split(".")[0]
+            rows: list[dict[str, Any]] = []
+            reader = csv.reader(io.StringIO(contents.strip("\n")), delimiter=";", quotechar='"')
+            header = next(reader)
+            for index, raw_row in enumerate(reader, start=1):
+                row: dict[str, Any] = dict(zip(header, raw_row))
+                row["_source_file"] = file_name
+                row["_source_row"] = index
+                rows.append(row)
+            tables[table_name] = {"grain_key": header[0], "columns": header, "rows": rows}
+        return tables
 
     @staticmethod
     def _digest(payload: dict[str, Any]) -> str:

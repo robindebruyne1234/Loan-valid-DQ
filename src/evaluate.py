@@ -37,9 +37,17 @@ from src import config, db
 
 LOGGER = db.setup_logging("evaluate")
 
-#: Relative tolerance when comparing two numbers, to absorb the difference
-#: between ``round(x, 2)`` and an unrounded value.
-RELATIVE_TOLERANCE = 1e-4
+#: Tolerance when comparing two numbers. It exists for exactly one reason: the
+#: reference answers round to two decimals and a model's answer may not, so
+#: 43808.9388 must match 43808.94. An ABSOLUTE half-cent absorbs that.
+#:
+#: A relative tolerance must not be used for this. At 1e-4 -- which this
+#: evaluator originally carried -- the Q5 top district of 115,130,200.10 CZK
+#: would accept an answer wrong by 11,513 CZK and report it as a match. The
+#: relative term is therefore kept only to absorb floating point
+#: representation error, which is what 1e-9 is for.
+ABSOLUTE_TOLERANCE = 0.011
+RELATIVE_TOLERANCE = 1e-9
 
 #: Per question: which reference columns may carry the dimension, which carry
 #: the measures, and whether the order of rows is part of the answer.
@@ -95,7 +103,7 @@ def close(left: float, right: float) -> bool:
     :param right: Second value.
     :returns: ``True`` when the two are equal within the tolerance.
     """
-    return math.isclose(left, right, rel_tol=RELATIVE_TOLERANCE, abs_tol=0.011)
+    return math.isclose(left, right, rel_tol=RELATIVE_TOLERANCE, abs_tol=ABSOLUTE_TOLERANCE)
 
 
 def cell_is_key(value: Any, keys: tuple[Any, ...]) -> bool:
@@ -271,9 +279,10 @@ def main() -> int:
         "llm_run_as_role": llm_payload.get("run_as_role"),
         "comparison_method": (
             "value based: every (dimension, measure) pair in the reference answer "
-            "must appear on some row of the LLM answer, within a relative "
-            "tolerance of 1e-4; row order is additionally checked for the three "
-            "questions that ask for a ranking"
+            "must appear on some row of the LLM answer, within an absolute "
+            f"tolerance of {ABSOLUTE_TOLERANCE} (enough to absorb two-decimal "
+            "rounding, not enough to absorb a wrong number); row order is "
+            "additionally checked for the three questions that ask for a ranking"
         ),
         "tally": tally,
         "verdicts": verdicts,
