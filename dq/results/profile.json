@@ -1,7 +1,7 @@
 {
-  "generated_at_utc": "2026-10-25T11:14:52+00:00",
-  "git_commit": "a7da25a",
-  "stg_build_seconds": 39.081,
+  "generated_at_utc": "2026-10-25T20:52:04+00:00",
+  "git_commit": "97c2cde",
+  "stg_build_seconds": 58.042,
   "tables": [
     {
       "table": "district",
@@ -674,7 +674,7 @@
           ]
         }
       ],
-      "duration_sec": 0.026
+      "duration_sec": 0.045
     },
     {
       "table": "client",
@@ -951,7 +951,7 @@
           ]
         }
       ],
-      "duration_sec": 0.132
+      "duration_sec": 0.214
     },
     {
       "table": "account",
@@ -1218,7 +1218,7 @@
           ]
         }
       ],
-      "duration_sec": 0.141
+      "duration_sec": 0.137
     },
     {
       "table": "disp",
@@ -1441,7 +1441,7 @@
           ]
         }
       ],
-      "duration_sec": 0.078
+      "duration_sec": 0.09
     },
     {
       "table": "card",
@@ -1668,7 +1668,7 @@
           ]
         }
       ],
-      "duration_sec": 0.024
+      "duration_sec": 0.031
     },
     {
       "table": "loan",
@@ -2063,7 +2063,7 @@
           ]
         }
       ],
-      "duration_sec": 0.026
+      "duration_sec": 0.032
     },
     {
       "table": "order",
@@ -2410,7 +2410,7 @@
           ]
         }
       ],
-      "duration_sec": 0.112
+      "duration_sec": 0.132
     },
     {
       "table": "trans",
@@ -3065,7 +3065,7 @@
           ]
         }
       ],
-      "duration_sec": 25.786
+      "duration_sec": 26.91
     }
   ],
   "candidates": [

@@ -24,6 +24,13 @@ make test   # 114 tests
 ten questions explained and answered:**
 **[`docs/HOW_WE_WORKED_SIMPLY.md`](docs/HOW_WE_WORKED_SIMPLY.md)**. No jargon.
 
+**Start here if you have never run this and want it on your own machine:**
+**[`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md)** -- a first-run guide
+for Windows + WSL + Docker + VS Code that assumes nothing: what to install and
+why, what each command does, what good output looks like, how to query the
+clean gold data yourself, how to run the AI step or skip it, and what to do
+when something breaks. About twenty minutes, most of it waiting.
+
 **Start here if you want to see the privacy work in front of an audience:**
 **[`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)** -- a fifteen-minute
 stakeholder walkthrough: what to run, what to point at, what each moment

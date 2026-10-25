@@ -82,6 +82,7 @@ Excel workbook, which is a separate deliverable.
 ## Read in this order
 
 1. `README.md` -- what was built, how to run it, and what the results were.
+   `docs/GETTING_STARTED.md` if you want to run it yourself from nothing.
 2. `docs/DEMO_SCRIPT.md` -- how to show the privacy model to stakeholders in
    fifteen minutes: what to run, what to point at, and the questions to
    expect. Driven by `make demo-login`.

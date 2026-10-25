@@ -166,7 +166,13 @@ CREATE TABLE sec.auth_session (
     -- The connection this session belongs to. A session is valid only on the
     -- backend that created it, so a leaked session id cannot be replayed.
     backend_pid   int         NOT NULL,
-    backend_start timestamptz NOT NULL,
+    -- Recorded for the audit trail and as the obvious next tightening of the
+    -- binding (pids are reused after wraparound; see A45). NULLABLE on
+    -- purpose: reading it means reading another role's pg_stat_activity row,
+    -- which needs pg_read_all_stats, and a privilege that happens to differ
+    -- between a Docker start and a native one must not decide whether anyone
+    -- can log in. The pid is the part the security check uses.
+    backend_start timestamptz,
     factor1_at    timestamptz NOT NULL,
     factor2_at    timestamptz,
     expires_at    timestamptz NOT NULL,
@@ -292,8 +298,13 @@ BEGIN
      WHERE db_role = session_user AND backend_pid = pg_backend_pid()
        AND ended_at IS NULL;
 
-    SELECT backend_start INTO v_backend_start
-      FROM pg_stat_activity WHERE pid = pg_backend_pid();
+    -- Best effort: hidden unless this role may read other backends' stats.
+    BEGIN
+        SELECT backend_start INTO v_backend_start
+          FROM pg_stat_activity WHERE pid = pg_backend_pid();
+    EXCEPTION WHEN insufficient_privilege THEN
+        v_backend_start := NULL;
+    END;
     v_expires := now() + make_interval(mins => v_ttl);
 
     INSERT INTO sec.auth_session (db_role, backend_pid, backend_start,

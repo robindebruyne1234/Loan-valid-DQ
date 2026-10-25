@@ -10,16 +10,19 @@ PYTHONPATH := $(CURDIR)
 export PYTHONPATH
 
 .DEFAULT_GOAL := help
-.PHONY: help up down deps ingest profile dq model reference semantic questions \
-        entitlements evaluate workbook ddr zip deliverables test all clean status \
-        diagrams simulate
+.PHONY: help up down deps deps-check ingest profile dq model ledger reference \
+        semantic questions entitlements evaluate workbook ddr zip deliverables \
+        test build all clean status diagrams simulate demo demo-login \
+        demo-interactive
 
 help:  ## Show the available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  %-14s %s\n", $$1, $$2}'
 
-deps:  ## Install the Python dependencies
+deps:  ## Install the Python dependencies (run inside a virtual environment)
+	@[ -n "$(ALLOW_SYSTEM_PIP)" ] || $(PY) -c "import sys; sys.exit(0 if sys.prefix != sys.base_prefix else 1)" || bash scripts/no_venv_help.sh
 	$(PY) -m pip install --quiet -e ".[dev]"
+	@echo "deps | installed into $$($(PY) -c 'import sys; print(sys.prefix)')"
 
 up:  ## Start PostgreSQL 16 (docker compose if available, else a native cluster)
 	@bash scripts/db_up.sh
@@ -103,7 +106,20 @@ status:  ## Write STATUS_REPORT.md from the run log
 test:  ## Run the test suite
 	$(PY) -m pytest
 
-all: up ingest profile dq model ledger reference semantic entitlements demo questions evaluate test deliverables status  ## Full pipeline
+# The pipeline up to, but not including, the LLM. Everything the privacy demo
+# and the data product need, and nothing that requires a model to be
+# reachable. This is the target to run first on a new machine: it proves the
+# build works before an API key or a CLI login can get in the way.
+build: up deps-check ingest profile dq model ledger reference semantic entitlements demo test  ## Build everything except the LLM question run
+	@echo ""
+	@echo "build | done. The data product is built and the privacy model is live."
+	@echo "build | try:  make demo-login     (the stakeholder walkthrough)"
+	@echo "build | then: make questions      (needs an LLM -- see docs/GETTING_STARTED.md)"
+
+deps-check:  ## Fail early and clearly if the Python dependencies are missing
+	@$(PY) -c "import psycopg, yaml, sqlglot, openpyxl, docx" 2>/dev/null 		|| { echo ""; 		     echo "deps | Python dependencies are not installed in this interpreter."; 		     echo "deps | Run:  make deps"; 		     echo "deps | (or:  python3 -m pip install -e '.[dev]')"; 		     echo ""; exit 1; }
+
+all: build questions evaluate deliverables status  ## Full pipeline, including the LLM
 	@echo "all | pipeline complete -> see deliverables/ and STATUS_REPORT.md"
 
 clean:  ## Drop every project schema (raw stays on disk, nothing is lost)
