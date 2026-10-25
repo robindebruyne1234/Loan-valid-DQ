@@ -625,3 +625,84 @@ anecdote.
 never be published. That is the intended cost, and it is also what makes C21's
 reconciliation meaningful: `core` = `stg` - quarantine is checkable precisely
 because `stg` kept everything.
+
+---
+
+# Privacy at client grain (D021-D022)
+
+---
+
+## D021 - A self-service customer is a principal that IS one client, not one that HOLDS a book
+
+**Context.** The brief words Task 3 as "each user sees only rows for their own
+clients", which describes a relationship manager with a book. The sharper
+question underneath it is whether one bank customer can see another's data.
+Those are two different grains of principal and the model had only the first.
+
+**Options.** (a) Give each customer a portfolio containing exactly themselves,
+so nothing in the model changes at all. (b) Add `subject_client_id` to
+`sec.app_user` and resolve it in `sec.v_my_clients` alongside the portfolio
+path. (c) Keep identity out of the database and filter per customer in an
+application layer above it.
+
+**Choice.** (b).
+
+**Reason.** (c) is the option this project already rejected for relationship
+managers (D009) and it is worse here, not better: a self-service surface is
+the one most likely to face the open internet, so it is the last place the
+filter should live in application code. (a) is genuinely tempting -- zero
+schema change -- but it models a customer as a degenerate book, which means
+5,369 portfolios of one row each, an administrative surface where a customer's
+"book" could be edited to contain somebody else, and a `portfolio_client` table
+whose rows mean two different things. (b) says what is true: this principal is
+that client. The cost is one column, one `UNION` and one check constraint.
+
+**Consequence, and the claim worth testing.** The seven row level security
+policies did not change, and neither did any consumer view. The policies ask
+`sec.v_my_clients` which clients the caller may see; for a customer the answer
+is one row, and no policy needs to know that customer logins exist.
+`tests/test_rls.py::test_the_client_grain_added_no_policy` pins both the policy
+count and the fact that no policy mentions `subject_client_id`.
+
+The check constraint is not decoration. Without it, setting
+`subject_client_id` on a staff user would quietly add a client to their
+entitlement that no portfolio ever granted, and nothing else in the model would
+notice -- the `UNION` would simply return one more row. It is the kind of
+privilege gain that passes code review because it looks like a data fix.
+
+**What it costs.** Two kinds of row in one table, which is a modelling
+compromise: `user_type` plus a nullable column is weaker than two tables with a
+shared supertype. At this size the constraint carries it. If a third kind of
+principal appears (a service account, an auditor with read-everything-but-log
+semantics), the table should be split rather than given a third flavour.
+
+---
+
+## D022 - The customer's view is narrowed to ownership, matching the manager's
+
+**Context.** `sec.v_my_accounts` resolves accounts from entitled clients
+`WHERE is_owner` (A21). For a relationship manager that is right: their book is
+defined by who they are accountable for. For a self-service customer it is a
+real choice, because 869 clients hold a *disponent* relationship -- they may
+operate an account they do not own.
+
+**Options.** (a) Ownership only, identical to the staff rule. (b) Ownership
+plus disponent, so a customer sees every account they can actually operate.
+
+**Choice.** (a), for now, and deliberately.
+
+**Reason.** (b) is arguably the better product: in a real bank, an account you
+are authorised to transact on appears in your app. But it means the two grains
+of principal resolve accounts by *different* rules, and a reviewer asking "why
+does a customer see more kinds of account than their manager" deserves a better
+answer than "it seemed friendlier". Narrower is also the safer default for a
+privacy boundary: the failure mode of (a) is a customer who cannot see
+something they should, which is a support ticket; the failure mode of (b), if
+the disponent join is ever wrong, is a customer seeing an account that is not
+theirs.
+
+**Consequence.** It is one predicate in one view, not a design change, and the
+rule to change is named here so the change is a decision rather than a patch.
+Any real deployment should make this call with the business before launch,
+because the two readings are both defensible and only one matches what the
+bank tells its customers their app will show.

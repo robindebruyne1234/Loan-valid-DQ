@@ -24,6 +24,14 @@ make test   # 114 tests
 ten questions explained and answered:**
 **[`docs/HOW_WE_WORKED_SIMPLY.md`](docs/HOW_WE_WORKED_SIMPLY.md)**. No jargon.
 
+**Start here if you want one concrete end-to-end example:**
+**[`docs/WORKED_EXAMPLE.md`](docs/WORKED_EXAMPLE.md)** -- client 11409 followed
+from the line of text she arrives as, through every cleaning step that touches
+her, into the published product, and then through the entitlement model: the
+same query run as six principals, 13 targeted attempts by one customer to read
+another customer's data (all blocked), and a new customer onboarded live. Run
+it yourself with `make demo`; the document is written by that run.
+
 **Start here if you want to know what happened to the data itself:**
 **[`docs/CLEANING_LEDGER.md`](docs/CLEANING_LEDGER.md)** -- all 21 cleaning
 steps from source file to product, each with its effect measured by a probe
@@ -36,19 +44,23 @@ orders, for one), and the eight tables the cleaned data will carry without a
 single new source file.
 
 Supporting: **[`deliverables/Walkthrough_Deck.pptx`](deliverables/Walkthrough_Deck.pptx)**
-(42 slides with speaker notes on every one: how the data gets clean, what it
-found, the design decisions, a completeness check against every ask in the
-brief, and what the cleaned data can still become;
+(49 slides with speaker notes on every one: how the data gets clean, what it
+found, one client followed all the way through, the design decisions, a
+completeness check against every ask in the brief, and what the cleaned data
+can still become;
 regenerate with `python scripts/make_pitch_deck.py`),
 **[`docs/VISUAL_GUIDE.md`](docs/VISUAL_GUIDE.md)** (ten figures: the pipeline,
 the query path and where the entitlement filter lives, what each severity
 does, the star schema, two decision comparisons, the defect lifecycle and
 catalogue, the whole system map and the build sequence),
-`STATUS_REPORT.md` (what ran, what did not), `DECISIONS.md` (20 decisions with
-options, cost and consequence, of which D013-D020 are the cleaning),
-`ASSUMPTIONS.md` (A1-A33), `AI_DISCLOSURE.md`, `WALKTHROUGH_NOTES.md`,
+`STATUS_REPORT.md` (what ran, what did not), `DECISIONS.md` (22 decisions with
+options, cost and consequence; D013-D020 are the cleaning, D021-D022 the
+client-grain privacy),
+`ASSUMPTIONS.md` (A1-A38), `AI_DISCLOSURE.md`, `WALKTHROUGH_NOTES.md`,
 `docs/SECURITY_AND_CODE_REVIEW.md` (both reviews, with the two defects they
-found and fixed), `docs/REVIEW_AND_NEXT_STEPS.md`.
+found and fixed), `docs/BUILD_REVIEW.md` (the client-grain privacy build: what
+was verified and how, the two defects it found in itself, and what is weak),
+`docs/REVIEW_AND_NEXT_STEPS.md`.
 
 ## Results
 

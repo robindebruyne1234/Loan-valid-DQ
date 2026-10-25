@@ -83,7 +83,29 @@ DEMO_USERS: tuple[str, ...] = (
     "rm_south",
     "cro_global",
     "rm_unassigned",
+    "client_11409",
+    "client_3763",
 )
+
+#: Self-service customer logins: ``(db_role, client_id)``. These are the second
+#: grain of principal -- a principal that IS one client rather than one that
+#: HOLDS a book of clients. Both are chosen deliberately from north Bohemia, so
+#: both sit inside ``rm_north``'s portfolio: the sharpest test of the model is
+#: that two customers of the SAME relationship manager still cannot see each
+#: other. See :mod:`src.worked_example` and DECISIONS.md D021.
+DEMO_CLIENT_USERS: tuple[tuple[str, int], ...] = (
+    ("client_11409", 11409),
+    ("client_3763", 3763),
+)
+
+#: The client the end-to-end worked example follows, chosen because it carries
+#: a data quality flag of its own and its account carries a different one, so
+#: the caveats are visible all the way through to the answer.
+EXAMPLE_CLIENT_ID: int = 11409
+
+#: A second client, in the same relationship manager's book, used as the
+#: negative control: everything the example client can see, this one must not.
+EXAMPLE_OTHER_CLIENT_ID: int = 3763
 
 SCHEMA_RAW: str = "raw"
 SCHEMA_STG: str = "stg"

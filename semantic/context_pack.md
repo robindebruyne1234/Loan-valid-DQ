@@ -359,9 +359,10 @@ One row describing the calling user's own entitlement. Query it to tell "there a
 | column | type | meaning | allowed values |
 |---|---|---|---|
 | `database_role` | text | The role the caller is authenticated as. |  |
+| `principal_type` | text | What kind of principal is asking. 'client' is a self-service customer entitled to exactly themselves; anything else is a staff user entitled to the union of their portfolios. Use it to word an answer appropriately: a customer asking 'how many accounts do I have' means their own, and should not be told it is a portfolio total. | `client`, `relationship_manager`, `risk` |
 | `entitled_clients` | bigint | How many clients the caller may see. |  |
 | `entitled_accounts` | bigint | How many accounts the caller may see. |  |
-| `portfolios` | text | The portfolios the caller holds, comma separated. NULL when none. |  |
+| `portfolios` | text | The portfolios the caller holds, comma separated. For a self-service customer there is no portfolio, so this reads 'SELF:<client_id>' instead. NULL only when the caller has been granted nothing at all. |  |
 
 ## Data quality caveats to repeat in your answer
 
@@ -386,6 +387,7 @@ Every entity except ai.district, ai.calendar and ai.code_reference is filtered t
 - The filter is already applied. Never add an entitlement predicate, and never try to remove one.
 - Two users running your identical SQL will correctly get different numbers. That is not an error.
 - An empty result may mean "not entitled" rather than "nothing matches". ai.my_entitlement distinguishes them.
+- The caller may be a bank CUSTOMER rather than a member of staff (ai.my_entitlement.principal_type = 'client'). Such a caller sees exactly one client - themselves - so a bank-wide question asked by one of them is answerable only about their own data, and the answer should say so rather than presenting one row as a total.
 - A percentage or a share is computed over what the caller may see, so it is a statement about their portfolio.
 
 ## Phrase hints

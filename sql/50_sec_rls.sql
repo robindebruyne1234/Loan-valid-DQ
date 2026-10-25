@@ -25,10 +25,28 @@
 -- The trade-off (connection pooling) is discussed in the Design Decision
 -- Record.
 --
+-- TWO KINDS OF PRINCIPAL, ONE POLICY SET
+-- STAFF (a relationship manager, a CRO) are entitled to the union of the
+-- portfolios granted to them. A CLIENT is a self-service customer entitled to
+-- exactly one client record: themselves. Both are rows in sec.app_user and
+-- both are resolved by sec.v_my_clients, so the seven policies below are
+-- written once and are unaware that two grains of principal exist. Adding the
+-- client grain changed one column and one UNION; it changed no policy, no
+-- consumer view and no application code. tests/test_rls.py pins that.
+--
+-- The consequence worth stating plainly: two customers of the SAME
+-- relationship manager cannot see each other. The manager sees both because
+-- their portfolio contains both; each customer sees one row because their
+-- entitlement IS one row. There is no query either of them can write that
+-- changes that, because the predicate is not in their query.
+--
 -- ONBOARDING A USER OR A PORTFOLIO = INSERT
---   new user          : INSERT INTO sec.app_user, plus a CREATE ROLE ... IN
+--   new staff user    : INSERT INTO sec.app_user, plus a CREATE ROLE ... IN
 --                       ROLE ai_consumer for the login (the only DDL, and it
 --                       is a credential, not business logic)
+--   new customer login: INSERT INTO sec.app_user with user_type = 'client'
+--                       and subject_client_id, plus the same CREATE ROLE.
+--                       No portfolio is created and none is needed.
 --   new portfolio     : INSERT INTO sec.portfolio
 --   move clients      : INSERT/DELETE in sec.portfolio_client
 --   grant a portfolio : INSERT INTO sec.user_portfolio
@@ -63,19 +81,37 @@ DROP TABLE IF EXISTS sec.portfolio          CASCADE;
 DROP TABLE IF EXISTS sec.app_user           CASCADE;
 
 CREATE TABLE sec.app_user (
-    app_user_id   bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    db_role       name        NOT NULL UNIQUE,
-    display_name  text        NOT NULL,
-    user_type     text        NOT NULL DEFAULT 'relationship_manager',
-    is_active     boolean     NOT NULL DEFAULT true,
-    created_at    timestamptz NOT NULL DEFAULT now()
+    app_user_id       bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    db_role           name        NOT NULL UNIQUE,
+    display_name      text        NOT NULL,
+    user_type         text        NOT NULL DEFAULT 'relationship_manager',
+    -- Set only for a self-service CLIENT login: the one client this principal
+    -- *is*. NULL for staff, whose entitlement comes from portfolios instead.
+    subject_client_id bigint      NULL,
+    is_active         boolean     NOT NULL DEFAULT true,
+    created_at        timestamptz NOT NULL DEFAULT now(),
+    -- A principal is one kind or the other, never both and never neither.
+    -- Without this, a staff user could be given a subject_client_id and
+    -- silently gain a client they were never granted, which is the exact
+    -- failure this table exists to prevent.
+    CONSTRAINT app_user_kind_is_coherent CHECK (
+        (user_type =  'client' AND subject_client_id IS NOT NULL)
+     OR (user_type <> 'client' AND subject_client_id IS NULL)
+    )
 );
 
 COMMENT ON TABLE sec.app_user IS
-    'One row per person (or service) that may query the data product. db_role '
-    'is the PostgreSQL login role they authenticate as, which is the identity '
-    'the policies resolve. Setting is_active = false revokes access on the '
-    'next statement, with no DDL.';
+    'One row per principal that may query the data product. db_role is the '
+    'PostgreSQL login role they authenticate as, which is the identity the '
+    'policies resolve. Two kinds of principal share this table: STAFF, whose '
+    'entitlement is the union of their portfolios, and CLIENT, a self-service '
+    'customer whose entitlement is exactly themselves (subject_client_id). '
+    'Setting is_active = false revokes access on the next statement, no DDL.';
+
+COMMENT ON COLUMN sec.app_user.subject_client_id IS
+    'The client this principal IS, for self-service logins. The check '
+    'constraint makes it mutually exclusive with portfolio-based entitlement, '
+    'so the two grains of principal cannot be mixed on one row.';
 
 CREATE TABLE sec.portfolio (
     portfolio_id   bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -126,17 +162,39 @@ COMMENT ON TABLE sec.user_portfolio IS
 -- Both views self-filter on session_user, so a consumer granted SELECT on them
 -- can only ever see their own entitlement.
 -- ----------------------------------------------------------------------------
+--
+-- TWO GRAINS OF PRINCIPAL, ONE RESOLUTION POINT.
+-- A relationship manager is entitled to the union of their portfolios. A
+-- self-service customer is entitled to exactly one client: themselves. Both
+-- are resolved here, which is why neither the seven policies nor any consumer
+-- view had to change when the client grain was added -- the policies ask this
+-- view "which clients may the caller see", and the answer for a customer is
+-- simply a one-row answer.
+--
 CREATE VIEW sec.v_my_clients AS
+-- Staff: every client in every portfolio granted to this login.
 SELECT DISTINCT pc.client_id
 FROM sec.app_user u
 JOIN sec.user_portfolio  up ON up.app_user_id = u.app_user_id
 JOIN sec.portfolio_client pc ON pc.portfolio_id = up.portfolio_id
 WHERE u.db_role = session_user
-  AND u.is_active;
+  AND u.is_active
+UNION
+-- Self-service customer: themselves, and nobody else. There is no portfolio
+-- to widen and no join that could add a second row.
+SELECT u.subject_client_id
+FROM sec.app_user u
+WHERE u.db_role = session_user
+  AND u.is_active
+  AND u.user_type = 'client'
+  AND u.subject_client_id IS NOT NULL;
 
 COMMENT ON VIEW sec.v_my_clients IS
-    'The client ids the CALLING user is entitled to. Self-filtering on '
-    'session_user: there is no parameter to tamper with.';
+    'The client ids the CALLING user is entitled to, whichever kind of '
+    'principal they are. Self-filtering on session_user: there is no '
+    'parameter to tamper with. For a self-service customer this returns '
+    'exactly one row, so every policy that reads it narrows to that customer '
+    'without any policy being aware that client logins exist.';
 
 CREATE VIEW sec.v_my_accounts AS
 SELECT DISTINCT d.account_id
@@ -155,15 +213,22 @@ SELECT
     u.display_name,
     u.user_type,
     u.is_active,
-    p.portfolio_code,
-    p.description,
-    count(pc.client_id) AS clients_in_portfolio
+    u.subject_client_id,
+    coalesce(p.portfolio_code,
+             CASE WHEN u.subject_client_id IS NOT NULL
+                  THEN 'SELF:' || u.subject_client_id END)   AS portfolio_code,
+    coalesce(p.description,
+             CASE WHEN u.subject_client_id IS NOT NULL
+                  THEN 'Self-service customer: their own record only' END)
+                                                             AS description,
+    CASE WHEN u.subject_client_id IS NOT NULL THEN 1
+         ELSE count(pc.client_id) END                        AS clients_in_portfolio
 FROM sec.app_user u
 LEFT JOIN sec.user_portfolio  up ON up.app_user_id = u.app_user_id
 LEFT JOIN sec.portfolio        p ON p.portfolio_id = up.portfolio_id
 LEFT JOIN sec.portfolio_client pc ON pc.portfolio_id = p.portfolio_id
 GROUP BY u.db_role, u.display_name, u.user_type, u.is_active,
-         p.portfolio_code, p.description;
+         u.subject_client_id, p.portfolio_code, p.description;
 
 COMMENT ON VIEW sec.v_entitlement IS
     'Administrative overview: every user, their portfolios and the size of '

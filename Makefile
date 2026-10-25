@@ -46,6 +46,9 @@ model:  ## Build the core star schema, then restore the ai views that depend on 
 ledger:  ## Measure every cleaning step and write docs/CLEANING_LEDGER.md
 	$(PY) -m src.cleaning_ledger
 
+demo:  ## Worked example: one client cleaned, published, and kept private
+	$(PY) -m src.worked_example
+
 reference:  ## Run the hand-written reference queries and store the ground truth
 	$(PY) -m src.run_reference
 
@@ -94,7 +97,7 @@ status:  ## Write STATUS_REPORT.md from the run log
 test:  ## Run the test suite
 	$(PY) -m pytest
 
-all: up ingest profile dq model ledger reference semantic entitlements questions evaluate test deliverables status  ## Full pipeline
+all: up ingest profile dq model ledger reference semantic entitlements demo questions evaluate test deliverables status  ## Full pipeline
 	@echo "all | pipeline complete -> see deliverables/ and STATUS_REPORT.md"
 
 clean:  ## Drop every project schema (raw stays on disk, nothing is lost)

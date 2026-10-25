@@ -101,11 +101,20 @@ rather than a session variable, because a variable can be set by anything that
 can send SQL. Nine bypass attempts are in the test suite and all nine fail.
 Unrestricted access is modelled as a portfolio containing every client, not as
 an exemption: the bank-wide user has `rolbypassrls = false` and goes through the
-policies like everyone else. Onboarding a user or a portfolio is four inserts
-and one credential -- no policy, view or query changes. *Cost:* a database role
-per user, which conflicts with naive connection pooling; the practical answers
-are a pool per role or `SET ROLE` performed by a trusted gateway on a
-privileged connection, where the gateway and not the model picks the role.
+policies like everyone else. The model carries two grains of principal on one
+policy set: staff entitled to the union of their portfolios, and self-service
+customers entitled to exactly themselves. Adding the second grain cost one
+column, one UNION in the resolution view and a check constraint; it changed no
+policy and no consumer view, which is the test that the filter really does live
+in one place. The consequence is the sharp one: two customers of the *same*
+relationship manager cannot see each other, and 13 targeted attempts by one to
+read the other -- including going around the views to the base table -- all
+return nothing. Onboarding is inserts and one credential: four for a staff
+book, one for a customer. *Cost:* a database role per user, which conflicts
+with naive connection pooling; the practical answers are a pool per role or
+`SET ROLE` performed by a trusted gateway on a privileged connection, where the
+gateway and not the model picks the role. Two controls a real deployment needs
+and this build does not have: a read audit log, and field-level masking.
 
 **7. The LLM is treated as an untrusted query author.**
 It is called with no tools, no MCP servers, no filesystem and no database

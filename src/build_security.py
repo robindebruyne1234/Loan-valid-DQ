@@ -71,6 +71,11 @@ DEMO_USERS: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
 )
 
 
+#: Self-service customer logins. Taken from :mod:`src.config` so the demo, the
+#: tests and the build cannot disagree about who exists.
+DEMO_CLIENT_USERS: tuple[tuple[str, int], ...] = config.DEMO_CLIENT_USERS
+
+
 def create_login_role(conn: psycopg.Connection, role: str, password: str) -> None:
     """Create a login role that inherits the ``ai_consumer`` privileges.
 
@@ -198,6 +203,45 @@ def onboard_user(
     )
 
 
+def onboard_client_user(
+    conn: psycopg.Connection,
+    db_role: str,
+    client_id: int,
+) -> None:
+    """Register a self-service customer login. One insert, no portfolio.
+
+    This is the whole of what it takes to give a bank customer access to their
+    own data and nothing else. There is no portfolio to create, no clients to
+    place in it and no grant to make: the principal *is* the client, which
+    ``sec.v_my_clients`` resolves directly. No policy is touched, so the
+    customer is subject to exactly the same seven policies as every
+    relationship manager.
+
+    The customer's display name is deliberately NOT taken from the data. This
+    dataset has no names, and inventing one would put a fabricated personal
+    attribute into the security tables.
+
+    :param conn: Open connection.
+    :param db_role: The PostgreSQL login role the customer authenticates as.
+    :param client_id: The single client this principal is entitled to.
+    :returns: ``None``.
+    """
+    db.execute(
+        conn,
+        """
+        INSERT INTO sec.app_user (db_role, display_name, user_type, subject_client_id)
+        VALUES (%s, %s, 'client', %s)
+        ON CONFLICT (db_role) DO UPDATE
+            SET display_name      = excluded.display_name,
+                user_type         = excluded.user_type,
+                subject_client_id = excluded.subject_client_id,
+                is_active         = true
+        """,
+        (db_role, f"Self-service customer (client {client_id})", client_id),
+    )
+    LOGGER.info("customer  %-12s -> entitled to client %s only", db_role, client_id)
+
+
 def summarise_entitlements(conn: psycopg.Connection) -> list[dict[str, Any]]:
     """Report, per demo user, how many clients and accounts they can see.
 
@@ -209,7 +253,9 @@ def summarise_entitlements(conn: psycopg.Connection) -> list[dict[str, Any]]:
     :returns: One dictionary per user with the visible row counts.
     """
     users = db.fetch_all(
-        conn, "SELECT db_role, display_name FROM sec.app_user ORDER BY db_role"
+        conn,
+        "SELECT db_role, display_name, user_type, subject_client_id "
+        "FROM sec.app_user ORDER BY user_type, db_role",
     )
     summary: list[dict[str, Any]] = []
     for user in users:
@@ -226,7 +272,13 @@ def summarise_entitlements(conn: psycopg.Connection) -> list[dict[str, Any]]:
                        (SELECT portfolios FROM ai.my_entitlement)        AS portfolios
                 """,
             )[0]
-        entry = {"db_role": role, "display_name": user["display_name"], **row}
+        entry = {
+            "db_role": role,
+            "display_name": user["display_name"],
+            "user_type": user["user_type"],
+            "subject_client_id": user["subject_client_id"],
+            **row,
+        }
         summary.append(entry)
         LOGGER.info(
             "visible to %-14s clients=%-6s accounts=%-6s loans=%-5s transactions=%-8s "
@@ -262,6 +314,14 @@ def main() -> int:
         for role, display_name, user_type, portfolios in DEMO_USERS:
             create_login_role(conn, role, config.DEMO_USER_PASSWORD)
             onboard_user(conn, role, display_name, user_type, portfolios)
+
+        # The second grain of principal. Both of these customers live in north
+        # Bohemia, so both are inside rm_north's portfolio -- which is the
+        # point: the manager sees both, and neither sees the other.
+        LOGGER.info("--- onboarding the self-service customer logins (inserts only) ---")
+        for role, client_id in DEMO_CLIENT_USERS:
+            create_login_role(conn, role, config.DEMO_USER_PASSWORD)
+            onboard_client_user(conn, role, client_id)
 
         # Re-grant on the ai views, which were dropped and recreated above.
         db.execute(conn, "GRANT SELECT ON ALL TABLES IN SCHEMA ai TO ai_consumer")

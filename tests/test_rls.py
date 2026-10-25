@@ -338,3 +338,268 @@ def test_onboarding_a_user_and_a_portfolio_is_pure_insert() -> None:
         db.execute(conn, "DELETE FROM sec.app_user WHERE db_role = %s", (role,))
         db.execute(conn, "DELETE FROM sec.portfolio WHERE portfolio_code = 'TEST_BOOK'")
         db.execute(conn, f'DROP ROLE IF EXISTS "{role}"')
+
+
+# ---------------------------------------------------------------------------
+# Per-client isolation: two customers of the SAME relationship manager
+#
+# The brief asks that a user see only rows for their own clients. These tests
+# cover the finer grain underneath it: a self-service customer is a principal
+# that IS one client rather than one that HOLDS a book, and two such customers
+# must not see each other even when one relationship manager sees them both.
+#
+# Clients 11409 and 3763 both live in north Bohemia, so both are inside
+# rm_north's portfolio. That is deliberate: isolating customers in different
+# books would prove nothing a portfolio boundary did not already prove.
+# ---------------------------------------------------------------------------
+
+#: ``(role, own client, the other customer's client)``, both ways round, so
+#: neither direction can pass by accident.
+CLIENT_PAIRS: tuple[tuple[str, int, int], ...] = (
+    ("client_11409", config.EXAMPLE_CLIENT_ID, config.EXAMPLE_OTHER_CLIENT_ID),
+    ("client_3763", config.EXAMPLE_OTHER_CLIENT_ID, config.EXAMPLE_CLIENT_ID),
+)
+
+
+def _owned_account(conn: psycopg.Connection, client_id: int) -> int:
+    """Return an account owned by a client, read as the owner.
+
+    :param conn: Open connection as the pipeline owner (exempt from policies).
+    :param client_id: The client whose owned account is wanted.
+    :returns: One account id.
+    """
+    account_id = db.fetch_value(
+        conn,
+        """
+        SELECT account_id FROM core.bridge_disposition
+        WHERE client_id = %s AND is_owner ORDER BY account_id LIMIT 1
+        """,
+        (client_id,),
+    )
+    assert account_id is not None, f"client {client_id} owns no account"
+    return int(account_id)
+
+
+@pytest.mark.parametrize(("role", "own", "other"), CLIENT_PAIRS)
+def test_a_customer_sees_exactly_themselves(role: str, own: int, other: int) -> None:
+    """A self-service login resolves to one client row: their own."""
+    with db.connect(user=role) as conn:
+        rows = db.fetch_all(conn, "SELECT client_id FROM ai.client")
+    assert [row["client_id"] for row in rows] == [own], (
+        f"{role} should see exactly client {own}, got {rows}"
+    )
+    assert all(row["client_id"] != other for row in rows)
+
+
+@pytest.mark.parametrize(("role", "own", "other"), CLIENT_PAIRS)
+def test_a_customer_cannot_see_the_other_customers_data(
+    role: str, own: int, other: int
+) -> None:
+    """Every entitled object of the other customer must return zero rows.
+
+    This is the test that answers "can one client see another client's secret
+    data". It names the other customer's own account explicitly rather than
+    counting rows, because a count can pass while a targeted lookup leaks.
+    """
+    with db.connect() as owner_conn:
+        own_account = _owned_account(owner_conn, own)
+        other_account = _owned_account(owner_conn, other)
+
+    with db.connect(user=role) as conn:
+        # The other customer, asked for by name.
+        assert int(db.fetch_value(
+            conn, "SELECT count(*) FROM ai.client WHERE client_id = %s", (other,)) or 0) == 0
+        # Their account, loans, cards, transactions and balances.
+        for view, column in (
+            ("ai.account", "account_id"),
+            ("ai.account_owner", "account_id"),
+            ("ai.loan", "account_id"),
+            ("ai.transaction", "account_id"),
+            ("ai.account_month_end_balance", "account_id"),
+        ):
+            leaked = int(db.fetch_value(
+                conn, f"SELECT count(*) FROM {view} WHERE {column} = %s",
+                (other_account,)) or 0)
+            assert leaked == 0, f"{role} can see {leaked} rows of {view} for client {other}"
+        # And their own data is still there, so the test cannot pass by the
+        # policy simply returning nothing to anybody.
+        assert int(db.fetch_value(
+            conn, "SELECT count(*) FROM ai.account WHERE account_id = %s",
+            (own_account,)) or 0) == 1
+        assert int(db.fetch_value(
+            conn, "SELECT count(*) FROM ai.transaction WHERE account_id = %s",
+            (own_account,)) or 0) > 0
+
+
+def test_the_relationship_manager_sees_both_customers() -> None:
+    """The isolation must be between the customers, not a missing portfolio.
+
+    If rm_north could not see both clients either, the two tests above would
+    pass for the wrong reason.
+    """
+    with db.connect(user="rm_north") as conn:
+        visible = {
+            row["client_id"]
+            for row in db.fetch_all(
+                conn, "SELECT client_id FROM ai.client WHERE client_id = ANY(%s)",
+                ([config.EXAMPLE_CLIENT_ID, config.EXAMPLE_OTHER_CLIENT_ID],),
+            )
+        }
+    assert visible == {config.EXAMPLE_CLIENT_ID, config.EXAMPLE_OTHER_CLIENT_ID}, (
+        "rm_north must see both customers, otherwise the isolation test is vacuous"
+    )
+
+
+@pytest.mark.parametrize(("role", "own", "other"), CLIENT_PAIRS)
+def test_a_customer_cannot_widen_their_own_entitlement(
+    role: str, own: int, other: int
+) -> None:
+    """The obvious attacks on a self-service login, tried rather than assumed.
+
+    A customer login is the lowest-privilege principal in the system and the
+    one most likely to be exposed to the open internet, so the bypasses are
+    attempted against it specifically.
+    """
+    with db.connect(user=role) as conn:
+        # Grant themselves the other client by editing the entitlement table.
+        for statement, params in (
+            ("UPDATE sec.app_user SET subject_client_id = %s WHERE db_role = %s",
+             (other, role)),
+            ("INSERT INTO sec.portfolio_client (portfolio_id, client_id) VALUES (1, %s)",
+             (other,)),
+            ("UPDATE sec.app_user SET user_type = 'risk' WHERE db_role = %s", (role,)),
+        ):
+            with pytest.raises(psycopg.Error):
+                db.execute(conn, statement, params)
+            conn.rollback()
+
+        # Read the entitlement tables to learn who else exists.
+        for statement in (
+            "SELECT count(*) FROM sec.app_user",
+            "SELECT count(*) FROM sec.portfolio_client",
+            "SELECT count(*) FROM sec.v_entitlement",
+        ):
+            with pytest.raises(psycopg.Error):
+                db.fetch_value(conn, statement)
+            conn.rollback()
+
+        # Read the uncleaned layers, where no policy applies at all.
+        for statement in (
+            "SELECT count(*) FROM stg.client",
+            "SELECT count(*) FROM raw.client",
+        ):
+            with pytest.raises(psycopg.Error):
+                db.fetch_value(conn, statement)
+            conn.rollback()
+
+        # Turn the policy off, or become somebody else.
+        for statement in (
+            "ALTER TABLE core.dim_client DISABLE ROW LEVEL SECURITY",
+            "DROP POLICY entitled_clients ON core.dim_client",
+            "SET ROLE cro_global",
+            "SET ROLE rm_north",
+        ):
+            with pytest.raises(psycopg.Error):
+                db.execute(conn, statement)
+            conn.rollback()
+
+        # Still exactly one client after every attempt.
+        assert int(db.fetch_value(conn, "SELECT count(*) FROM ai.client") or 0) == 1
+
+
+def test_the_client_grain_added_no_policy() -> None:
+    """Adding a second kind of principal must not have touched the policies.
+
+    The claim this project makes about its entitlement model is that the
+    filter lives in one place. Adding self-service customers would undermine
+    that if it had required a policy of its own, so the policy count and the
+    set of protected tables are pinned.
+    """
+    with db.connect() as conn:
+        policies = db.fetch_all(
+            conn,
+            """
+            SELECT tablename, policyname FROM pg_policies
+            WHERE schemaname = 'core' ORDER BY tablename
+            """,
+        )
+    assert len(policies) == len(CORE_PROTECTED_TABLES), (
+        f"expected one policy per protected table, got {policies}"
+    )
+    assert {row["tablename"] for row in policies} == set(CORE_PROTECTED_TABLES)
+    # No policy mentions the client grain: they all read sec.v_my_clients or
+    # sec.v_my_accounts, which is where the two grains are reconciled.
+    with db.connect() as conn:
+        definitions = db.fetch_all(
+            conn,
+            "SELECT policyname, qual FROM pg_policies WHERE schemaname = 'core'",
+        )
+    for row in definitions:
+        assert "subject_client_id" not in (row["qual"] or ""), (
+            f"policy {row['policyname']} knows about the client grain; it should "
+            f"only ask sec.v_my_clients who the caller may see"
+        )
+
+
+def test_a_user_cannot_be_both_kinds_of_principal() -> None:
+    """The check constraint is the thing stopping a quiet privilege gain.
+
+    Without it, giving a staff user a subject_client_id would add a client to
+    their entitlement that no portfolio ever granted, and nothing else in the
+    model would notice.
+    """
+    with db.connect() as conn:
+        for user_type, subject in (("relationship_manager", 4242), ("client", None)):
+            with pytest.raises(psycopg.Error):
+                db.execute(
+                    conn,
+                    """
+                    INSERT INTO sec.app_user (db_role, display_name, user_type,
+                                              subject_client_id)
+                    VALUES ('tmp_incoherent_user', 'Should not be insertable', %s, %s)
+                    """,
+                    (user_type, subject),
+                )
+            conn.rollback()
+
+
+def test_the_demo_question_totals_correctly_for_an_unrestricted_caller() -> None:
+    """The worked example's own query must be right, not just discriminating.
+
+    An early draft used ``sum(DISTINCT l.amount)`` as a reflex guard against
+    join fan-out and under-reported the bank-wide loan book by 4,480,920 CZK,
+    because 37 of the 682 loans share an amount with another loan. A demo that
+    proves the entitlement filter with a wrong number proves very little, so
+    the total a fully entitled caller sees is pinned against the base table.
+    """
+    from src import worked_example  # noqa: PLC0415
+
+    with db.connect() as conn:
+        expected = db.fetch_value(conn, "SELECT sum(amount) FROM core.fact_loan")
+        expected_loans = db.fetch_value(conn, "SELECT count(*) FROM core.fact_loan")
+    with db.connect(user="cro_global") as conn:
+        row = db.fetch_all(conn, worked_example.DEMO_QUESTION)[0]
+    assert row["loan_value"] == expected, (
+        f"demo question reports {row['loan_value']} against a true {expected}"
+    )
+    assert row["loans"] == expected_loans
+
+
+def test_the_demo_question_discriminates_between_principals() -> None:
+    """Each principal must get a different, correctly narrowed answer."""
+    from src import worked_example  # noqa: PLC0415
+
+    answers = {}
+    for role in ("client_11409", "client_3763", "rm_north", "rm_unassigned", "cro_global"):
+        with db.connect(user=role) as conn:
+            answers[role] = db.fetch_all(conn, worked_example.DEMO_QUESTION)[0]
+
+    assert answers["client_11409"]["clients"] == 1
+    assert answers["client_3763"]["clients"] == 1
+    assert answers["rm_unassigned"]["clients"] == 0
+    # A customer's loan value must be a real amount, and a strict subset of
+    # what their relationship manager sees.
+    assert 0 < answers["client_11409"]["loan_value"] < answers["rm_north"]["loan_value"]
+    assert answers["rm_north"]["loan_value"] < answers["cro_global"]["loan_value"]
+    # The two customers are disjoint: neither total can equal the other's.
+    assert answers["client_11409"]["loan_value"] != answers["client_3763"]["loan_value"]

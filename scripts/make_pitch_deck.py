@@ -449,6 +449,7 @@ Instead the lock is on the shelf. The AI writes text; the predicate that limits
 the rows is never in that text, so no rewriting of the text can remove it.
 """)
     _results(deck)
+    _worked_example(deck)
     _decisions(deck)
     _readiness(deck)
     _gold(deck)
@@ -1622,6 +1623,301 @@ The third is the one with the most consequence for a real deployment: this is a
 snapshot, so the history has to start being captured now. Every month that
 passes without capturing it is a month of history that cannot be reconstructed
 later.
+""")
+
+
+# --------------------------------------------------------------------------
+# the worked example: one client, cleaned and kept private
+# --------------------------------------------------------------------------
+
+
+def _worked_example(deck: Presentation) -> None:
+    """Add the end-to-end worked example on a single client.
+
+    Placed after the task results because it is the same story told small:
+    everything the three tasks claim about 1.06 m rows, shown happening to one
+    person who can be held in the head.
+
+    :param deck: The presentation.
+    :returns: ``None``.
+    """
+    notes(divider(deck, "2b", "One client, all the way through",
+                  "The same claims, told small enough to check: client 11409, from the "
+                  "line of text she arrives as to who is allowed to read her."), """
+Everything so far has been about a million rows. This part is one person, and
+it is the part to slow down on, because a reviewer can actually verify it.
+
+She was not picked for being tidy. She was picked because her record is
+awkward in four different ways, each of which exercises a different part of
+the build. A clean record would have demonstrated nothing.
+""")
+
+    # ------------------------------------------------- what arrives
+    s = blank(deck)
+    heading(s, "What arrives: three lines of text", "and almost nothing is answerable")
+    text(s, Inches(0.7), Inches(1.3), Inches(12), Inches(0.4),
+         [("This is the whole of what the bank's files say about her.", 16, False, GREY)],
+         spacing=8)
+    box(s, Inches(0.6), Inches(1.85), Inches(12.15), Inches(1.75), fill=PALE, line=GREY, line_w=1)
+    text(s, Inches(0.95), Inches(2.0), Inches(11.5), Inches(1.5),
+         [("client.asc   line 5179    client_id=11409   birth_number=805502   district_id=32",
+           12.5, False, INK),
+          ("account.asc  line  109    account_id=9265   frequency=POPLATEK MESICNE   date=930204",
+           12.5, False, INK),
+          ("loan.asc     line   70    loan_id=6888   amount=39576   duration=12   status=A",
+           12.5, False, INK),
+          ("trans.asc    643 more lines for this one account", 12.5, False, GREY)],
+         spacing=7)
+    puzzles = [
+        ("805502", "is not a date of birth. It is three facts in one number."),
+        ("POPLATEK MESICNE", "is not something anyone can group a report by."),
+        ("A", "is not a loan outcome. It is a letter."),
+        ("930204", "is not a date until someone decides which century."),
+    ]
+    top = Inches(4.0)
+    for code, what in puzzles:
+        box(s, Inches(0.6), int(top), Inches(3.0), Inches(0.62), fill=RED)
+        text(s, Inches(0.6), int(top) + Inches(0.15), Inches(3.0), Inches(0.35),
+             [(code, 14, True, WHITE)], align=PP_ALIGN.CENTER, spacing=0)
+        box(s, Inches(3.6), int(top), Inches(9.15), Inches(0.62), fill=PALE)
+        text(s, Inches(3.9), int(top) + Inches(0.15), Inches(8.7), Inches(0.35),
+             [(what, 13.5, False, INK)], spacing=0)
+        top += Inches(0.72)
+    text(s, Inches(0.6), Inches(7.0), Inches(12.2), Inches(0.35),
+         [("Closing that gap is the whole job. Everything else is downstream of it.",
+           13.5, True, NAVY)], spacing=0)
+    notes(s, """
+Read the four red boxes out. They are the gap between a file and a product,
+and they are why "just point the AI at the database" does not work.
+
+805502 is the one to dwell on: 80 is the year, 55 is the month, 02 is the day.
+There is no month 55. Women carry month plus 50, so 55 means May - and that
+single convention is both her birth date AND her gender, neither of which
+exists as a column anywhere in this dataset.
+""")
+
+    # ------------------------------------------------- what cleaning did to her
+    s = blank(deck)
+    heading(s, "What the cleaning did to her, step by step", "each one traceable")
+    rows = [
+        ("C07", "805502", "born 1980-05-02", "month 55 = May, +50 marks a woman", GREEN),
+        ("C08", "805502", "gender: female", "the same digits again, read differently", GREEN),
+        ("C05", "930204", "opened 1993-02-04", "YYMMDD, and 19xx not 20xx", NAVY),
+        ("C09", "POPLATEK MESICNE", "statement: monthly", "one decode map, checked", NAVY),
+        ("C09", "status A", "finished, paid in full", "A/B/C/D are outcomes", NAVY),
+        ("C11", "status A", "is_problematic: false", "the certified definition, once", NAVY),
+        ("C10", "643 postings", "each one signed + or -", "so \"net flow\" is just a sum", GREEN),
+    ]
+    top = Inches(1.55)
+    for step, before, after, why, colour in rows:
+        box(s, Inches(0.6), int(top), Inches(0.62), Inches(0.62), fill=colour)
+        text(s, Inches(0.6), int(top) + Inches(0.15), Inches(0.62), Inches(0.35),
+             [(step, 12, True, WHITE)], align=PP_ALIGN.CENTER, spacing=0)
+        box(s, Inches(1.22), int(top), Inches(11.53), Inches(0.62), fill=PALE)
+        text(s, Inches(1.5), int(top) + Inches(0.15), Inches(3.3), Inches(0.35),
+             [(before, 12.5, False, GREY)], spacing=0)
+        text(s, Inches(4.9), int(top) + Inches(0.14), Inches(3.5), Inches(0.35),
+             [(after, 13, True, INK)], spacing=0)
+        text(s, Inches(8.5), int(top) + Inches(0.16), Inches(4.0), Inches(0.35),
+             [(why, 11.5, False, GREY)], spacing=0)
+        top += Inches(0.72)
+    text(s, Inches(0.6), Inches(6.75), Inches(12.2), Inches(0.6),
+         [("Her original birth_number is still in the row, next to the two columns derived "
+           "from it. The decoding can be checked rather than trusted \u2014 which is the rule "
+           "every one of these steps follows.", 14, True, NAVY)], spacing=0)
+    notes(s, """
+The step ids are not decoration: each one is a row in the cleaning ledger,
+where the same step is measured across all 1.06 m rows. This slide is that
+ledger applied to one person.
+
+The green ones are derivations - the pipeline making a claim the source never
+made. Those are the ones worth challenging, and each has an assumption written
+against it.
+""")
+
+    # ------------------------------------------------- what the grading found
+    s = blank(deck)
+    heading(s, "And two things about her that are odd", "the caveats travel with her")
+    findings = [
+        ("Her account was opened when she was 12 years old",
+         "Born 1980-05-02. Account opened 1993-02-04. That is 12.74 years old, which is "
+         "not a plausible age for an account holder.",
+         "WARN \u2014 flagged on the row, NOT removed. The bank's record says this. Deleting "
+         "it would hide a real problem; the flag travels into any answer about her.", AMBER),
+        ("She lives in one district and banks in another",
+         "Client district 32 (Ceska Lipa, north Bohemia). Account district 1 (Prague). "
+         "409 of 4,500 owners are like this.",
+         "INFO \u2014 logged. It is exactly why two of the ten questions deliberately use "
+         "different districts: \"clients per region\" and \"money per region\" are not the "
+         "same question.", NAVY),
+    ]
+    top = Inches(1.6)
+    for title, what, outcome, colour in findings:
+        box(s, Inches(0.6), int(top), Inches(0.14), Inches(2.3), fill=colour)
+        box(s, Inches(0.74), int(top), Inches(12.01), Inches(2.3), fill=PALE)
+        text(s, Inches(1.05), int(top) + Inches(0.15), Inches(11.4), Inches(0.4),
+             [(title, 17, True, INK)], spacing=0)
+        text(s, Inches(1.05), int(top) + Inches(0.62), Inches(11.4), Inches(0.7),
+             [(what, 13, False, GREY)], spacing=0)
+        text(s, Inches(1.05), int(top) + Inches(1.42), Inches(11.4), Inches(0.8),
+             [(outcome, 13, True, colour)], spacing=0)
+        top += Inches(2.5)
+    text(s, Inches(0.6), Inches(6.75), Inches(12.2), Inches(0.5),
+         [("Neither is corrected. Cleaning makes a value usable; it does not make it true, "
+           "and pretending otherwise is how a number nobody can reconcile gets published.",
+           14, True, NAVY)], spacing=0)
+    notes(s, """
+The 12-year-old is the better story. The temptation is to "fix" it - assume a
+typo, shift the year. Do not: the bank's own file says this, and the useful
+output is a flagged row that somebody investigates, not a quietly plausible
+one that nobody does.
+
+That flag is on her published row, in a column the semantic layer exposes, so
+an AI answering a question about her carries the caveat into its answer.
+""")
+
+    # ------------------------------------------------- who can see her
+    s = blank(deck)
+    heading(s, "Now: who is allowed to read any of it", "the same query, six logins")
+    text(s, Inches(0.7), Inches(1.28), Inches(12), Inches(0.38),
+         [("One identical SQL statement. Six connections. Only the login differs \u2014 nobody "
+           "wrote a different query, and nobody could.", 15.5, False, GREY)], spacing=6)
+    matrix = [
+        ("client_11409", "the customer herself", "1", "1", "39,576", True, False, GREEN),
+        ("client_3763", "another customer, same region", "1", "1", "123,216", False, True, GREEN),
+        ("rm_north", "their relationship manager", "1,481", "1,241", "25,392,348", True, True, NAVY),
+        ("rm_south", "a different manager", "1,386", "1,157", "28,938,528", False, False, NAVY),
+        ("rm_unassigned", "a new employee, no book yet", "0", "0", "0", False, False, GREY),
+        ("cro_global", "group risk, whole bank", "5,369", "4,500", "103,261,740", True, True, NAVY),
+    ]
+    headers = ("login", "who they are", "clients", "accounts", "loan value",
+               "sees 11409", "sees 3763")
+    xs = (0.85, 3.1, 6.25, 7.5, 8.9, 10.85, 11.95)
+    box(s, Inches(0.6), Inches(1.78), Inches(12.15), Inches(0.42), fill=NAVY)
+    for x, head in zip(xs, headers):
+        text(s, Inches(x), Inches(1.84), Inches(2.2), Inches(0.3),
+             [(head, 10.5, True, WHITE)], spacing=0)
+    top = Inches(2.24)
+    for role, who, clients, accounts, value, sees_a, sees_b, colour in matrix:
+        box(s, Inches(0.6), int(top), Inches(12.15), Inches(0.66), fill=PALE)
+        text(s, Inches(xs[0]), int(top) + Inches(0.17), Inches(2.3), Inches(0.32),
+             [(role, 12.5, True, colour)], spacing=0)
+        text(s, Inches(xs[1]), int(top) + Inches(0.19), Inches(3.1), Inches(0.3),
+             [(who, 11.5, False, GREY)], spacing=0)
+        for x, val in zip(xs[2:5], (clients, accounts, value)):
+            text(s, Inches(x), int(top) + Inches(0.18), Inches(1.6), Inches(0.3),
+                 [(val, 12, False, INK)], spacing=0)
+        for x, flag in zip(xs[5:], (sees_a, sees_b)):
+            text(s, Inches(x), int(top) + Inches(0.18), Inches(1.1), Inches(0.3),
+                 [("YES" if flag else "no", 12, flag, GREEN if flag else GREY)], spacing=0)
+        top += Inches(0.74)
+    text(s, Inches(0.6), Inches(6.9), Inches(12.2), Inches(0.5),
+         [("Both customers live in the north, so their MANAGER sees them both. Neither of "
+           "them can see the other. That is the test that matters \u2014 isolating two "
+           "customers in different books would have proved nothing.", 14, True, NAVY)],
+         spacing=0)
+    notes(s, """
+Point at the rm_north row and then at the two client rows. One person sees
+1,481 clients; each customer sees one. Same query, same database, same moment.
+
+If asked how: the filter is a policy on the table, and the policy asks "which
+clients may the caller see". For a manager the answer is their book; for a
+customer the answer is one row - herself. No policy was changed to add
+customers. One column and one UNION, and the seven policies never learned that
+customer logins exist.
+
+rm_unassigned is the row people skip. It proves the default is SEE NOTHING,
+not see everything.
+""")
+
+    # ------------------------------------------------- the attack
+    s = blank(deck)
+    heading(s, "One customer trying to read the other, on purpose",
+            "13 attempts, 13 blocked")
+    text(s, Inches(0.7), Inches(1.3), Inches(12), Inches(0.38),
+         [("Logged in as client 11409, asking for client 3763's data by name. A row count "
+           "can pass while a targeted lookup leaks, so these name her actual account.",
+           15, False, GREY)], spacing=6)
+    groups = [
+        ("Ask for her records through the published views",
+         "her client row - her account - her loan - her transactions - her balances - her cards",
+         "0 rows, six times. The query runs; the engine filters the answer.", GREEN),
+        ("Go around the views, straight to the underlying table",
+         "SELECT ... FROM core.fact_transaction WHERE account_id = (hers)",
+         "0 rows. The policy is on the TABLE, so there is nothing to go around.", GREEN),
+        ("Read the uncleaned copies, where no policy exists at all",
+         "stg.trans, raw.trans",
+         "Refused outright. The role was never granted those schemas.", NAVY),
+        ("Attack the entitlement itself",
+         "edit sec.app_user to grant herself the other client - read who else is a user - "
+         "disable the policy - become the manager",
+         "Refused, four times. She may read her data, not the machinery around it.", NAVY),
+    ]
+    top = Inches(1.92)
+    for title, what, outcome, colour in groups:
+        box(s, Inches(0.6), int(top), Inches(0.13), Inches(1.2), fill=colour)
+        box(s, Inches(0.73), int(top), Inches(12.02), Inches(1.2), fill=PALE)
+        text(s, Inches(1.0), int(top) + Inches(0.09), Inches(11.5), Inches(0.32),
+             [(title, 14, True, INK)], spacing=0)
+        text(s, Inches(1.0), int(top) + Inches(0.42), Inches(11.5), Inches(0.33),
+             [(what, 11.5, False, GREY)], spacing=0)
+        text(s, Inches(1.0), int(top) + Inches(0.78), Inches(11.5), Inches(0.35),
+             [(outcome, 12.5, True, colour)], spacing=0)
+        top += Inches(1.26)
+    text(s, Inches(0.6), Inches(7.02), Inches(12.2), Inches(0.35),
+         [("Two different kinds of block, and the second is the stronger one: a refusal "
+           "says \"not allowed\"; a policy says \"here is your answer\" and the answer is "
+           "already narrowed.", 12.5, True, NAVY)], spacing=0)
+    notes(s, """
+Make the distinction at the bottom explicitly, because it is the heart of why
+this works for an AI.
+
+A privilege refusal stops a query. A policy does not stop the query - it
+rewrites what the query can see, inside the engine, before any row is
+returned. That is why an LLM-generated query needs no inspection for WHOSE
+data it asks about: it cannot ask about anyone else's. The predicate is not in
+the query, so rewriting the query cannot remove it.
+
+All thirteen are in docs/WORKED_EXAMPLE.md with the exact error each one
+produced, and they run again on every `make demo`.
+""")
+
+    # ------------------------------------------------- onboarding
+    s = blank(deck)
+    heading(s, "Adding a new customer: one insert", "performed, not asserted")
+    text(s, Inches(0.7), Inches(1.32), Inches(12), Inches(0.4),
+         [("The brief asks how a new user is onboarded without code changes. This ran live "
+           "during the same execution that produced the write-up.", 15.5, False, GREY)],
+         spacing=8)
+    steps = [
+        ("Create the login", "A credential. The only DDL, and it is not business logic.", NAVY),
+        ("Query before granting anything", "0 clients visible. The default is see nothing.", AMBER),
+        ("One INSERT into sec.app_user", "user_type 'client', subject_client_id. No portfolio needed.", GREEN),
+        ("Query on the very next statement", "1 client, 1 account \u2014 their own, and nobody else's.", GREEN),
+        ("Try to read the example customer", "0 rows. Isolated from her too, immediately.", GREEN),
+        ("Revoke: one UPDATE", "is_active = false \u2192 0 clients visible. Offboarding is symmetric.", AMBER),
+    ]
+    top = Inches(1.95)
+    for title, effect, colour in steps:
+        box(s, Inches(0.6), int(top), Inches(4.5), Inches(0.72), fill=colour)
+        text(s, Inches(0.85), int(top) + Inches(0.19), Inches(4.1), Inches(0.35),
+             [(title, 13.5, True, WHITE)], spacing=0)
+        box(s, Inches(5.1), int(top), Inches(7.65), Inches(0.72), fill=PALE)
+        text(s, Inches(5.4), int(top) + Inches(0.2), Inches(7.1), Inches(0.35),
+             [(effect, 13, False, INK)], spacing=0)
+        top += Inches(0.82)
+    text(s, Inches(0.6), Inches(6.95), Inches(12.2), Inches(0.5),
+         [("No policy written. No view altered. No deployment. The entitlement is data, so "
+           "the next statement already honours it \u2014 and that is true for a customer and "
+           "for a whole relationship-manager book alike.", 14, True, NAVY)], spacing=0)
+    notes(s, """
+This is the "without code changes" claim, and it is worth having actually
+executed rather than described - the write-up contains the real output of this
+run, not a worked-out example of what would happen.
+
+The revoke step is the one to mention unprompted. Onboarding stories are easy;
+a model where removing access is also one statement, taking effect on the next
+query, is the one that survives an audit.
 """)
 
 

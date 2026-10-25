@@ -259,14 +259,32 @@ COMMENT ON VIEW ai.code_reference IS
 CREATE VIEW ai.my_entitlement AS
 SELECT
     session_user::text                                        AS database_role,
+    -- Which KIND of principal is asking. An assistant that knows it is
+    -- serving a customer rather than a relationship manager can word its
+    -- answer accordingly, and a reader of a log can tell the two apart.
+    coalesce((SELECT u.user_type FROM sec.app_user u
+               WHERE u.db_role = session_user AND u.is_active),
+             'unknown')                                       AS principal_type,
     (SELECT count(*) FROM sec.v_my_clients)                   AS entitled_clients,
     (SELECT count(*) FROM sec.v_my_accounts)                  AS entitled_accounts,
-    (SELECT string_agg(DISTINCT p.portfolio_code, ', ' ORDER BY p.portfolio_code)
-       FROM sec.app_user u
-       JOIN sec.user_portfolio up ON up.app_user_id = u.app_user_id
-       JOIN sec.portfolio p       ON p.portfolio_id = up.portfolio_id
-      WHERE u.db_role = session_user AND u.is_active)         AS portfolios;
+    -- For staff this is the list of books they hold. For a self-service
+    -- customer there is no book, so it reports the subject instead -- which
+    -- matters because "(none)" would otherwise be indistinguishable from a
+    -- newly created user who has been granted nothing at all.
+    coalesce(
+        (SELECT string_agg(DISTINCT p.portfolio_code, ', ' ORDER BY p.portfolio_code)
+           FROM sec.app_user u
+           JOIN sec.user_portfolio up ON up.app_user_id = u.app_user_id
+           JOIN sec.portfolio p       ON p.portfolio_id = up.portfolio_id
+          WHERE u.db_role = session_user AND u.is_active),
+        (SELECT 'SELF:' || u.subject_client_id
+           FROM sec.app_user u
+          WHERE u.db_role = session_user AND u.is_active
+            AND u.subject_client_id IS NOT NULL)
+    )                                                         AS portfolios;
 
 COMMENT ON VIEW ai.my_entitlement IS
-    'One row describing the calling user''s own entitlement: which portfolios '
-    'they hold and how many clients and accounts those resolve to.';
+    'One row describing the calling principal''s own entitlement: what kind of '
+    'principal they are, which portfolios they hold (or which single client '
+    'they are), and how many clients and accounts that resolves to. Exposed '
+    'on purpose so that "no rows" can be told apart from "not entitled".';
