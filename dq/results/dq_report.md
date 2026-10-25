@@ -1,8 +1,8 @@
 # Data quality report
 
-- run_id: `92e26d58-e139-4e07-a394-36542d070828`
+- run_id: `08db5c80-bb78-4ac9-9ba0-336249b231e1`
 - dataset: `stg`
-- executed at: 2026-10-25T20:52:28+00:00 (git 97c2cde)
+- executed at: 2026-10-25T21:14:40+00:00 (git a9c9f38)
 - command: `make dq`
 - rules executed: **124** (19 fired, 105 clean, 0 errored)
 
@@ -110,13 +110,13 @@ Rows quarantined this run: **1** (trans: 1)
 
 - severity rationale: No answer to the 10 questions reads this column, so a null here cannot change a reported number. It is logged with its null rate so that the next metric built on this column starts from a known baseline, and it is promoted to warn or block the moment a metric does read it.
 - handling: Normalised to a real NULL in stg (placeholders '?', '', 'NA' and a bare space all collapse), original text preserved in the matching *_raw audit column, null rate published in dq/results/profile.md.
-- example: key `808671` -- k_symbol_code is NULL
+- example: key `2956494` -- k_symbol_code is NULL
 
 **`COMP_NULL__trans__k_symbol_label`** -- Missing value in trans.k_symbol_label
 
 - severity rationale: No answer to the 10 questions reads this column, so a null here cannot change a reported number. It is logged with its null rate so that the next metric built on this column starts from a known baseline, and it is promoted to warn or block the moment a metric does read it.
 - handling: Normalised to a real NULL in stg (placeholders '?', '', 'NA' and a bare space all collapse), original text preserved in the matching *_raw audit column, null rate published in dq/results/profile.md.
-- example: key `808671` -- k_symbol_label is NULL
+- example: key `2956494` -- k_symbol_label is NULL
 
 **`COMP_TRANS_OPERATION_STRUCTURAL`** -- Transaction operation absent (structurally, for interest postings)
 
@@ -128,7 +128,7 @@ Rows quarantined this run: **1** (trans: 1)
 
 - severity rationale: 2,999 postings leave a negative balance. This is overdraft, which is normal banking, not a defect -- and it matters that the rule says so, because the tempting "fix" (clipping balances at zero) would bias the Q9 average upwards. Reported as info so the number is known and explicitly not acted on.
 - handling: Logged only; balances are never clipped.
-- example: key `3452127` -- balance_after = -13466.40
+- example: key `1681922` -- balance_after = -1142.60
 
 ## Rules that did not fire
 

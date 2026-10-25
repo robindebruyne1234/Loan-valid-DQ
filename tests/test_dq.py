@@ -296,3 +296,53 @@ def test_the_code_catalogue_covers_every_coded_column() -> None:
             f"{table}.{code} is cleaned but is not in the code catalogue check, "
             f"so an unknown code there would never fail a build"
         )
+
+
+# ---------------------------------------------------------------------------
+# The cleaning ledger must describe THIS build, not every build
+#
+# raw.load_audit keeps one row per file per ingest run. The first version of
+# the ledger summed the whole table, so after three `make build` runs against
+# the same database it reported 3,239,040 rows landed from 24 files instead of
+# 1,079,680 from 8. Those two numbers are rendered into
+# docs/CLEANING_LEDGER.md and into the workbook's Cleaning tab, so the defect
+# put a wrong figure in a deliverable -- and only on a re-run, which is
+# exactly the case a single clean-build test would never reach.
+# ---------------------------------------------------------------------------
+
+
+def test_the_ledger_counts_one_ingest_not_all_of_them() -> None:
+    """C01 and C02 must report the latest load, whatever the history holds."""
+    from src import cleaning_ledger  # noqa: PLC0415
+
+    steps = {step.step: step for step in cleaning_ledger.STEPS}
+    with db.connect() as conn:
+        runs = int(db.fetch_value(
+            conn, "SELECT count(DISTINCT run_id) FROM raw.load_audit") or 0)
+        landed = cleaning_ledger.measure(conn, steps["C01"])
+        files = cleaning_ledger.measure(conn, steps["C02"])
+        actual = int(db.fetch_value(
+            conn,
+            """
+            SELECT sum(n) FROM (
+                SELECT count(*) AS n FROM raw.account UNION ALL
+                SELECT count(*) FROM raw.client       UNION ALL
+                SELECT count(*) FROM raw.disp         UNION ALL
+                SELECT count(*) FROM raw.card         UNION ALL
+                SELECT count(*) FROM raw.loan         UNION ALL
+                SELECT count(*) FROM raw."order"      UNION ALL
+                SELECT count(*) FROM raw.trans        UNION ALL
+                SELECT count(*) FROM raw.district
+            ) t
+            """,
+        ) or 0)
+
+    assert landed == actual, (
+        f"ledger C01 reports {landed:,} rows landed but raw holds {actual:,}; "
+        f"there are {runs} ingest runs in load_audit, so the probe is almost "
+        f"certainly summing all of them"
+    )
+    assert files == len(config.RAW_TABLES), (
+        f"ledger C02 reports {files} files; there are "
+        f"{len(config.RAW_TABLES)} source tables"
+    )

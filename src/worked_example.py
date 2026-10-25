@@ -170,21 +170,29 @@ def collect(conn: psycopg.Connection) -> dict[str, Any]:
 #: deliberately an ordinary business question rather than a probe: the point is
 #: that the SAME query returns a different, correct answer per caller.
 #:
-#: ``sum(l.amount)`` is deliberately NOT ``sum(DISTINCT l.amount)``. The first
-#: draft used DISTINCT as a reflex guard against join fan-out and reported
-#: 98,780,760 CZK bank-wide against a true 103,261,740: 37 of the 682 loans
-#: share an amount with another loan, and DISTINCT silently discarded them.
-#: There is no fan-out to guard against here -- account_owner is one row per
-#: account and a loan belongs to one account -- so the plain sum is both
-#: correct and the right thing to demonstrate.
+#: Two earlier versions of this query were wrong, and both were wrong in the
+#: direction that flatters the demo, so the shape is now deliberately dull.
+#:
+#: The first joined the entities and used ``sum(DISTINCT l.amount)`` as a
+#: reflex guard against fan-out. It reported 98,780,760 CZK bank-wide against
+#: a true 103,261,740, because 37 of the 682 loans share an amount with
+#: another loan and DISTINCT discarded them.
+#:
+#: The second kept the join but reached accounts through ``ai.account_owner``,
+#: which answers "accounts this principal OWNS". A disponent owns nothing, so
+#: client_3764 -- the persona who exists to show that someone may operate an
+#: account they do not own -- was reported as reaching 0 accounts, while the
+#: entitlement summary correctly said 1. The document contradicted the point
+#: it was written to make.
+#:
+#: Independent counts over each published view ask the question the demo
+#: actually means: what can this principal REACH. There is no join to get
+#: wrong, and each number is the one the policies produced for that view.
 DEMO_QUESTION = """
-SELECT count(DISTINCT c.client_id)  AS clients,
-       count(DISTINCT o.account_id) AS accounts,
-       count(DISTINCT l.loan_id)    AS loans,
-       coalesce(sum(l.amount), 0)   AS loan_value
-FROM ai.client c
-LEFT JOIN ai.account_owner o ON o.owner_client_id = c.client_id
-LEFT JOIN ai.loan          l ON l.account_id     = o.account_id
+SELECT (SELECT count(*) FROM ai.client)                   AS clients,
+       (SELECT count(*) FROM ai.account)                  AS accounts,
+       (SELECT count(*) FROM ai.loan)                     AS loans,
+       (SELECT coalesce(sum(amount), 0) FROM ai.loan)     AS loan_value
 """
 
 

@@ -833,3 +833,42 @@ def test_account_references_carry_valid_iban_check_digits() -> None:
     # And a corrupted one must fail, or the check proves nothing.
     broken = refs[0][:-1] + ("1" if refs[0][-1] != "1" else "2")
     assert mod97(broken) != 1
+
+
+def test_the_demo_question_counts_what_a_principal_can_reach() -> None:
+    """The worked example must not under-report a disponent's access.
+
+    An earlier version reached accounts through ``ai.account_owner``, which
+    answers "accounts this principal OWNS". Client 3764 owns nothing and may
+    operate account 3112, so the worked example reported 0 accounts for the
+    one persona that exists to demonstrate the opposite -- while the
+    entitlement summary, using a different query, correctly reported 1. The
+    generated document contradicted the point it was written to make.
+    """
+    from src import worked_example  # noqa: PLC0415
+
+    for role in ("client_3763", "client_3764", "rm_north"):
+        with support.consumer(role) as conn:
+            answer = db.fetch_all(conn, worked_example.DEMO_QUESTION)[0]
+            direct = {
+                "clients": int(db.fetch_value(conn, "SELECT count(*) FROM ai.client") or 0),
+                "accounts": int(db.fetch_value(conn, "SELECT count(*) FROM ai.account") or 0),
+                "loans": int(db.fetch_value(conn, "SELECT count(*) FROM ai.loan") or 0),
+            }
+        for key, expected in direct.items():
+            assert answer[key] == expected, (
+                f"{role}: demo question reports {answer[key]} {key}, but "
+                f"ai.{key.rstrip('s')} returns {expected} for that principal"
+            )
+
+    # And specifically: the disponent reaches an account without owning one.
+    with support.consumer("client_3764") as conn:
+        answer = db.fetch_all(conn, worked_example.DEMO_QUESTION)[0]
+        owned = int(db.fetch_value(
+            conn, "SELECT count(*) FROM ai.account_owner WHERE owner_client_id = %s",
+            (config.EXAMPLE_DISPONENT_CLIENT_ID,)) or 0)
+    assert owned == 0, "the disponent persona is supposed to own nothing"
+    assert answer["accounts"] == 1, (
+        "the disponent reaches one account; reporting 0 would undo the whole "
+        "point of the disposition grant"
+    )

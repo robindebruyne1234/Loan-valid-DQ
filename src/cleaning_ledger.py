@@ -80,7 +80,16 @@ STEPS: tuple[Step, ...] = (
         "Land every field as text, unchanged",
         "A cast at load time destroys the evidence of the defect it trips over. "
         "Bronze is deliberately the one layer that cleans nothing.",
-        "SELECT sum(rows_loaded) AS measure FROM raw.load_audit",
+        # Scoped to the LATEST ingest. raw.load_audit keeps one row per file
+        # per run, so summing the whole table reports every build this
+        # database has ever seen: after three `make build` runs it claimed
+        # 3,239,040 rows from 24 files. A ledger that counts its own history
+        # is worse than no ledger, and these two numbers reach a deliverable.
+        """
+        SELECT sum(rows_loaded) AS measure FROM raw.load_audit
+        WHERE run_id = (SELECT run_id FROM raw.load_audit
+                        ORDER BY loaded_at DESC LIMIT 1)
+        """,
         "rows landed verbatim",
         "the source file itself, SHA-256 in raw.load_audit",
         ("RI_RAW_ROWCOUNT_MATCHES",),
@@ -90,7 +99,12 @@ STEPS: tuple[Step, ...] = (
         "Stamp every row with its file and line number",
         "Without it no cleaned value can be traced back, and a reviewer has to "
         "take the rest of this ledger on trust.",
-        "SELECT count(*) AS measure FROM raw.load_audit WHERE counts_match",
+        """
+        SELECT count(*) AS measure FROM raw.load_audit
+        WHERE counts_match
+          AND run_id = (SELECT run_id FROM raw.load_audit
+                        ORDER BY loaded_at DESC LIMIT 1)
+        """,
         "files whose row count matched the file",
     ),
     # ---------------------------------------------------------------- silver
