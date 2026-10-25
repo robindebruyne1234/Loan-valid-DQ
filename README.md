@@ -23,9 +23,14 @@ make test   # 114 tests
 ten questions explained and answered:**
 **[`docs/HOW_WE_WORKED_SIMPLY.md`](docs/HOW_WE_WORKED_SIMPLY.md)**. No jargon.
 
-Supporting: **[`docs/VISUAL_GUIDE.md`](docs/VISUAL_GUIDE.md)** (six figures:
-the pipeline, the query path and where the entitlement filter lives, what each
-severity does, the star schema, and two decision comparisons),
+Supporting: **[`deliverables/Walkthrough_Deck.pptx`](deliverables/Walkthrough_Deck.pptx)**
+(34 slides with speaker notes on every one: how it works, what it found, the
+six design decisions, and a completeness check against every ask in the brief;
+regenerate with `python scripts/make_pitch_deck.py`),
+**[`docs/VISUAL_GUIDE.md`](docs/VISUAL_GUIDE.md)** (ten figures: the pipeline,
+the query path and where the entitlement filter lives, what each severity
+does, the star schema, two decision comparisons, the defect lifecycle and
+catalogue, the whole system map and the build sequence),
 `STATUS_REPORT.md` (what ran, what did not), `DECISIONS.md` (12 decisions with
 options, cost and consequence), `ASSUMPTIONS.md` (A1-A24), `AI_DISCLOSURE.md`, `WALKTHROUGH_NOTES.md`,
 `docs/SECURITY_AND_CODE_REVIEW.md` (both reviews, with the two defects they
