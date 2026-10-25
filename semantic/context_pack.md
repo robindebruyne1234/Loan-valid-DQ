@@ -124,6 +124,8 @@ A person who banks with us. One row per client, including clients who hold no ac
 
 | column | type | meaning | allowed values |
 |---|---|---|---|
+| `client_ref` | text | The client's EXTERNAL reference (BRK-XXXX-XXXX). This is the identifier to quote in an answer, on a statement or in a URL: it is opaque, so unlike client_id it cannot be guessed, counted or correlated. Use client_id to join, client_ref to refer. |  |
+| `client_ref` | text | The client's EXTERNAL reference (BRK-XXXX-XXXX). This is the identifier to QUOTE in an answer, on a statement or in a link: it is opaque, so unlike client_id it cannot be guessed, enumerated or counted. Join on client_id; refer to people by client_ref. |  |
 | `client_id` | bigint | Unique client identifier. The entitlement key. |  |
 | `birth_date` | date | Date of birth, decoded from the source birth number. |  |
 | `gender` | text | Gender, decoded from the source birth number. | `male`, `female` |
@@ -147,6 +149,7 @@ A current account held at the bank. One row per account.
 
 | column | type | meaning | allowed values |
 |---|---|---|---|
+| `account_ref` | text | The account number in IBAN form, with valid check digits. This is what a customer recognises and what an answer should quote; account_id is an internal key. |  |
 | `account_id` | bigint | Unique account identifier. |  |
 | `open_date` | date | Date the account was opened. This is what 'new account' means. |  |
 | `statement_frequency` | text | How often a statement is issued, in English. | `monthly`, `weekly`, `after transaction` |
@@ -171,12 +174,14 @@ Each account together with its single legal owner, the owner's own region, and t
 
 | column | type | meaning | allowed values |
 |---|---|---|---|
+| `account_ref` | text | The account number in IBAN form, with valid check digits. This is what a customer recognises and what an answer should quote; account_id is an internal key. |  |
 | `account_id` | bigint | Account identifier. |  |
 | `account_open_date` | date | Date the account was opened. |  |
 | `statement_frequency` | text | Statement frequency of the account. | `monthly`, `weekly`, `after transaction` |
 | `account_district_id` | bigint | District the account is registered in. |  |
 | `account_district_name` | text | Name of the account's district. |  |
 | `account_region` | text | Region of the account's district. |  |
+| `owner_client_ref` | text | External reference of the owning client. Quote this rather than owner_client_id. |  |
 | `owner_client_id` | bigint | Client who legally owns the account. |  |
 | `owner_birth_date` | date | Owner's date of birth. |  |
 | `owner_gender` | text | Owner's gender. | `male`, `female` |

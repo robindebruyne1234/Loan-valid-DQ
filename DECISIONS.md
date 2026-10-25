@@ -706,3 +706,151 @@ rule to change is named here so the change is a decision rather than a patch.
 Any real deployment should make this call with the business before launch,
 because the two readings are both defensible and only one matches what the
 bank tells its customers their app will show.
+
+---
+
+# Identity, access and authentication (D023-D027)
+
+---
+
+## D023 - A customer sees the accounts they may operate, not only those they own
+
+**Context.** D022 narrowed a self-service customer to accounts they own,
+consistent with the staff rule (A21/A36), and recorded that the alternative
+should be settled with the business. It has been: a customer sees what they
+are authorised to use.
+
+**Options.** (a) Ownership only, as before. (b) Ownership plus disposition.
+
+**Choice.** (b).
+
+**Reason.** It is what the bank tells its customers their app will show, and
+the narrow reading produces a support ticket every time somebody cannot see an
+account they transact on daily. The safety argument for (a) was real but it is
+answered by *where* the right is granted rather than by withholding it -- see
+D024.
+
+**Consequence.** 869 clients hold a disposition on an account they do not own.
+In the demo, client 3764 reaches account 3112 and its 439 postings; before this
+change he reached nothing at all.
+
+---
+
+## D024 - A disposition grants the account, never the person
+
+**Context.** Having decided a disponent sees the account, the question is what
+else comes with it. The entitlement chain elsewhere runs client -> accounts, so
+the lazy implementation would grant the client and let the accounts follow.
+
+**Options.** (a) Grant the owning client, and let their accounts resolve.
+(b) Grant that one account, and nothing else.
+
+**Choice.** (b), and it is the most important line in the access model.
+
+**Reason.** (a) would mean that authorising someone to pay a bill from your
+account lets them read *you*: your other accounts, your loans, your date of
+birth. That is not what the arrangement means, and nobody signing it would
+expect it. The right is over the account, so the grant is over the account.
+
+**Consequence.** `sec.v_access_grant` carries `subject_kind` so a grant can be
+either shape, and disposition grants are always `account`. Proven by
+`test_a_disponent_reaches_the_account_but_not_its_owner`: client 3764 reads
+account 3112 and its transactions, and gets zero rows for client 3763.
+
+---
+
+## D025 - Three names for a client, with different exposure
+
+**Context.** `client_id` is a dense sequential integer and was the only name
+the product had. Row level security already stops one customer reading
+another's rows, so exposing it is not a breach -- but it is guessable, it
+leaks the size of the book, and it is a stable handle for correlation.
+
+**Options.** (a) Keep `client_id` as the only identifier and rely on the
+policies. (b) Replace it with an opaque reference. (c) Keep the integer
+internally and add an opaque external reference, plus a recognisable account
+number.
+
+**Choice.** (c): `client_id` for joins, `client_ref` (`BRK-XXXX-XXXX`, HMAC
+under a secret salt) to quote, `account_ref` (IBAN with real mod-97 check
+digits, fictional bank code) for the number a customer recognises.
+
+**Reason.** (a) leaves an enumeration surface that costs nothing to remove:
+every guess is an access attempt the system must refuse rather than one never
+made. (b) would make every join and every policy predicate longer and slower
+for no gain, because the internal key is never exposed anyway. (c) separates
+the identifier used for plumbing from the identifier used for people, and the
+semantic layer tells the model which is which.
+
+**Consequence.** The salt is set only on the owner's session, so a consumer
+cannot derive another client's reference from an id. A rebuild under a
+different salt reissues every reference, which is the intended behaviour if
+one is believed to have leaked. The IBAN check digits are genuine, so a typo
+in a demo fails the way a typo in production would.
+
+---
+
+## D026 - The second factor is enforced by the database, not by an application
+
+**Context.** The brief asks for entitlement-aware access; a self-service
+customer surface raises the next question, which is how the system knows the
+person at the other end is who the role says they are.
+
+**Options.** (a) Authenticate in an application gateway and let it open a
+trusted connection. (b) Record that two-factor authentication "would be
+required" and demonstrate the entitlements only. (c) Enforce it in the
+database: no verified session, no rows.
+
+**Choice.** (c).
+
+**Reason.** (a) is where most real systems put it, and it is a defensible
+production architecture -- but it makes the control a property of the
+application rather than of the data, which is the same mistake this project
+rejected for entitlements in D009. (b) is a diagram, not a control. (c) makes
+the claim testable in the only way that means anything: hold the correct
+password, present no second factor, and read nothing. That is asserted for all
+eight principals across seven consumer views in `tests/test_auth.py`.
+
+**Reason for the shape, which is the subtle part.** Identity still comes from
+`session_user`, which no statement can forge. The session token is a *second*
+thing, and a bearer secret, so it is bound to `pg_backend_pid()`: a copied
+token is useless on another connection, and one user completing a login does
+not authorise every other connection open as the same role. The session check
+is ANDed over the whole of `sec.v_my_clients` rather than inside one branch,
+so a branch added later cannot quietly skip it.
+
+**Consequence.** Every consumer path now logs in -- the question runner, the
+workbook, the worked example and the tests. That is more machinery than a
+demo strictly needs, and it is the price of the control being real rather than
+described. It also costs wall-clock time: a code may be used once, so two
+logins as the same principal inside thirty seconds wait for the next code.
+Weakening that to make a script faster would be removing the control in order
+to demonstrate it.
+
+---
+
+## D027 - Derive the grant set; store only what a human decided
+
+**Context.** The first implementation of `sec.access_grant` was a table,
+rebuilt on each pipeline run from the banking records and the portfolios.
+
+**Options.** (a) Keep the materialised table and rebuild it. (b) Derive the
+derivable sources live in a view, and store only delegations.
+
+**Choice.** (b), after (a) failed a test.
+
+**Reason, which is the useful part.** The materialised version broke a
+headline claim and did so silently. Granting a portfolio inserted a row in
+`sec.user_portfolio` and no matching grant, so the new entitlement did
+*nothing* until the next rebuild -- while the entitlement tables said it
+should. That is precisely the failure a single access model is supposed to
+remove: two descriptions of who may see what, drifting apart between runs.
+`test_onboarding_a_user_and_a_portfolio_is_pure_insert` caught it, which is
+the argument for having written that test as an assertion about behaviour
+rather than about rows.
+
+**Consequence.** Ownership, disposition and portfolio rights are computed from
+the records that already define them, so there is nothing to keep in step.
+`sec.access_delegation` stores the one source a human chooses, and demands a
+grantor, a reason and usually an expiry -- because it is the only source that
+can be wrong in a way the banking records cannot reveal.

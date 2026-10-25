@@ -24,6 +24,15 @@ make test   # 114 tests
 ten questions explained and answered:**
 **[`docs/HOW_WE_WORKED_SIMPLY.md`](docs/HOW_WE_WORKED_SIMPLY.md)**. No jargon.
 
+**Start here if you want to see the privacy work in front of an audience:**
+**[`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)** -- a fifteen-minute
+stakeholder walkthrough: what to run, what to point at, what each moment
+proves, the questions to expect and how to answer them. Driven by
+`make demo-login`, which performs eight real two-step logins and shows what
+each principal can and cannot reach. **[`docs/ACCESS_AND_AUTH.md`](docs/ACCESS_AND_AUTH.md)**
+is the design behind it: three kinds of identifier, four sources of access,
+and two factors enforced by the database rather than by an application.
+
 **Start here if you want one concrete end-to-end example:**
 **[`docs/WORKED_EXAMPLE.md`](docs/WORKED_EXAMPLE.md)** -- client 11409 followed
 from the line of text she arrives as, through every cleaning step that touches
@@ -44,22 +53,23 @@ orders, for one), and the eight tables the cleaned data will carry without a
 single new source file.
 
 Supporting: **[`deliverables/Walkthrough_Deck.pptx`](deliverables/Walkthrough_Deck.pptx)**
-(49 slides with speaker notes on every one: how the data gets clean, what it
+(55 slides with speaker notes on every one: how the data gets clean, what it
 found, one client followed all the way through, the design decisions, a
 completeness check against every ask in the brief, and what the cleaned data
 can still become;
 regenerate with `python scripts/make_pitch_deck.py`),
-**[`docs/VISUAL_GUIDE.md`](docs/VISUAL_GUIDE.md)** (ten figures: the pipeline,
+**[`docs/VISUAL_GUIDE.md`](docs/VISUAL_GUIDE.md)** (twelve figures: the pipeline,
 the query path and where the entitlement filter lives, what each severity
 does, the star schema, two decision comparisons, the defect lifecycle and
 catalogue, the whole system map and the build sequence),
-`STATUS_REPORT.md` (what ran, what did not), `DECISIONS.md` (22 decisions with
-options, cost and consequence; D013-D020 are the cleaning, D021-D022 the
-client-grain privacy),
-`ASSUMPTIONS.md` (A1-A38), `AI_DISCLOSURE.md`, `WALKTHROUGH_NOTES.md`,
+`STATUS_REPORT.md` (what ran, what did not), `DECISIONS.md` (27 decisions with
+options, cost and consequence; D013-D020 are the cleaning, D021-D027 the
+privacy, identity and authentication),
+`ASSUMPTIONS.md` (A1-A46), `AI_DISCLOSURE.md`, `WALKTHROUGH_NOTES.md`,
 `docs/SECURITY_AND_CODE_REVIEW.md` (both reviews, with the two defects they
-found and fixed), `docs/BUILD_REVIEW.md` (the client-grain privacy build: what
-was verified and how, the two defects it found in itself, and what is weak),
+found and fixed), `docs/BUILD_REVIEW.md` and `docs/BUILD_REVIEW_2.md` (the two privacy
+builds: what was verified and how, the defects each found in itself, and what
+is weak),
 `docs/REVIEW_AND_NEXT_STEPS.md`.
 
 ## Results

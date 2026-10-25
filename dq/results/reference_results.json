@@ -1,6 +1,6 @@
 {
-  "generated_at_utc": "2026-10-25T09:01:44+00:00",
-  "git_commit": "c1e2ead",
+  "generated_at_utc": "2026-10-25T11:15:32+00:00",
+  "git_commit": "a7da25a",
   "source": "sql/60_reference_queries.sql",
   "label": "REFERENCE (hand-written, never shown to the LLM)",
   "command": "make reference",
@@ -58,7 +58,7 @@
           "pct_of_clients": 8.36
         }
       ],
-      "executed_at_utc": "2026-10-25T09:01:43+00:00"
+      "executed_at_utc": "2026-10-25T11:15:32+00:00"
     },
     "Q2": {
       "question": "What is the total amount of loans granted per year?",
@@ -110,7 +110,7 @@
           "average_amount": 157399.67
         }
       ],
-      "executed_at_utc": "2026-10-25T09:01:43+00:00"
+      "executed_at_utc": "2026-10-25T11:15:32+00:00"
     },
     "Q3": {
       "question": "What percentage of our loans are problematic?",
@@ -134,7 +134,7 @@
           "status_d_running_in_debt": 45
         }
       ],
-      "executed_at_utc": "2026-10-25T09:01:43+00:00"
+      "executed_at_utc": "2026-10-25T11:15:32+00:00"
     },
     "Q4": {
       "question": "What is the average loan amount per card type of the account owner?",
@@ -174,7 +174,7 @@
           "total_loan_amount": 19791540.0
         }
       ],
-      "executed_at_utc": "2026-10-25T09:01:43+00:00"
+      "executed_at_utc": "2026-10-25T11:15:32+00:00"
     },
     "Q5": {
       "question": "Which 10 districts had the highest total incoming transaction amount in 1997?",
@@ -283,7 +283,7 @@
           "accounts": 55
         }
       ],
-      "executed_at_utc": "2026-10-25T09:01:44+00:00"
+      "executed_at_utc": "2026-10-25T11:15:32+00:00"
     },
     "Q6": {
       "question": "How many new accounts were opened per month in 1996?",
@@ -371,7 +371,7 @@
           "accounts_opened": 125
         }
       ],
-      "executed_at_utc": "2026-10-25T09:01:44+00:00"
+      "executed_at_utc": "2026-10-25T11:15:32+00:00"
     },
     "Q7": {
       "question": "What was the average age of the account owner at loan start, per loan status?",
@@ -426,7 +426,7 @@
           "loans_flagged_implausible_age": 0
         }
       ],
-      "executed_at_utc": "2026-10-25T09:01:44+00:00"
+      "executed_at_utc": "2026-10-25T11:15:32+00:00"
     },
     "Q8": {
       "question": "What is the gender split of account owners holding a gold card?",
@@ -454,7 +454,7 @@
           "pct_of_gold_card_owners": 39.77
         }
       ],
-      "executed_at_utc": "2026-10-25T09:01:44+00:00"
+      "executed_at_utc": "2026-10-25T11:15:32+00:00"
     },
     "Q9": {
       "question": "What was the average account balance at the end of December 1998?",
@@ -484,7 +484,7 @@
           "accounts_overdrawn": 39
         }
       ],
-      "executed_at_utc": "2026-10-25T09:01:44+00:00"
+      "executed_at_utc": "2026-10-25T11:15:32+00:00"
     },
     "Q10": {
       "question": "Which statement frequency has the highest share of problematic loans?",
@@ -522,7 +522,7 @@
           "rank_by_problematic_share": 3
         }
       ],
-      "executed_at_utc": "2026-10-25T09:01:44+00:00"
+      "executed_at_utc": "2026-10-25T11:15:32+00:00"
     }
   }
 }

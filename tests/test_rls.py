@@ -20,6 +20,7 @@ import psycopg
 import pytest
 
 from src import build_security, config, db
+from tests import support
 
 #: Every ai view a consumer may query, with whether it must be filtered.
 #: Reference data is not filtered by design (assumption A22).
@@ -52,7 +53,7 @@ def counts_for(role: str) -> dict[str, int]:
     :param role: Login role to connect as.
     :returns: Mapping of view name to visible row count.
     """
-    with db.connect(user=role) as conn:
+    with support.consumer(role) as conn:
         return {
             view: int(db.fetch_value(conn, f"SELECT count(*) FROM ai.{view}") or 0)
             for view in AI_VIEWS_FILTERED
@@ -75,8 +76,16 @@ def test_unentitled_user_sees_nothing() -> None:
 
 
 def test_entitled_users_see_their_own_slice_only() -> None:
-    """Two relationship managers see disjoint client sets, both smaller than the whole."""
-    with db.connect(user="rm_north") as north, db.connect(user="rm_south") as south:
+    """Two managers see different clients, and any overlap is explained.
+
+    Their books are disjoint by construction, so the portfolios alone should
+    not put a client in both. A delegation deliberately can -- that is what
+    delegation is for -- so the test does not forbid overlap. It requires
+    every overlapping client to be accounted for by a live delegation, which
+    is the stronger property: no client is reachable by two people for a
+    reason nobody wrote down.
+    """
+    with support.consumer("rm_north") as north, support.consumer("rm_south") as south:
         north_clients = {
             row["client_id"] for row in db.fetch_all(north, "SELECT client_id FROM ai.client")
         }
@@ -84,7 +93,25 @@ def test_entitled_users_see_their_own_slice_only() -> None:
             row["client_id"] for row in db.fetch_all(south, "SELECT client_id FROM ai.client")
         }
     assert north_clients and south_clients
-    assert not (north_clients & south_clients), "two books share clients"
+    overlap = north_clients & south_clients
+    if overlap:
+        with db.connect() as conn:
+            explained = {
+                row["subject_id"]
+                for row in db.fetch_all(
+                    conn,
+                    """
+                    SELECT DISTINCT subject_id FROM sec.v_access_grant
+                    WHERE grant_source = 'delegation' AND subject_kind = 'client'
+                      AND db_role IN ('rm_north', 'rm_south')
+                      AND sec.grant_is_live(valid_from, valid_to)
+                    """,
+                )
+            }
+        assert overlap <= explained, (
+            f"clients {sorted(overlap - explained)} are visible to both books with "
+            f"no delegation to explain it"
+        )
     total = config.REFERENCE_ROW_COUNTS["client"]
     assert len(north_clients) < total and len(south_clients) < total
 
@@ -99,14 +126,14 @@ def test_unrestricted_access_is_granted_through_data_not_privilege() -> None:
     assert counts["client"] == config.REFERENCE_ROW_COUNTS["client"]
     assert counts["account"] == config.REFERENCE_ROW_COUNTS["account"]
     assert counts["loan"] == config.REFERENCE_ROW_COUNTS["loan"]
-    with db.connect(user="cro_global") as conn:
+    with support.consumer("cro_global") as conn:
         assert db.fetch_value(conn, "SELECT rolbypassrls FROM pg_roles WHERE rolname = current_user") is False
         assert db.fetch_value(conn, "SELECT rolsuper FROM pg_roles WHERE rolname = current_user") is False
 
 
 def test_reference_data_is_not_filtered() -> None:
     """Districts and the calendar stay visible to everyone, including an unentitled user."""
-    with db.connect(user="rm_unassigned") as conn:
+    with support.consumer("rm_unassigned") as conn:
         for view in AI_VIEWS_REFERENCE:
             assert int(db.fetch_value(conn, f"SELECT count(*) FROM ai.{view}") or 0) > 0, view
 
@@ -117,14 +144,14 @@ def test_reference_data_is_not_filtered() -> None:
 
 def test_cannot_switch_to_another_user_role() -> None:
     """SET ROLE to another relationship manager must fail."""
-    with db.connect(user="rm_north") as conn:
+    with support.consumer("rm_north") as conn:
         with pytest.raises(psycopg.Error):
             db.execute(conn, "SET ROLE rm_south")
 
 
 def test_cannot_switch_to_the_pipeline_owner() -> None:
     """SET ROLE to the table owner (which bypasses RLS) must fail."""
-    with db.connect(user="rm_north") as conn:
+    with support.consumer("rm_north") as conn:
         with pytest.raises(psycopg.Error):
             db.execute(conn, f"SET ROLE {config.PGUSER}")
 
@@ -136,7 +163,7 @@ def test_querying_the_base_tables_directly_is_still_filtered() -> None:
     a column list in a view or a WHERE clause the query could omit -- it is
     attached to the table, so reaching the table reaches the policy.
     """
-    with db.connect(user="rm_unassigned") as conn:
+    with support.consumer("rm_unassigned") as conn:
         for table in CORE_PROTECTED_TABLES:
             visible = int(db.fetch_value(conn, f"SELECT count(*) FROM core.{table}") or 0)
             assert visible == 0, f"core.{table} leaked {visible} rows to an unentitled user"
@@ -144,7 +171,7 @@ def test_querying_the_base_tables_directly_is_still_filtered() -> None:
 
 def test_cannot_read_the_raw_or_staging_layers() -> None:
     """The unfiltered layers are not readable by a consumer at all."""
-    with db.connect(user="rm_north") as conn:
+    with support.consumer("rm_north") as conn:
         for target in ("raw.trans", "stg.trans", "dq.quarantine", "inject.trans"):
             with pytest.raises(psycopg.Error):
                 db.fetch_value(conn, f"SELECT count(*) FROM {target}")
@@ -157,7 +184,7 @@ def test_setting_a_session_variable_does_not_change_visibility() -> None:
     A design that resolved the caller from ``current_setting('app.user')``
     would be defeated by exactly this statement, which is why it is tested.
     """
-    with db.connect(user="rm_north") as conn:
+    with support.consumer("rm_north") as conn:
         before = int(db.fetch_value(conn, "SELECT count(*) FROM ai.client") or 0)
         # set_config is the form a pooling gateway would use, and the form an
         # LLM would emit; "SET app.user" is a syntax error because user is
@@ -171,7 +198,7 @@ def test_setting_a_session_variable_does_not_change_visibility() -> None:
 
 def test_cannot_grant_itself_a_portfolio() -> None:
     """A consumer cannot write to the entitlement tables, or even read them."""
-    with db.connect(user="rm_unassigned") as conn:
+    with support.consumer("rm_unassigned") as conn:
         for statement in (
             "INSERT INTO sec.portfolio_client (portfolio_id, client_id) VALUES (1, 1)",
             "INSERT INTO sec.user_portfolio (app_user_id, portfolio_id) VALUES (1, 1)",
@@ -185,7 +212,7 @@ def test_cannot_grant_itself_a_portfolio() -> None:
 
 def test_cannot_disable_or_drop_the_policy() -> None:
     """A consumer cannot turn row level security off or remove a policy."""
-    with db.connect(user="rm_north") as conn:
+    with support.consumer("rm_north") as conn:
         for statement in (
             "ALTER TABLE core.dim_client DISABLE ROW LEVEL SECURITY",
             "DROP POLICY entitled_clients ON core.dim_client",
@@ -198,7 +225,7 @@ def test_cannot_disable_or_drop_the_policy() -> None:
 
 def test_consumer_cannot_write_anywhere_in_the_product() -> None:
     """Every write into core or ai is refused for a consumer."""
-    with db.connect(user="cro_global") as conn:
+    with support.consumer("cro_global") as conn:
         for statement in (
             "UPDATE core.fact_loan SET amount = 0",
             "DELETE FROM core.dim_client",
@@ -217,7 +244,7 @@ def test_a_join_cannot_widen_the_result() -> None:
     the join carries its own policy, so the result is the intersection of what
     the user may see -- never the union.
     """
-    with db.connect(user="rm_north") as conn:
+    with support.consumer("rm_north") as conn:
         leaked = db.fetch_value(
             conn,
             """
@@ -308,11 +335,29 @@ def test_onboarding_a_user_and_a_portfolio_is_pure_insert() -> None:
     """
     role = "rm_test_onboarding"
     with db.connect(autocommit=True) as conn:
+        # Start from a known state. A previous run that failed part-way would
+        # otherwise leave an enrolled factor behind and make the first
+        # assertion below pass or fail for the wrong reason.
+        support.forget(role)
+        db.execute(conn, "DELETE FROM sec.app_user WHERE db_role = %s", (role,))
         build_security.create_login_role(conn, role, config.DEMO_USER_PASSWORD)
         build_security.onboard_user(conn, role, "Temporary test user", "test", ())
 
+        # A credential alone is not a login. Until the new user enrols a
+        # second factor they cannot complete step two, so they cannot read
+        # anything at all -- not even the nothing they are entitled to.
+        from src import auth  # noqa: PLC0415
+
+        with pytest.raises(auth.AuthenticationError):
+            with auth.login(role, demo_autocode=True):
+                pass
+
+        # Enrolment is a separate act, as it is in life: the user scans a
+        # code into their authenticator. Only then can they log in.
+        build_security.enrol_second_factor(conn, role)
+
         # Before any portfolio is granted: sees nothing.
-        with db.connect(user=role) as user_conn:
+        with support.consumer(role) as user_conn:
             assert int(db.fetch_value(user_conn, "SELECT count(*) FROM ai.client") or 0) == 0
 
         clients = build_security.onboard_portfolio(
@@ -323,7 +368,7 @@ def test_onboarding_a_user_and_a_portfolio_is_pure_insert() -> None:
         )
 
         # After two inserts: sees exactly that book, on the very next statement.
-        with db.connect(user=role) as user_conn:
+        with support.consumer(role) as user_conn:
             visible = int(db.fetch_value(user_conn, "SELECT count(*) FROM ai.client") or 0)
             accounts = int(db.fetch_value(user_conn, "SELECT count(*) FROM ai.account") or 0)
         assert visible == clients > 0
@@ -331,10 +376,11 @@ def test_onboarding_a_user_and_a_portfolio_is_pure_insert() -> None:
 
         # Deactivating the user revokes access with one UPDATE.
         db.execute(conn, "UPDATE sec.app_user SET is_active = false WHERE db_role = %s", (role,))
-        with db.connect(user=role) as user_conn:
+        with support.consumer(role) as user_conn:
             assert int(db.fetch_value(user_conn, "SELECT count(*) FROM ai.client") or 0) == 0
 
         # Clean up so the test is repeatable.
+        support.forget(role)
         db.execute(conn, "DELETE FROM sec.app_user WHERE db_role = %s", (role,))
         db.execute(conn, "DELETE FROM sec.portfolio WHERE portfolio_code = 'TEST_BOOK'")
         db.execute(conn, f'DROP ROLE IF EXISTS "{role}"')
@@ -383,7 +429,7 @@ def _owned_account(conn: psycopg.Connection, client_id: int) -> int:
 @pytest.mark.parametrize(("role", "own", "other"), CLIENT_PAIRS)
 def test_a_customer_sees_exactly_themselves(role: str, own: int, other: int) -> None:
     """A self-service login resolves to one client row: their own."""
-    with db.connect(user=role) as conn:
+    with support.consumer(role) as conn:
         rows = db.fetch_all(conn, "SELECT client_id FROM ai.client")
     assert [row["client_id"] for row in rows] == [own], (
         f"{role} should see exactly client {own}, got {rows}"
@@ -405,7 +451,7 @@ def test_a_customer_cannot_see_the_other_customers_data(
         own_account = _owned_account(owner_conn, own)
         other_account = _owned_account(owner_conn, other)
 
-    with db.connect(user=role) as conn:
+    with support.consumer(role) as conn:
         # The other customer, asked for by name.
         assert int(db.fetch_value(
             conn, "SELECT count(*) FROM ai.client WHERE client_id = %s", (other,)) or 0) == 0
@@ -437,7 +483,7 @@ def test_the_relationship_manager_sees_both_customers() -> None:
     If rm_north could not see both clients either, the two tests above would
     pass for the wrong reason.
     """
-    with db.connect(user="rm_north") as conn:
+    with support.consumer("rm_north") as conn:
         visible = {
             row["client_id"]
             for row in db.fetch_all(
@@ -460,7 +506,7 @@ def test_a_customer_cannot_widen_their_own_entitlement(
     one most likely to be exposed to the open internet, so the bypasses are
     attempted against it specifically.
     """
-    with db.connect(user=role) as conn:
+    with support.consumer(role) as conn:
         # Grant themselves the other client by editing the entitlement table.
         for statement, params in (
             ("UPDATE sec.app_user SET subject_client_id = %s WHERE db_role = %s",
@@ -577,7 +623,7 @@ def test_the_demo_question_totals_correctly_for_an_unrestricted_caller() -> None
     with db.connect() as conn:
         expected = db.fetch_value(conn, "SELECT sum(amount) FROM core.fact_loan")
         expected_loans = db.fetch_value(conn, "SELECT count(*) FROM core.fact_loan")
-    with db.connect(user="cro_global") as conn:
+    with support.consumer("cro_global") as conn:
         row = db.fetch_all(conn, worked_example.DEMO_QUESTION)[0]
     assert row["loan_value"] == expected, (
         f"demo question reports {row['loan_value']} against a true {expected}"
@@ -591,7 +637,7 @@ def test_the_demo_question_discriminates_between_principals() -> None:
 
     answers = {}
     for role in ("client_11409", "client_3763", "rm_north", "rm_unassigned", "cro_global"):
-        with db.connect(user=role) as conn:
+        with support.consumer(role) as conn:
             answers[role] = db.fetch_all(conn, worked_example.DEMO_QUESTION)[0]
 
     assert answers["client_11409"]["clients"] == 1
@@ -603,3 +649,187 @@ def test_the_demo_question_discriminates_between_principals() -> None:
     assert answers["rm_north"]["loan_value"] < answers["cro_global"]["loan_value"]
     # The two customers are disjoint: neither total can equal the other's.
     assert answers["client_11409"]["loan_value"] != answers["client_3763"]["loan_value"]
+
+
+# ---------------------------------------------------------------------------
+# The access grant model: who may reach what, and why
+# ---------------------------------------------------------------------------
+
+
+def test_a_disponent_reaches_the_account_but_not_its_owner() -> None:
+    """The containment that makes per-account grants the right shape.
+
+    Client 3764 is authorised to operate account 3112, which client 3763
+    owns. Being able to use an account is not being able to see the person
+    who owns it: if the grant were per-client, it would be.
+    """
+    shared = config.EXAMPLE_SHARED_ACCOUNT_ID
+    owner = config.EXAMPLE_OTHER_CLIENT_ID
+    with support.consumer("client_3764") as conn:
+        assert int(db.fetch_value(
+            conn, "SELECT count(*) FROM ai.account WHERE account_id = %s", (shared,)) or 0) == 1
+        assert int(db.fetch_value(
+            conn, "SELECT count(*) FROM ai.transaction WHERE account_id = %s",
+            (shared,)) or 0) > 0
+        # ... and nothing at all about the owner.
+        assert int(db.fetch_value(
+            conn, "SELECT count(*) FROM ai.client WHERE client_id = %s", (owner,)) or 0) == 0
+        visible = [row["client_id"] for row in db.fetch_all(
+            conn, "SELECT client_id FROM ai.client")]
+        assert visible == [config.EXAMPLE_DISPONENT_CLIENT_ID]
+
+
+def test_the_owner_and_the_disponent_see_the_same_account() -> None:
+    """Both reach it, by different rights. Neither reaches the other."""
+    shared = config.EXAMPLE_SHARED_ACCOUNT_ID
+    for role in ("client_3763", "client_3764"):
+        with support.consumer(role) as conn:
+            assert int(db.fetch_value(
+                conn, "SELECT count(*) FROM ai.account WHERE account_id = %s",
+                (shared,)) or 0) == 1
+    with db.connect() as conn:
+        sources = {
+            (row["db_role"], row["grant_source"])
+            for row in db.fetch_all(
+                conn,
+                """
+                SELECT db_role, grant_source FROM sec.v_access_grant
+                WHERE subject_kind = 'account' AND subject_id = %s
+                  AND db_role LIKE 'client_%%'
+                """,
+                (shared,),
+            )
+        }
+    assert ("client_3763", "ownership") in sources
+    assert ("client_3764", "disposition") in sources
+
+
+def test_portfolio_grants_are_view_only() -> None:
+    """Being accountable for a client is not authority to move their money."""
+    with db.connect() as conn:
+        permissions = {
+            row["permission"]
+            for row in db.fetch_all(
+                conn,
+                "SELECT DISTINCT permission FROM sec.v_access_grant "
+                "WHERE grant_source = 'portfolio'",
+            )
+        }
+    assert permissions == {"view"}, (
+        f"portfolio grants carry {permissions}; 'operate' there would turn a "
+        f"reporting entitlement into a payment authority"
+    )
+
+
+def test_a_delegation_is_visible_and_expires() -> None:
+    """A delegated right works, is attributable, and stops by itself."""
+    subject = config.EXAMPLE_OTHER_CLIENT_ID
+    with db.connect() as conn:
+        row = db.fetch_all(
+            conn,
+            """
+            SELECT granted_by, reason, valid_to FROM sec.v_access_grant
+            WHERE grant_source = 'delegation' AND db_role = 'rm_south'
+              AND subject_id = %s
+            """,
+            (subject,),
+        )
+    assert row, "the demo delegation is missing"
+    assert row[0]["granted_by"] and row[0]["reason"], "a delegation must say who and why"
+    assert row[0]["valid_to"] is not None, "this delegation is meant to be time-boxed"
+
+    # It is doing something: rm_south reaches a client outside their own book.
+    with support.consumer("rm_south") as conn:
+        assert int(db.fetch_value(
+            conn, "SELECT count(*) FROM ai.client WHERE client_id = %s", (subject,)) or 0) == 1
+
+    # Expire it, and the reach goes away with no other change.
+    with db.connect(autocommit=True) as owner:
+        db.execute(
+            owner,
+            # valid_to must stay after valid_from (the table says so), so
+            # expire it by moving the END of the window into the past rather
+            # than behind its own start.
+            "UPDATE sec.access_delegation "
+            "SET valid_to = valid_from + interval '1 second' "
+            "WHERE db_role = 'rm_south' AND subject_id = %s",
+            (subject,),
+        )
+        try:
+            with support.consumer("rm_south") as conn:
+                assert int(db.fetch_value(
+                    conn, "SELECT count(*) FROM ai.client WHERE client_id = %s",
+                    (subject,)) or 0) == 0
+        finally:
+            db.execute(
+                owner,
+                "UPDATE sec.access_delegation SET valid_to = now() + interval '14 days' "
+                "WHERE db_role = 'rm_south' AND subject_id = %s",
+                (subject,),
+            )
+
+
+def test_who_can_reach_a_client_is_answerable_from_the_model() -> None:
+    """The privacy question must have an answer that is not someone's memory."""
+    with db.connect() as conn:
+        rows = db.fetch_all(
+            conn,
+            """
+            SELECT DISTINCT db_role, grant_source FROM sec.v_who_can_reach_client
+            WHERE client_id = %s AND is_live
+            """,
+            (config.EXAMPLE_OTHER_CLIENT_ID,),
+        )
+    by_role = {row["db_role"]: row["grant_source"] for row in rows}
+    assert by_role.get("client_3763") == "ownership"
+    assert by_role.get("rm_north") == "portfolio"
+    assert "client_11409" not in by_role, "an unrelated customer must not appear"
+    assert every_grant_has_a_source(rows)
+
+
+def every_grant_has_a_source(rows: list[dict[str, object]]) -> bool:
+    """Whether every row names one of the four known sources.
+
+    :param rows: Rows from the who-can-reach view.
+    :returns: ``True`` when all sources are known.
+    """
+    known = {"ownership", "disposition", "portfolio", "delegation"}
+    return all(row["grant_source"] in known for row in rows)
+
+
+def test_external_references_are_not_guessable_from_the_id() -> None:
+    """A sequential id must not be the handle a customer-facing surface uses."""
+    with db.connect() as conn:
+        rows = db.fetch_all(
+            conn,
+            "SELECT client_id, client_ref FROM core.dim_client "
+            "WHERE client_id BETWEEN 1 AND 40 ORDER BY client_id",
+        )
+    refs = [row["client_ref"] for row in rows]
+    assert len(set(refs)) == len(refs), "references must be unique"
+    assert all(ref.startswith("BRK-") and len(ref) == 13 for ref in refs)
+    # Adjacent ids must not produce adjacent references.
+    assert not any(
+        refs[i][4:8] == refs[i + 1][4:8] for i in range(len(refs) - 1)
+    ), "neighbouring ids produced neighbouring references; the mapping leaks order"
+
+
+def test_account_references_carry_valid_iban_check_digits() -> None:
+    """A typo in an account number must be caught the way a real one would be."""
+    with db.connect() as conn:
+        refs = [row["account_ref"] for row in db.fetch_all(
+            conn, "SELECT account_ref FROM core.dim_account ORDER BY account_id LIMIT 50")]
+
+    def mod97(iban: str) -> int:
+        rearranged = iban[4:] + iban[:4]
+        digits = "".join(
+            str(ord(ch) - 55) if ch.isalpha() else ch for ch in rearranged
+        )
+        return int(digits) % 97
+
+    for ref in refs:
+        assert ref.startswith("CZ") and len(ref) == 24, ref
+        assert mod97(ref) == 1, f"{ref} has invalid check digits"
+    # And a corrupted one must fail, or the check proves nothing.
+    broken = refs[0][:-1] + ("1" if refs[0][-1] != "1" else "2")
+    assert mod97(broken) != 1

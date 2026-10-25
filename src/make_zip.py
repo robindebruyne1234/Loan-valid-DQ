@@ -82,34 +82,45 @@ Excel workbook, which is a separate deliverable.
 ## Read in this order
 
 1. `README.md` -- what was built, how to run it, and what the results were.
-2. `docs/CLEANING_LEDGER.md` -- **what the cleaning actually did**: every
+2. `docs/DEMO_SCRIPT.md` -- how to show the privacy model to stakeholders in
+   fifteen minutes: what to run, what to point at, and the questions to
+   expect. Driven by `make demo-login`.
+3. `docs/ACCESS_AND_AUTH.md` -- the design behind it: three kinds of
+   identifier, four sources of access (ownership, disposition, portfolio,
+   delegation) and two factors enforced by the database rather than by an
+   application. Figures 11 and 12.
+4. `docs/WORKED_EXAMPLE.md` -- one client followed from the line of text she
+   arrives as, through the cleaning, into the product, and then through the
+   entitlement model. Written by `make demo`, so the output is executed.
+5. `docs/CLEANING_LEDGER.md` -- **what the cleaning actually did**: every
    transformation between the source file and the product, with its effect
    measured by a probe run against the database at build time, where the
    original value survives, and which rule watches it. `DECISIONS.md`
    D013-D020 is the reasoning behind each choice.
-3. `docs/GOLD_LAYER.md` -- what is modelled today, what is cleaned and
+6. `docs/GOLD_LAYER.md` -- what is modelled today, what is cleaned and
    consumed by nothing, and the eight tables the cleaned data will carry with
    no new source file.
-4. `docs/VISUAL_GUIDE.md` -- ten figures: the pipeline, the query path and
-   where the entitlement filter lives, what each severity does, the star
-   schema, two decision comparisons, the defect lifecycle and catalogue, the
-   system map and the build sequence.
-5. `semantic/semantic_layer.yaml` -- **the semantic solution**: the single
+7. `docs/VISUAL_GUIDE.md` -- the figures: the pipeline, the query path, what
+   each severity does, the star schema, two decision comparisons, the defect
+   lifecycle and catalogue, the system map, the build sequence, the access
+   model and the two-step login.
+8. `semantic/semantic_layer.yaml` -- **the semantic solution**: the single
    source of business meaning. Entities with their grain, certified metric
    definitions, a glossary that says what each word is NOT, the data quality
    caveats with row counts, and the traps each question contains.
-6. `semantic/context_pack.md` -- that file rendered into the exact text the LLM
+9. `semantic/context_pack.md` -- that file rendered into the exact text the LLM
    received. Nothing else was in its context.
-7. `semantic/prompt_template.md` -- the prompt around it.
-8. `src/sql_guard.py` -- what happens to the SQL the model produces before it
+10. `semantic/prompt_template.md` -- the prompt around it.
+11. `src/sql_guard.py` -- what happens to the SQL the model produces before it
    is allowed to run.
-9. `sql/50_sec_rls.sql` -- the entitlement model and the row level security
-   policies (Task 3).
-10. `dq/dq_rules.yaml` -- the {rule_count} hand-written data quality rules, each
+12. `sql/50_sec_rls.sql` and `sql/51_sec_auth.sql` -- the entitlement model,
+   the row level security policies, the access grant set and the two-factor
+   machinery (Task 3).
+13. `dq/dq_rules.yaml` -- the {rule_count} hand-written data quality rules, each
    with its severity and the reason for that severity (Task 1).
-11. `llm_logs/` -- one JSON file per model call: prompt, model, parameters, raw
+14. `llm_logs/` -- one JSON file per model call: prompt, model, parameters, raw
    response, timing and cost. This is the evidence behind the Questions tab.
-12. `dq/results/` -- the profile, the candidate defects, the data quality report,
+15. `dq/results/` -- the profile, the candidate defects, the data quality report,
    the reference answers, the LLM answers and the evaluation.
 
 ## Not part of the assessed pipeline

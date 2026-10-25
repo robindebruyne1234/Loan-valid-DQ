@@ -450,6 +450,7 @@ the rows is never in that text, so no rewriting of the text can remove it.
 """)
     _results(deck)
     _worked_example(deck)
+    _identity(deck)
     _decisions(deck)
     _readiness(deck)
     _gold(deck)
@@ -1918,6 +1919,201 @@ run, not a worked-out example of what would happen.
 The revoke step is the one to mention unprompted. Onboarding stories are easy;
 a model where removing access is also one statement, taking effect on the next
 query, is the one that survives an audit.
+""")
+
+
+# --------------------------------------------------------------------------
+# part 2c: identity, access and authentication
+# --------------------------------------------------------------------------
+
+
+def _identity(deck: Presentation) -> None:
+    """Add the identity, access-grant and two-factor slides.
+
+    :param deck: The presentation.
+    :returns: ``None``.
+    """
+    notes(divider(deck, "2c", "Proving who you are, and what that earns you",
+                  "Two questions that are easy to confuse: are you who you say you are, "
+                  "and given that, what may you reach?"), """
+These are separate questions and the build answers them separately. Most
+access bugs come from answering one when you meant the other.
+
+The order to present in: identity first (what do we even call a client), then
+access (who may reach what, and why), then authentication (how do we know it
+is them). Each one is useless without the other two.
+""")
+
+    # ------------------------------------------------- three kinds of name
+    s = blank(deck)
+    heading(s, "Three ways to name the same person", "and only one of them is public")
+    text(s, Inches(0.7), Inches(1.32), Inches(12), Inches(0.4),
+         [("The product used to have one: a row number. It was never a breach — "
+           "the lock already held — but it was the wrong thing to publish.", 15.5,
+           False, GREY)], spacing=8)
+    names = [
+        ("client_id", "3763", "internal only",
+         "Joins, foreign keys, policy predicates. A customer never sees it.", NAVY),
+        ("client_ref", "BRK-TQ8D-RCB3", "what a customer quotes",
+         "Scrambled from the id with a secret. Unguessable, and it does not "
+         "reveal how many customers the bank has.", GREEN),
+        ("account_ref", "CZ84 8888 0000 0000 0000 3112", "the number they recognise",
+         "A real IBAN shape with genuine check digits, so a typo fails the way a "
+         "typo in production would.", GREEN),
+    ]
+    top = Inches(1.92)
+    for name, example, exposure, why, colour in names:
+        box(s, Inches(0.6), int(top), Inches(12.15), Inches(1.28), fill=PALE, line=colour)
+        box(s, Inches(0.6), int(top), Inches(0.13), Inches(1.28), fill=colour)
+        text(s, Inches(0.95), int(top) + Inches(0.12), Inches(3.0), Inches(0.35),
+             [(name, 15, True, colour)], spacing=0)
+        text(s, Inches(0.95), int(top) + Inches(0.52), Inches(4.4), Inches(0.35),
+             [(example, 13.5, True, INK)], spacing=0)
+        text(s, Inches(0.95), int(top) + Inches(0.9), Inches(4.4), Inches(0.3),
+             [(exposure, 11.5, False, GREY)], spacing=0)
+        text(s, Inches(5.6), int(top) + Inches(0.32), Inches(6.9), Inches(0.7),
+             [(why, 13, False, INK)], spacing=0)
+        top += Inches(1.42)
+    text(s, Inches(0.6), Inches(6.3), Inches(12.2), Inches(1.0),
+         [("Why bother, when the lock already works? Because a guessable id invites "
+           "people to try. Every guess becomes an access attempt the system has to "
+           "refuse, instead of one that was never made — and a sequential id quietly "
+           "tells you how big the book is.", 14, False, INK),
+          ("Join on the number. Refer to people by the reference.", 14, True, NAVY)],
+         spacing=10)
+    notes(s, """
+The honest framing, if challenged: this is defence in depth, not a fix for a
+hole. Row level security already stops one customer reading another.
+
+What the reference removes is the enumeration surface and the correlation
+handle - the ability to put a customer id in a URL and walk it, or to match
+the same person across two systems that both received one. Cheap to add, and
+impossible to retrofit once ids are in other people's logs.
+""")
+
+    # ------------------------------------------------- the access model
+    s = blank(deck)
+    heading(s, "Who may reach whose data, and why", "four sources, one shape")
+    picture(s, "11_access_model.png", top=Inches(1.2))
+    notes(s, """
+Leave this up for questions. The column to point at is grant_source: the
+answer to "why can this person see that account" is one word, and it leads
+back to evidence.
+
+Three of the four are derived live from records the bank already keeps, so
+they cannot drift. The first version of this materialised them into a table
+and a test caught the consequence within the hour: granting a portfolio did
+nothing until the next rebuild, while the entitlement tables said it should
+have worked. That is the exact failure a single access model is meant to
+remove, so the model now derives rather than stores.
+
+Only delegation is stored, because only delegation is a human decision - and
+it is the only one that can be wrong in a way the data cannot reveal, which
+is why it demands a grantor, a reason and an expiry.
+""")
+
+    # ------------------------------------------- operate vs see
+    s = blank(deck)
+    heading(s, "Using someone's account is not seeing them",
+            "the most consequential line in the model")
+    text(s, Inches(0.7), Inches(1.3), Inches(12), Inches(0.4),
+         [("Petr is authorised to operate Klara's account. A real relationship in the "
+           "bank's own records, and the obvious implementation gets it wrong.", 15.5,
+           False, GREY)], spacing=8)
+    box(s, Inches(0.6), Inches(1.95), Inches(5.95), Inches(2.5), fill=PALE, line=RED, line_w=1.5)
+    text(s, Inches(0.9), Inches(2.08), Inches(5.3), Inches(0.35),
+         [("THE LAZY VERSION — grant the client", 12, True, RED)], spacing=4)
+    text(s, Inches(0.9), Inches(2.5), Inches(5.3), Inches(1.8),
+         [("The chain already runs client → accounts, so grant Petr the client "
+           "and let her accounts follow.", 13, False, INK),
+          ("He now reads her OTHER accounts, her loans, her date of birth. "
+           "Authorising someone to pay a bill becomes authorising them to read you.",
+           13, True, RED),
+          ("Nobody signing that arrangement would expect it.", 12.5, False, GREY)],
+         spacing=8)
+    box(s, Inches(6.8), Inches(1.95), Inches(5.95), Inches(2.5), fill=PALE, line=GREEN, line_w=1.5)
+    text(s, Inches(7.1), Inches(2.08), Inches(5.3), Inches(0.35),
+         [("WHAT WE BUILT — grant the account", 12, True, GREEN)], spacing=4)
+    text(s, Inches(7.1), Inches(2.5), Inches(5.3), Inches(1.8),
+         [("The right is over the account, so the grant is over the account.", 13, False, INK),
+          ("He reaches account 3112, its 439 postings, its loan and its balances — "
+           "and gets zero rows for Klara herself.", 13, True, GREEN),
+          ("Tested by name, both directions.", 12.5, False, GREY)], spacing=8)
+    stat_row(s, [("3764", "can use the account"), ("1", "client he can see: himself"),
+                 ("0", "rows about its owner"), ("869", "clients in this position"),
+                 ("1,481", "clients their manager sees")], top=Inches(4.75))
+    text(s, Inches(0.6), Inches(6.35), Inches(12.2), Inches(0.5),
+         [("The model carries subject_kind so a grant can be over a person or over an "
+           "account. Disposition grants are always over the account.", 14, True, NAVY)],
+         spacing=0)
+    notes(s, """
+This is the slide that shows the thinking rather than the plumbing. The lazy
+version is not a strawman - it is what you get if you reuse the existing
+client -> accounts chain without stopping to ask what the relationship means.
+
+If asked why it matters when both are "authorised": because the arrangement is
+about an account. A joint account holder, a carer paying bills, a business
+partner. None of those is consent to read the other person's whole financial
+life, and the data model should not quietly turn one into the other.
+""")
+
+    # ------------------------------------------------- two factor
+    s = blank(deck)
+    heading(s, "Two steps to a login, and what each stops", "authentication")
+    picture(s, "12_auth_flow.png", top=Inches(1.2))
+    notes(s, """
+The middle column of row 1 is the whole argument: a correct password, on its
+own, returns an empty database. Not an error - the queries run and come back
+with nothing, because the entitlements resolve only for a verified session.
+
+Tested for all eight principals across seven views. A stolen password is not
+a breach here.
+
+Be ready for "is this real 2FA or a mock-up": real RFC 6238, the same
+algorithm as any authenticator app, checked against the standard's own
+published test vectors. Codes are single use, locked out after five failures,
+and a session is bound to one connection. The only pretend part is that the
+demo console prints the code instead of a phone showing it.
+""")
+
+    # ------------------------------------------------- the demo
+    s = blank(deck)
+    heading(s, "Seeing it: eight logins, live", "make demo-login")
+    text(s, Inches(0.7), Inches(1.3), Inches(12), Inches(0.38),
+         [("A fifteen-minute walkthrough. Every login is real; the only simulated part "
+           "is the phone showing the code.", 15.5, False, GREY)], spacing=6)
+    acts = [
+        ("1", "A customer logs in", "One client, one account, her 439 postings. That is her whole bank.", GREEN),
+        ("2", "A second customer, same manager", "Reaches the same account. Cannot reach its owner.", GREEN),
+        ("3", "One tries to read the other", "Seven attempts by name. Seven refusals, two different kinds.", RED),
+        ("4", "Their manager, and a new joiner", "1,481 clients and 0. The default is see nothing.", NAVY),
+        ("5", "The admin with the wrong code", "Password correct. Zero rows. THE slide to show.", RED),
+        ("6", "Why each person can reach what they do", "Six principals, each with a recorded reason.", NAVY),
+        ("7", "What the model is", "Four sources. Three derived, one chosen by a human.", NAVY),
+    ]
+    top = Inches(1.85)
+    for number, title, what, colour in acts:
+        box(s, Inches(0.6), int(top), Inches(0.52), Inches(0.62), fill=colour)
+        text(s, Inches(0.6), int(top) + Inches(0.15), Inches(0.52), Inches(0.35),
+             [(number, 13, True, WHITE)], align=PP_ALIGN.CENTER, spacing=0)
+        box(s, Inches(1.12), int(top), Inches(11.63), Inches(0.62), fill=PALE)
+        text(s, Inches(1.4), int(top) + Inches(0.15), Inches(4.3), Inches(0.35),
+             [(title, 13.5, True, INK)], spacing=0)
+        text(s, Inches(5.9), int(top) + Inches(0.17), Inches(6.6), Inches(0.35),
+             [(what, 12.5, False, GREY)], spacing=0)
+        top += Inches(0.72)
+    text(s, Inches(0.6), Inches(6.95), Inches(12.2), Inches(0.5),
+         [("docs/DEMO_SCRIPT.md has the narration, the questions to expect, the answers, "
+           "and what to do if it breaks live. make demo-interactive hands the keyboard "
+           "to the audience.", 13.5, True, NAVY)], spacing=0)
+    notes(s, """
+Offer to run it rather than describe it. Act 5 is the one that lands: the
+administrator, who can see all 5,369 clients, holding the correct password and
+reading nothing at all.
+
+If you hand over the keyboard in demo-interactive, the thing to let someone
+try is asking for another customer by id. Watching your own query come back
+empty is worth more than watching mine.
 """)
 
 

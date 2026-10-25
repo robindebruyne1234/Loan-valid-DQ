@@ -60,6 +60,7 @@ COMMENT ON VIEW ai.district IS
 CREATE VIEW ai.client WITH (security_invoker = true) AS
 SELECT
     c.client_id,
+    c.client_ref,
     c.birth_date,
     c.gender,
     c.district_id,
@@ -82,6 +83,7 @@ COMMENT ON VIEW ai.client IS
 CREATE VIEW ai.account WITH (security_invoker = true) AS
 SELECT
     a.account_id,
+    a.account_ref,
     a.open_date,
     a.statement_frequency,
     a.district_id,
@@ -102,12 +104,14 @@ COMMENT ON VIEW ai.account IS
 CREATE VIEW ai.account_owner WITH (security_invoker = true) AS
 SELECT
     account_id,
+    account_ref,
     account_open_date,
     statement_frequency,
     account_district_id,
     account_district_name,
     account_region,
     owner_client_id,
+    owner_client_ref,
     owner_birth_date,
     owner_gender,
     owner_district_name,

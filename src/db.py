@@ -70,6 +70,17 @@ def connect(
     """
     conn = psycopg.connect(config.dsn(user, password), row_factory=dict_row)
     conn.autocommit = autocommit
+    if user is None or user == config.PGUSER:
+        # The identifier salt is a secret: it is what makes client_ref
+        # unguessable. It is therefore set ONLY on the pipeline owner's
+        # session, which is the only identity that derives references. A
+        # consumer reads the stored column and never sees the salt, so it
+        # cannot generate another client's reference from their id.
+        with conn.cursor() as cur:
+            cur.execute("SELECT set_config('berka.ref_salt', %s, false)",
+                        (config.REF_SALT,))
+            cur.execute("SELECT set_config('berka.bank_code', %s, false)",
+                        (config.BANK_CODE,))
     if role:
         with conn.cursor() as cur:
             cur.execute(pgsql.SQL("SET ROLE {}").format(pgsql.Identifier(role)))

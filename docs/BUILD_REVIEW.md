@@ -1,4 +1,4 @@
-# Build review: client-grain privacy and the worked example
+# Build review 1: client-grain privacy and the worked example
 
 Written immediately after the build, against the repository and the database
 rather than from memory. Where a claim could not be verified it says so.

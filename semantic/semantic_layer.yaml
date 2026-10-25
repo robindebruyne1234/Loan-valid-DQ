@@ -262,6 +262,8 @@ entities:
     row_count_unfiltered: 5369
     answers: [Q1]
     columns:
+      - {name: client_ref, type: text, description: "The client's EXTERNAL reference (BRK-XXXX-XXXX). This is the identifier to quote in an answer, on a statement or in a URL: it is opaque, so unlike client_id it cannot be guessed, counted or correlated. Use client_id to join, client_ref to refer."}
+      - {name: client_ref, type: text, description: "The client's EXTERNAL reference (BRK-XXXX-XXXX). This is the identifier to QUOTE in an answer, on a statement or in a link: it is opaque, so unlike client_id it cannot be guessed, enumerated or counted. Join on client_id; refer to people by client_ref."}
       - {name: client_id, type: bigint, description: "Unique client identifier. The entitlement key."}
       - {name: birth_date, type: date, description: "Date of birth, decoded from the source birth number."}
       - {name: gender, type: text, description: "Gender, decoded from the source birth number.", allowed_values: [male, female]}
@@ -282,6 +284,7 @@ entities:
     row_count_unfiltered: 4500
     answers: [Q6]
     columns:
+      - {name: account_ref, type: text, description: "The account number in IBAN form, with valid check digits. This is what a customer recognises and what an answer should quote; account_id is an internal key."}
       - {name: account_id, type: bigint, description: "Unique account identifier."}
       - {name: open_date, type: date, description: "Date the account was opened. This is what 'new account' means."}
       - {name: statement_frequency, type: text, description: "How often a statement is issued, in English.", allowed_values: [monthly, weekly, "after transaction"]}
@@ -306,12 +309,14 @@ entities:
     row_count_unfiltered: 4500
     answers: [Q8]
     columns:
+      - {name: account_ref, type: text, description: "The account number in IBAN form, with valid check digits. This is what a customer recognises and what an answer should quote; account_id is an internal key."}
       - {name: account_id, type: bigint, description: "Account identifier."}
       - {name: account_open_date, type: date, description: "Date the account was opened."}
       - {name: statement_frequency, type: text, description: "Statement frequency of the account.", allowed_values: [monthly, weekly, "after transaction"]}
       - {name: account_district_id, type: bigint, description: "District the account is registered in."}
       - {name: account_district_name, type: text, description: "Name of the account's district."}
       - {name: account_region, type: text, description: "Region of the account's district."}
+      - {name: owner_client_ref, type: text, description: "External reference of the owning client. Quote this rather than owner_client_id."}
       - {name: owner_client_id, type: bigint, description: "Client who legally owns the account."}
       - {name: owner_birth_date, type: date, description: "Owner's date of birth."}
       - {name: owner_gender, type: text, description: "Owner's gender.", allowed_values: [male, female]}

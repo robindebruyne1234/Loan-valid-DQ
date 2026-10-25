@@ -32,7 +32,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
-from src import build_model, config, db
+from src import auth, build_model, config, db
 
 LOGGER = db.setup_logging("workbook")
 
@@ -808,7 +808,10 @@ def gather_context() -> dict[str, Any]:
 
     entitlements = []
     for user in users:
-        with db.connect(user=user["db_role"]) as user_conn:
+        # Both factors, like every other consumer: the Entitlements tab must
+        # report what a real login returns, not what an unauthenticated
+        # connection would have.
+        with auth.login(user["db_role"], demo_autocode=True) as user_conn:
             counts = db.fetch_all(
                 user_conn,
                 """

@@ -1,6 +1,6 @@
 {
-  "generated_at_utc": "2026-10-25T09:03:10+00:00",
-  "git_commit": "c1e2ead",
+  "generated_at_utc": "2026-10-25T11:21:30+00:00",
+  "git_commit": "a7da25a",
   "command": "make evaluate",
   "reference_source": "sql/60_reference_queries.sql (hand written)",
   "llm_provider": "claude_cli",

@@ -85,7 +85,36 @@ DEMO_USERS: tuple[str, ...] = (
     "rm_unassigned",
     "client_11409",
     "client_3763",
+    "client_3764",
+    "admin_demo",
 )
+
+# ---------------------------------------------------------------------------
+# External identifiers and authentication
+# ---------------------------------------------------------------------------
+
+#: Secret salt for the opaque external references (``client_ref``). Derived
+#: references are deterministic under a given salt and unguessable without it,
+#: so changing the salt reissues every reference -- which is the intended
+#: behaviour if one is ever believed to have leaked. The default is a
+#: development value and is NOT a secret; a deployment sets BERKA_REF_SALT.
+REF_SALT: str = os.environ.get("BERKA_REF_SALT", "berka-dev-salt-not-a-secret")
+
+#: Four-digit bank code used in the IBAN-shaped ``account_ref``. Deliberately
+#: fictional: this is public research data and must not carry a real bank's
+#: routing code. The check digits around it are genuine ISO 13616.
+BANK_CODE: str = os.environ.get("BERKA_BANK_CODE", "8888")
+
+#: Time-based one-time password settings (RFC 6238). Thirty seconds is the
+#: universal default and is what an authenticator app assumes; the window of
+#: 1 accepts the adjacent steps, which covers ordinary clock drift.
+TOTP_DIGITS: int = 6
+TOTP_PERIOD_SECONDS: int = 30
+TOTP_WINDOW_STEPS: int = 1
+
+#: How long a fully authenticated session stays valid before the second factor
+#: must be presented again. Short on purpose: the session is a bearer secret.
+SESSION_TTL_MINUTES: int = int(os.environ.get("BERKA_SESSION_TTL_MINUTES", "30"))
 
 #: Self-service customer logins: ``(db_role, client_id)``. These are the second
 #: grain of principal -- a principal that IS one client rather than one that
@@ -96,7 +125,16 @@ DEMO_USERS: tuple[str, ...] = (
 DEMO_CLIENT_USERS: tuple[tuple[str, int], ...] = (
     ("client_11409", 11409),
     ("client_3763", 3763),
+    # Client 3764 owns nothing. They are a DISPONENT on account 3112, which
+    # client 3763 owns -- a real relationship in the source data, and the
+    # reason the demo can show "may operate an account they do not own"
+    # without inventing anything.
+    ("client_3764", 3764),
 )
+
+#: The disponent persona and the account they may operate but do not own.
+EXAMPLE_DISPONENT_CLIENT_ID: int = 3764
+EXAMPLE_SHARED_ACCOUNT_ID: int = 3112
 
 #: The client the end-to-end worked example follows, chosen because it carries
 #: a data quality flag of its own and its account carries a different one, so

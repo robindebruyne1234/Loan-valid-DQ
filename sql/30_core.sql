@@ -30,6 +30,92 @@ DROP TABLE IF EXISTS core.dim_district      CASCADE;
 DROP TABLE IF EXISTS core.dim_date          CASCADE;
 
 -- ----------------------------------------------------------------------------
+-- External identifiers.
+--
+-- WHY THESE EXIST. Until now the only way to name a client was `client_id`: a
+-- small, dense, sequential integer. Row level security already stops one
+-- customer reading another's rows, so an exposed id is not a direct breach --
+-- but it is still the wrong thing to publish, for three reasons:
+--
+--   * it is guessable, so a customer-facing surface that takes an id in a URL
+--     invites enumeration, and every probe is an access attempt that has to be
+--     refused rather than never made;
+--   * it leaks the size and shape of the book (ids run 1..13998, so the
+--     population is readable off the identifier space);
+--   * it gives an attacker a stable handle to correlate across any other
+--     system that ever receives one.
+--
+-- So the model now carries three kinds of name for the same thing, with
+-- different exposure:
+--
+--   client_id    internal surrogate. Joins only. Never shown to a customer.
+--   client_ref   opaque external reference (BRK-XXXX-XXXX). What a customer
+--                quotes on the phone and what a URL may carry. Derived by HMAC
+--                from the id and a secret salt, so it is deterministic across
+--                rebuilds and not guessable without the salt.
+--   account_ref  an IBAN-shaped account number with real mod-97 check digits,
+--                because that is the identifier a bank customer actually
+--                recognises. The bank code is fictional (see config).
+--
+-- The salt lives in the environment (BERKA_REF_SALT). A rebuild with a
+-- different salt produces different references, which is the intended
+-- behaviour: the mapping is a secret, not a derivation anyone can repeat.
+-- ----------------------------------------------------------------------------
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+CREATE OR REPLACE FUNCTION core.ref_token(p_kind text, p_id bigint, p_salt text,
+                                          p_length int DEFAULT 8)
+RETURNS text
+LANGUAGE sql IMMUTABLE AS $$
+    -- Crockford base32 (no I, L, O or U, so nothing reads as a digit or a
+    -- rude word) over an HMAC of the id. Truncation is to p_length symbols.
+    SELECT string_agg(
+               substr('0123456789ABCDEFGHJKMNPQRSTVWXYZ',
+                      (get_byte(h.digest, i) % 32) + 1, 1), '')
+    FROM (SELECT hmac(p_kind || ':' || p_id::text, p_salt, 'sha256') AS digest) h,
+         generate_series(0, p_length - 1) AS i;
+$$;
+
+COMMENT ON FUNCTION core.ref_token(text, bigint, text, int) IS
+    'Deterministic, non-sequential external reference for an internal id. '
+    'HMAC-SHA256 under a secret salt, rendered in Crockford base32.';
+
+CREATE OR REPLACE FUNCTION core.iban_cz(p_bank text, p_account bigint)
+RETURNS text
+LANGUAGE plpgsql IMMUTABLE AS $$
+DECLARE
+    v_body    text;
+    v_numeric text := '';
+    v_char    text;
+    v_rem     int  := 0;
+    v_check   int;
+BEGIN
+    -- National part: 4-digit bank code + 16-digit zero-padded account number.
+    v_body := p_bank || lpad(p_account::text, 16, '0');
+    -- ISO 13616: move the country code and '00' to the end, letters become
+    -- 10..35, then the check digits are 98 - (that number mod 97).
+    FOR i IN 1..length(v_body || 'CZ00') LOOP
+        v_char := substr(v_body || 'CZ00', i, 1);
+        v_numeric := v_numeric || CASE
+            WHEN v_char ~ '[0-9]' THEN v_char
+            ELSE (ascii(v_char) - 55)::text
+        END;
+    END LOOP;
+    -- mod 97 of a number far too long for bigint, taken digit by digit.
+    FOR i IN 1..length(v_numeric) LOOP
+        v_rem := (v_rem * 10 + substr(v_numeric, i, 1)::int) % 97;
+    END LOOP;
+    v_check := 98 - v_rem;
+    RETURN 'CZ' || lpad(v_check::text, 2, '0') || v_body;
+END;
+$$;
+
+COMMENT ON FUNCTION core.iban_cz(text, bigint) IS
+    'Format an account id as an IBAN-shaped reference with valid ISO 13616 '
+    'mod-97 check digits. The bank code is fictional; the check digits are '
+    'real, so a typo in a demo is caught the way a real one would be.';
+
+-- ----------------------------------------------------------------------------
 -- core.dim_date
 -- Grain: one row per calendar day in the dataset window (1993-01-01..1998-12-31).
 -- Exists so that "per month in 1996" (Q6) can report all twelve months,
@@ -104,6 +190,11 @@ COMMENT ON TABLE core.dim_district IS
 CREATE TABLE core.dim_client AS
 SELECT
     s.client_id,
+    'BRK-' || substr(core.ref_token('client', s.client_id,
+                                    current_setting('berka.ref_salt')), 1, 4)
+           || '-' || substr(core.ref_token('client', s.client_id,
+                                    current_setting('berka.ref_salt')), 5, 4)
+                                                AS client_ref,
     s.birth_date,
     s.gender,
     s.birth_number_valid,
@@ -120,6 +211,7 @@ WHERE s.client_id IS NOT NULL
   );
 
 ALTER TABLE core.dim_client ADD PRIMARY KEY (client_id);
+ALTER TABLE core.dim_client ADD CONSTRAINT uq_core_dim_client_ref UNIQUE (client_ref);
 CREATE INDEX ix_core_dim_client_district ON core.dim_client (district_id);
 
 COMMENT ON TABLE core.dim_client IS
@@ -135,6 +227,8 @@ COMMENT ON TABLE core.dim_client IS
 CREATE TABLE core.dim_account AS
 SELECT
     s.account_id,
+    core.iban_cz(current_setting('berka.bank_code'), s.account_id)
+                                                AS account_ref,
     s.open_date,
     s.frequency_code                            AS statement_frequency_code,
     coalesce(r.label, 'unknown')                AS statement_frequency,
@@ -153,6 +247,7 @@ WHERE s.account_id IS NOT NULL
   );
 
 ALTER TABLE core.dim_account ADD PRIMARY KEY (account_id);
+ALTER TABLE core.dim_account ADD CONSTRAINT uq_core_dim_account_ref UNIQUE (account_ref);
 CREATE INDEX ix_core_dim_account_district ON core.dim_account (district_id);
 CREATE INDEX ix_core_dim_account_open     ON core.dim_account (open_date);
 
@@ -415,6 +510,7 @@ COMMENT ON TABLE core.fact_account_month_end_balance IS
 CREATE VIEW core.v_account_owner WITH (security_invoker = true) AS
 SELECT
     a.account_id,
+    a.account_ref,
     a.open_date                         AS account_open_date,
     a.statement_frequency,
     a.statement_frequency_code,
@@ -423,6 +519,7 @@ SELECT
     ad.region                           AS account_region,
     d.disp_id                           AS owner_disp_id,
     c.client_id                         AS owner_client_id,
+    c.client_ref                        AS owner_client_ref,
     c.birth_date                        AS owner_birth_date,
     c.gender                            AS owner_gender,
     c.birth_number_valid                AS owner_birth_number_valid,

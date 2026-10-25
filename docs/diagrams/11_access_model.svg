@@ -1,0 +1,120 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1340" height="900" viewBox="0 0 1340 900" font-family="Calibri, Carlito, DejaVu Sans, sans-serif">
+  <rect width="1340" height="900" fill="#ffffff"/>
+  <text x="20" y="34" font-size="22" font-weight="bold" fill="#1f3864">Who may reach whose data, and why</text>
+  <text x="20" y="56" font-size="13" fill="#5b6472">Four sources of access, one shape. Three are derived live from records the bank already keeps, so they cannot drift. Only delegation is stored, because only delegation is a human decision.</text>
+
+  <!-- PRINCIPALS -->
+  <rect x="20" y="86" width="300" height="320" rx="6" fill="#f7f9fc" stroke="#1f3864" stroke-width="1.5"/>
+  <rect x="20" y="86" width="300" height="30" rx="6" fill="#1f3864"/>
+  <text x="34" y="106" font-size="13" font-weight="bold" fill="#ffffff">PRINCIPALS  sec.app_user</text>
+  <text x="34" y="138" font-size="12.5" fill="#1f2a44">One row per login. Two kinds, kept apart</text>
+  <text x="34" y="155" font-size="12.5" fill="#1f2a44">by a check constraint:</text>
+
+  <rect x="34" y="168" width="272" height="72" rx="4" fill="#ffffff" stroke="#2c4c80"/>
+  <text x="46" y="187" font-size="12.5" font-weight="bold" fill="#2c4c80">STAFF   user_type = relationship_manager</text>
+  <text x="46" y="204" font-size="11.5" fill="#5b6472">risk, administrator ...</text>
+  <text x="46" y="221" font-size="11.5" fill="#5b6472">subject_client_id IS NULL. Reach comes</text>
+  <text x="46" y="235" font-size="11.5" fill="#5b6472">from the books granted to them.</text>
+
+  <rect x="34" y="250" width="272" height="72" rx="4" fill="#ffffff" stroke="#15803d"/>
+  <text x="46" y="269" font-size="12.5" font-weight="bold" fill="#15803d">CUSTOMER   user_type = client</text>
+  <text x="46" y="286" font-size="11.5" fill="#5b6472">subject_client_id IS NOT NULL.</text>
+  <text x="46" y="303" font-size="11.5" fill="#5b6472">The principal IS that one client.</text>
+  <text x="46" y="317" font-size="11.5" fill="#5b6472">There is no book to widen.</text>
+
+  <rect x="34" y="332" width="272" height="60" rx="4" fill="#fdf4f4" stroke="#991b1b"/>
+  <text x="46" y="351" font-size="11.5" font-weight="bold" fill="#991b1b">Never both, never neither.</text>
+  <text x="46" y="368" font-size="11" fill="#5b6472">Without the constraint, giving a staff user a</text>
+  <text x="46" y="382" font-size="11" fill="#5b6472">subject_client_id adds a client silently.</text>
+
+  <!-- GRANT SOURCES -->
+  <rect x="360" y="86" width="430" height="440" rx="6" fill="#f7f9fc" stroke="#1f3864" stroke-width="1.5"/>
+  <rect x="360" y="86" width="430" height="30" rx="6" fill="#1f3864"/>
+  <text x="374" y="106" font-size="13" font-weight="bold" fill="#ffffff">THE GRANT SET  sec.v_access_grant</text>
+
+  <rect x="374" y="128" width="402" height="86" rx="4" fill="#ffffff" stroke="#15803d"/>
+  <rect x="374" y="128" width="6" height="86" fill="#15803d"/>
+  <text x="392" y="147" font-size="12.5" font-weight="bold" fill="#15803d">ownership          derived</text>
+  <text x="392" y="165" font-size="11.5" fill="#5b6472">The principal IS this client, and owns these</text>
+  <text x="392" y="180" font-size="11.5" fill="#5b6472">accounts. From core.bridge_disposition, is_owner.</text>
+  <text x="392" y="200" font-size="11.5" font-weight="bold" fill="#1f2a44">view + operate, on the client AND their accounts</text>
+
+  <rect x="374" y="222" width="402" height="98" rx="4" fill="#ffffff" stroke="#b45309"/>
+  <rect x="374" y="222" width="6" height="98" fill="#b45309"/>
+  <text x="392" y="241" font-size="12.5" font-weight="bold" fill="#b45309">disposition        derived</text>
+  <text x="392" y="259" font-size="11.5" fill="#5b6472">Authorised to operate an account they do NOT own.</text>
+  <text x="392" y="274" font-size="11.5" fill="#5b6472">From the source dispositions of type DISPONENT.</text>
+  <text x="392" y="294" font-size="11.5" font-weight="bold" fill="#1f2a44">view + operate, ON THAT ACCOUNT ONLY</text>
+  <text x="392" y="311" font-size="11" fill="#991b1b">not the owner's client record, not their other accounts</text>
+
+  <rect x="374" y="328" width="402" height="86" rx="4" fill="#ffffff" stroke="#2c4c80"/>
+  <rect x="374" y="328" width="6" height="86" fill="#2c4c80"/>
+  <text x="392" y="347" font-size="12.5" font-weight="bold" fill="#2c4c80">portfolio          derived</text>
+  <text x="392" y="365" font-size="11.5" fill="#5b6472">Staff, through a book granted to them.</text>
+  <text x="392" y="380" font-size="11.5" fill="#5b6472">From sec.portfolio_client + sec.user_portfolio.</text>
+  <text x="392" y="400" font-size="11.5" font-weight="bold" fill="#1f2a44">view ONLY  —  accountability is not payment authority</text>
+
+  <rect x="374" y="422" width="402" height="90" rx="4" fill="#fffaf0" stroke="#b45309" stroke-dasharray="4 3"/>
+  <rect x="374" y="422" width="6" height="90" fill="#b45309"/>
+  <text x="392" y="441" font-size="12.5" font-weight="bold" fill="#b45309">delegation         STORED  sec.access_delegation</text>
+  <text x="392" y="459" font-size="11.5" fill="#5b6472">A human decision: power of attorney, holiday cover,</text>
+  <text x="392" y="474" font-size="11.5" fill="#5b6472">a court order. The only source with no other record.</text>
+  <text x="392" y="494" font-size="11.5" font-weight="bold" fill="#1f2a44">Demands a grantor, a reason and usually an expiry</text>
+
+  <!-- RESOLUTION + POLICIES -->
+  <rect x="830" y="86" width="490" height="212" rx="6" fill="#f7f9fc" stroke="#1f3864" stroke-width="1.5"/>
+  <rect x="830" y="86" width="490" height="30" rx="6" fill="#1f3864"/>
+  <text x="844" y="106" font-size="13" font-weight="bold" fill="#ffffff">RESOLUTION  the one place auth meets access</text>
+  <text x="844" y="136" font-size="12.5" font-weight="bold" fill="#1f2a44">sec.v_my_clients   /   sec.v_my_accounts</text>
+  <text x="844" y="158" font-size="11.5" fill="#5b6472">Filters the grant set to session_user — which no</text>
+  <text x="844" y="173" font-size="11.5" fill="#5b6472">statement can change — and to grants inside their</text>
+  <text x="844" y="188" font-size="11.5" fill="#5b6472">validity window.</text>
+  <rect x="844" y="200" width="462" height="84" rx="4" fill="#fdf4f4" stroke="#991b1b"/>
+  <text x="858" y="220" font-size="12.5" font-weight="bold" fill="#991b1b">AND sec.has_verified_session()</text>
+  <text x="858" y="239" font-size="11.5" fill="#5b6472">An AND over the WHOLE resolution, not a filter inside</text>
+  <text x="858" y="254" font-size="11.5" fill="#5b6472">one branch — so a branch added later cannot quietly</text>
+  <text x="858" y="269" font-size="11.5" fill="#5b6472">skip the second factor.</text>
+
+  <rect x="830" y="314" width="490" height="212" rx="6" fill="#f7f9fc" stroke="#1f3864" stroke-width="1.5"/>
+  <rect x="830" y="314" width="490" height="30" rx="6" fill="#1f3864"/>
+  <text x="844" y="334" font-size="13" font-weight="bold" fill="#ffffff">ENFORCEMENT  7 row level security policies</text>
+  <text x="844" y="362" font-size="11.5" fill="#5b6472">dim_client · dim_account · bridge_disposition · dim_card</text>
+  <text x="844" y="378" font-size="11.5" fill="#5b6472">fact_loan · fact_transaction · fact_account_month_end_balance</text>
+  <text x="844" y="402" font-size="12" font-weight="bold" fill="#1f2a44">Each asks the resolution views one question:</text>
+  <text x="844" y="420" font-size="12" font-style="italic" fill="#2c4c80">"which clients / accounts may the caller see?"</text>
+  <rect x="844" y="432" width="462" height="80" rx="4" fill="#f4faf6" stroke="#15803d"/>
+  <text x="858" y="452" font-size="11.5" font-weight="bold" fill="#15803d">No policy knows that customer logins exist.</text>
+  <text x="858" y="470" font-size="11" fill="#5b6472">Adding the client grain cost one column and one UNION.</text>
+  <text x="858" y="485" font-size="11" fill="#5b6472">It changed no policy and no consumer view — which is</text>
+  <text x="858" y="500" font-size="11" fill="#5b6472">the test that the filter really does live in one place.</text>
+
+  <!-- arrows -->
+  <defs><marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#5b6472"/></marker></defs>
+  <line x1="320" y1="250" x2="356" y2="250" stroke="#5b6472" stroke-width="1.6" marker-end="url(#ar)"/>
+  <line x1="790" y1="200" x2="826" y2="180" stroke="#5b6472" stroke-width="1.6" marker-end="url(#ar)"/>
+  <line x1="1075" y1="298" x2="1075" y2="310" stroke="#5b6472" stroke-width="1.6" marker-end="url(#ar)"/>
+
+  <!-- worked row -->
+  <rect x="20" y="552" width="1300" height="146" rx="6" fill="#ffffff" stroke="#2c4c80" stroke-width="1.5"/>
+  <text x="34" y="574" font-size="13" font-weight="bold" fill="#1f3864">The same account, reached two ways — account 3112 (CZ84 8888 0000 0000 0000 3112)</text>
+  <rect x="34" y="586" width="628" height="48" rx="4" fill="#f4faf6" stroke="#15803d"/>
+  <text x="48" y="606" font-size="12" font-weight="bold" fill="#15803d">client_3763  ·  ownership  ·  view + operate</text>
+  <text x="48" y="624" font-size="11.5" fill="#5b6472">She owns it. She also sees her own client record (BRK-TQ8D-RCB3).</text>
+  <rect x="678" y="586" width="628" height="48" rx="4" fill="#fffaf0" stroke="#b45309"/>
+  <text x="692" y="606" font-size="12" font-weight="bold" fill="#b45309">client_3764  ·  disposition  ·  view + operate</text>
+  <text x="692" y="624" font-size="11.5" fill="#5b6472">He may use it. He CANNOT see her client record, or anything else of hers.</text>
+  <rect x="34" y="642" width="628" height="44" rx="4" fill="#f7f9fc" stroke="#2c4c80"/>
+  <text x="48" y="661" font-size="12" font-weight="bold" fill="#2c4c80">rm_north  ·  portfolio  ·  view</text>
+  <text x="48" y="678" font-size="11.5" fill="#5b6472">Both customers are in her book. She sees both; neither sees the other.</text>
+  <rect x="678" y="642" width="628" height="44" rx="4" fill="#fffaf0" stroke="#b45309" stroke-dasharray="4 3"/>
+  <text x="692" y="661" font-size="12" font-weight="bold" fill="#b45309">rm_south  ·  delegation  ·  view  ·  expires in 14 days</text>
+  <text x="692" y="678" font-size="11.5" fill="#5b6472">"Covering the northern book while rm_north is on leave" — granted by head_of_retail.</text>
+
+  <rect x="20" y="714" width="1300" height="56" rx="6" fill="#1f3864"/>
+  <text x="34" y="736" font-size="13" font-weight="bold" fill="#ffffff">sec.v_who_can_reach_client answers the privacy question from the model, not from anyone's memory:</text>
+  <text x="34" y="757" font-size="12.5" fill="#c9d6ea">for any client — every principal who can reach them, which permission, from which source, granted by whom, and until when.</text>
+
+  <text x="20" y="800" font-size="11.5" fill="#5b6472">Not shown, and absent on purpose: a record of who actually DID read a row. This model controls who CAN. The read audit is the largest missing control and is named as such in the build review.</text>
+  <text x="20" y="822" font-size="11.5" fill="#5b6472">The pipeline owner (berka_owner) owns these tables and is exempt from their policies, which is what makes the build possible. It is a deployment identity, never an application login.</text>
+  <text x="20" y="844" font-size="11.5" fill="#5b6472">"Sees everything" (admin_demo, cro_global) is a portfolio containing every client — granted through data, visible in the view above. It is not a privilege, and rolbypassrls is false.</text>
+</svg>

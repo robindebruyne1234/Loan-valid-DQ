@@ -12,6 +12,7 @@ from __future__ import annotations
 import pytest
 
 from src import config, db, sql_guard
+from tests import support
 
 LEGITIMATE = [
     "SELECT region, count(*) AS clients FROM ai.client GROUP BY region",
@@ -113,7 +114,7 @@ def test_row_limit_is_applied_only_when_missing() -> None:
 
 def test_guarded_execution_is_read_only_and_entitlement_filtered() -> None:
     """A guarded query runs as the consumer, and still only sees their rows."""
-    with db.connect(user="rm_north") as conn:
+    with support.consumer("rm_north") as conn:
         verdict, rows, error = sql_guard.execute_guarded(
             conn, "SELECT count(*) AS clients FROM ai.client"
         )
@@ -121,7 +122,7 @@ def test_guarded_execution_is_read_only_and_entitlement_filtered() -> None:
         assert error is None
         north = rows[0]["clients"]
 
-    with db.connect(user="rm_unassigned") as conn:
+    with support.consumer("rm_unassigned") as conn:
         _, rows, error = sql_guard.execute_guarded(
             conn, "SELECT count(*) AS clients FROM ai.client"
         )
@@ -133,7 +134,7 @@ def test_guarded_execution_is_read_only_and_entitlement_filtered() -> None:
 
 def test_guarded_execution_refuses_to_run_a_rejected_statement() -> None:
     """A rejected statement is never sent to the database."""
-    with db.connect(user="rm_north") as conn:
+    with support.consumer("rm_north") as conn:
         verdict, rows, error = sql_guard.execute_guarded(
             conn, "UPDATE ai.client SET gender = 'male'"
         )

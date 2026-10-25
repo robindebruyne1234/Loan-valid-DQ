@@ -49,6 +49,12 @@ ledger:  ## Measure every cleaning step and write docs/CLEANING_LEDGER.md
 demo:  ## Worked example: one client cleaned, published, and kept private
 	$(PY) -m src.worked_example
 
+demo-login:  ## Stakeholder walkthrough: switch between logins, two steps each
+	$(PY) -m src.demo_console --script
+
+demo-interactive:  ## Same, but the audience picks the persona and types the code
+	$(PY) -m src.demo_console --interactive
+
 reference:  ## Run the hand-written reference queries and store the ground truth
 	$(PY) -m src.run_reference
 

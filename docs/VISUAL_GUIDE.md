@@ -205,6 +205,53 @@ a build.
 
 ---
 
+## 11. Who may reach whose data, and why
+
+![Four sources of access, the resolution point, and the seven policies](diagrams/11_access_model.svg)
+
+**What it shows:** the whole authorisation model on one page. Two kinds of
+principal (staff, who *hold* a book; customers, who *are* a client), four
+sources of access, the single place they resolve, and the seven policies that
+enforce the result.
+
+Three things to look for. **`disposition` is granted over the account and not
+over the person** -- being authorised to use someone's account is not
+authorisation to read them, and the panel at the foot shows the same account
+reached four different ways. **`portfolio` grants `view` only**, because
+accountability for a client is not authority to move their money. And **three
+of the four sources are derived live** rather than stored, which was a
+correction: the first version materialised them and a test caught a portfolio
+grant that did nothing until the next rebuild.
+
+The band at the bottom is the point of the whole model:
+`sec.v_who_can_reach_client` answers *"who can see this customer?"* from the
+data rather than from anyone's memory.
+
+---
+
+## 12. Two steps to a login, and what each one stops
+
+![The two factors, what each blocks, and the four attacks they answer](diagrams/12_auth_flow.svg)
+
+**What it shows:** the login as three moments, and -- in the right-hand column
+-- what the person can read at each. The middle row is the claim worth testing:
+**a correct password, on its own, returns an empty database.** Not an error;
+the queries run and come back with nothing, because the entitlements resolve
+only for a session that has passed both factors. Asserted for all eight
+principals across seven consumer views.
+
+The lower panel maps four attacks to the specific mechanism that stops each:
+a leaked password (factor 2), an observed code (single use), a stolen session
+(bound to one connection), a guessed code (lockout).
+
+The amber band is deliberate. The TOTP secrets are stored recoverable because
+verification requires them, the demo console prints the code so a walkthrough
+needs no phones, and there is no record of who actually read a row -- only of
+who could. Those are the limits, and a figure that showed only the strengths
+would be the wrong figure.
+
+---
+
 ## Regenerating
 
 ```

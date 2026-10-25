@@ -56,4 +56,10 @@ su postgres -c "psql -tAc \"SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'
 
 su postgres -c "psql -v ON_ERROR_STOP=1 -d ${DB_NAME} -c 'GRANT ALL ON DATABASE ${DB_NAME} TO ${DB_USER}; GRANT ALL ON SCHEMA public TO ${DB_USER};'" >/dev/null
 
+# pg_read_all_stats lets sec.verify_second_factor() read the CALLING backend's
+# start time while running as the owner. Without it, pg_stat_activity hides
+# another role's backend details and the session cannot be bound to the
+# connection that created it. Read-only on statistics; no data access.
+su postgres -c "psql -v ON_ERROR_STOP=1 -d ${DB_NAME} -c 'GRANT pg_read_all_stats TO ${DB_USER};'" >/dev/null
+
 wait_ready

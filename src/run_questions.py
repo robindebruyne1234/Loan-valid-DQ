@@ -32,7 +32,7 @@ import re
 from decimal import Decimal
 from typing import Any
 
-from src import config, db, llm_client, semantic_context, sql_guard
+from src import auth, config, db, llm_client, semantic_context, sql_guard
 
 LOGGER = db.setup_logging("questions")
 
@@ -199,7 +199,10 @@ def answer_question(
             feedback = f"the SQL guard rejected it: {verdict.reason}"
             continue
 
-        with db.connect(user=run_as) as conn:
+        # Both factors. The generated SQL runs on a session that had to
+        # authenticate like any other consumer -- an assistant does not get a
+        # standing connection that skipped the login.
+        with auth.login(run_as, demo_autocode=True) as conn:
             _, rows, error = sql_guard.execute_guarded(conn, generated_sql)
 
         if error:

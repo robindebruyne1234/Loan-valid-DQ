@@ -36,7 +36,7 @@ from typing import Any
 
 import psycopg
 
-from src import config, db
+from src import auth, config, db
 
 LOGGER = db.setup_logging("demo")
 
@@ -209,7 +209,7 @@ def measure_visibility(data: dict[str, Any]) -> list[dict[str, Any]]:
         )
     for principal in principals:
         role = principal["db_role"]
-        with db.connect(user=role) as user_conn:
+        with auth.login(role, demo_autocode=True) as user_conn:
             answer = db.fetch_all(user_conn, DEMO_QUESTION)[0]
             sees_example = int(db.fetch_value(
                 user_conn, "SELECT count(*) FROM ai.client WHERE client_id = %s",
@@ -276,7 +276,7 @@ def attempt_cross_client_reads(data: dict[str, Any]) -> list[dict[str, str]]:
          "SET ROLE rm_north", ()),
     )
     results: list[dict[str, str]] = []
-    with db.connect(user="client_11409") as conn:
+    with auth.login("client_11409", demo_autocode=True) as conn:
         for description, sql, params in attempts:
             try:
                 value = db.fetch_value(conn, sql, params or None)
@@ -327,27 +327,39 @@ def demonstrate_onboarding() -> list[dict[str, str]]:
             "effect": f"login role {role} exists, inheriting ai_consumer",
         })
 
-        with db.connect(user=role) as user_conn:
-            before = int(db.fetch_value(user_conn, "SELECT count(*) FROM ai.client") or 0)
-        steps.append({
-            "step": "Query before any entitlement is granted",
-            "effect": f"{before} clients visible -- the default is see nothing",
-        })
-
         build_security.onboard_client_user(conn, role, subject)
         steps.append({
             "step": f"INSERT INTO sec.app_user (user_type 'client', subject {subject})",
             "effect": "one row inserted; no portfolio, no policy, no code",
         })
 
-        with db.connect(user=role) as user_conn:
+        # A password is not a login. Until this customer enrols an
+        # authenticator they cannot complete step two, so the entitlement
+        # just granted reaches them not at all.
+        try:
+            with auth.login(role, demo_autocode=True):
+                blocked = "LOGGED IN -- which would be a defect"
+        except auth.AuthenticationError as exc:
+            blocked = f"refused: {str(exc).split(': ', 1)[-1]}"
+        steps.append({
+            "step": "Try to log in before a second factor is enrolled",
+            "effect": blocked,
+        })
+
+        secret = build_security.enrol_second_factor(conn, role)
+        steps.append({
+            "step": "Enrol the authenticator (the customer scans a code)",
+            "effect": f"enrolled; {len(secret)}-character shared secret, never leaves the database",
+        })
+
+        with auth.login(role, demo_autocode=True) as user_conn:
             after = int(db.fetch_value(user_conn, "SELECT count(*) FROM ai.client") or 0)
             account_rows = int(db.fetch_value(user_conn, "SELECT count(*) FROM ai.account") or 0)
             peek = int(db.fetch_value(
                 user_conn, "SELECT count(*) FROM ai.client WHERE client_id = %s",
                 (config.EXAMPLE_CLIENT_ID,)) or 0)
         steps.append({
-            "step": "Query on the very next statement",
+            "step": "Log in with both factors, and query",
             "effect": f"{after} client and {account_rows} account(s) visible -- their own",
         })
         steps.append({
@@ -356,7 +368,7 @@ def demonstrate_onboarding() -> list[dict[str, str]]:
         })
 
         db.execute(conn, "UPDATE sec.app_user SET is_active = false WHERE db_role = %s", (role,))
-        with db.connect(user=role) as user_conn:
+        with auth.login(role, demo_autocode=True) as user_conn:
             revoked = int(db.fetch_value(user_conn, "SELECT count(*) FROM ai.client") or 0)
         steps.append({
             "step": "UPDATE sec.app_user SET is_active = false",

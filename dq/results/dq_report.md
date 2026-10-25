@@ -1,8 +1,8 @@
 # Data quality report
 
-- run_id: `7fa1b4a2-c790-4d4a-8d0d-cd91f82b3331`
+- run_id: `bd005a32-4474-4779-b235-1cd6a8d91e0b`
 - dataset: `stg`
-- executed at: 2026-10-25T09:01:28+00:00 (git c1e2ead)
+- executed at: 2026-10-25T11:15:12+00:00 (git a7da25a)
 - command: `make dq`
 - rules executed: **124** (19 fired, 105 clean, 0 errored)
 

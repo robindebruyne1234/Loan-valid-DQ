@@ -68,6 +68,14 @@ DEMO_USERS: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
      ("ALL_CLIENTS",)),
     ("rm_unassigned", "Newly created user with no portfolio yet", "relationship_manager",
      ()),
+    # The demo administrator. Note what this is NOT: it is not a privileged
+    # database role and it is not exempt from any policy. It is an ordinary
+    # consumer holding a portfolio that happens to contain every client, and
+    # it still has to pass both authentication factors. "Sees everything" is
+    # granted through data, so it is visible in sec.v_who_can_reach_client
+    # like any other grant, rather than being invisible in a role attribute.
+    ("admin_demo", "Demo administrator (data owner's view, via a portfolio)",
+     "administrator", ("ALL_CLIENTS",)),
 )
 
 
@@ -242,6 +250,95 @@ def onboard_client_user(
     LOGGER.info("customer  %-12s -> entitled to client %s only", db_role, client_id)
 
 
+def enrol_second_factor(conn: psycopg.Connection, db_role: str) -> str:
+    """Enrol a TOTP second factor for a principal, or keep the existing one.
+
+    Keeping the existing secret matters: re-running the build must not
+    invalidate an authenticator app that is already enrolled.
+
+    :param conn: Open connection as the owner.
+    :param db_role: The principal.
+    :returns: The base32 shared secret.
+    """
+    from src import auth  # noqa: PLC0415 - avoids a circular import
+
+    existing = db.fetch_value(
+        conn,
+        "SELECT secret FROM sec.auth_factor WHERE db_role = %s AND factor_type = 'totp'",
+        (db_role,),
+    )
+    if existing:
+        return str(existing)
+    secret = auth.new_secret()
+    db.execute(
+        conn,
+        """
+        INSERT INTO sec.auth_factor (db_role, factor_type, secret)
+        VALUES (%s, 'totp', %s)
+        ON CONFLICT (db_role, factor_type) DO NOTHING
+        """,
+        (db_role, secret),
+    )
+    return secret
+
+
+def seed_demo_delegation(conn: psycopg.Connection) -> None:
+    """Grant one time-boxed delegation, so the fourth source is not theoretical.
+
+    The scenario is the ordinary one that makes delegation necessary: a
+    relationship manager is away, and a colleague from another book covers
+    one of their clients for a fortnight. It is the only grant source a human
+    chooses, so it is the only one that can be wrong in a way the banking
+    records cannot reveal -- which is why the table demands a grantor, a
+    reason and, here, an expiry that makes the right disappear by itself.
+
+    :param conn: Open connection as the owner.
+    :returns: ``None``.
+    """
+    db.execute(
+        conn,
+        """
+        INSERT INTO sec.access_delegation
+            (db_role, subject_kind, subject_id, permission, granted_by, reason,
+             valid_to)
+        VALUES ('rm_south', 'client', %s, 'view', 'head_of_retail',
+                'Covering the northern book while rm_north is on leave',
+                now() + interval '14 days')
+        ON CONFLICT (db_role, subject_kind, subject_id, permission) DO NOTHING
+        """,
+        (config.EXAMPLE_OTHER_CLIENT_ID,),
+    )
+    LOGGER.info("delegation rm_south -> client %s (view, expires in 14 days)",
+                config.EXAMPLE_OTHER_CLIENT_ID)
+
+
+def summarise_access_grants(conn: psycopg.Connection) -> dict[str, int]:
+    """Report how many grants each source currently resolves to.
+
+    Nothing is written: ``sec.v_access_grant`` derives ownership, disposition
+    and portfolio rights live from the banking records and the portfolios, so
+    there is nothing to rebuild and nothing that can fall out of step. Only
+    delegations are stored, and they are left alone.
+
+    :param conn: Open connection as the owner.
+    :returns: Count of live grants per source.
+    """
+    counts = {
+        row["grant_source"]: int(row["n"])
+        for row in db.fetch_all(
+            conn,
+            """
+            SELECT grant_source, count(*) AS n FROM sec.v_access_grant
+            WHERE sec.grant_is_live(valid_from, valid_to)
+            GROUP BY 1
+            """,
+        )
+    }
+    for source in ("ownership", "disposition", "portfolio", "delegation"):
+        LOGGER.info("grants    %-12s -> %s", source, f"{counts.get(source, 0):,}")
+    return counts
+
+
 def summarise_entitlements(conn: psycopg.Connection) -> list[dict[str, Any]]:
     """Report, per demo user, how many clients and accounts they can see.
 
@@ -257,10 +354,15 @@ def summarise_entitlements(conn: psycopg.Connection) -> list[dict[str, Any]]:
         "SELECT db_role, display_name, user_type, subject_client_id "
         "FROM sec.app_user ORDER BY user_type, db_role",
     )
+    from src import auth  # noqa: PLC0415 - avoids a circular import
+
     summary: list[dict[str, Any]] = []
     for user in users:
         role = user["db_role"]
-        with db.connect(user=role) as user_conn:
+        # Both factors, every time. demo_autocode stands in for the user's
+        # authenticator app; see src/auth.py for why that is a demo
+        # affordance and not part of the control.
+        with auth.login(role, demo_autocode=True) as user_conn:
             row = db.fetch_all(
                 user_conn,
                 """
@@ -305,6 +407,13 @@ def main() -> int:
         LOGGER.info("--- applying the entitlement model and row level security ---")
         db.run_sql_file(conn, config.SQL_DIR / "50_sec_rls.sql", LOGGER)
 
+        LOGGER.info("--- applying authentication and the access grant model ---")
+        db.execute(conn, "SELECT set_config('berka.totp_window', %s, false)",
+                   (str(config.TOTP_WINDOW_STEPS),))
+        db.execute(conn, "SELECT set_config('berka.session_ttl', %s, false)",
+                   (str(config.SESSION_TTL_MINUTES),))
+        db.run_sql_file(conn, config.SQL_DIR / "51_sec_auth.sql", LOGGER)
+
         LOGGER.info("--- building the ai consumer views ---")
         db.run_sql_file(conn, config.SQL_DIR / "40_ai_views.sql", LOGGER)
 
@@ -322,6 +431,18 @@ def main() -> int:
         for role, client_id in DEMO_CLIENT_USERS:
             create_login_role(conn, role, config.DEMO_USER_PASSWORD)
             onboard_client_user(conn, role, client_id)
+
+        LOGGER.info("--- enrolling second factors ---")
+        for role in db.fetch_all(conn, "SELECT db_role FROM sec.app_user ORDER BY db_role"):
+            enrol_second_factor(conn, role["db_role"])
+        LOGGER.info("second factor enrolled for %s principals",
+                    db.fetch_value(conn, "SELECT count(*) FROM sec.auth_factor"))
+
+        LOGGER.info("--- seeding the demo delegation ---")
+        seed_demo_delegation(conn)
+
+        LOGGER.info("--- access grants now resolving ---")
+        summarise_access_grants(conn)
 
         # Re-grant on the ai views, which were dropped and recreated above.
         db.execute(conn, "GRANT SELECT ON ALL TABLES IN SCHEMA ai TO ai_consumer")
