@@ -12,7 +12,7 @@ Tabs, in the order a reviewer will read them:
 3. ``Model``           -- the Task 2 model explanation
 4. ``Questions``       -- the Task 2 answers: reference and LLM SQL side by side
 5. ``Q detail``        -- the full result rows behind both
-6. ``DQ rules``        -- all 123 rules with severity and justification
+6. ``DQ rules``        -- all 124 rules with severity and justification
 7. ``Assumptions``     -- A1-A24
 8. ``Entitlements``    -- the Task 3 evidence: what each user actually sees
 9. ``Run log``         -- provenance: command and timestamp per step
@@ -548,6 +548,68 @@ def sheet_assumptions(book: Workbook) -> None:
         row = write_row(sheet, row, cells[:5])
 
 
+def sheet_cleaning(book: Workbook) -> int:
+    """Write the Cleaning tab: every cleaning step, with its effect measured.
+
+    The steps and their probes come from :mod:`src.cleaning_ledger`, the same
+    source as ``docs/CLEANING_LEDGER.md``, so the tab and the document cannot
+    drift apart. The probes are re-run here rather than parsed out of the
+    document, because a number copied from a file is a number nobody executed.
+
+    :param book: Target workbook.
+    :returns: Number of steps written.
+    """
+    from src import cleaning_ledger  # noqa: PLC0415 - avoids a circular import
+
+    sheet = book.create_sheet("Cleaning")
+    set_widths(sheet, [7, 9, 40, 44, 16, 30, 46, 34])
+    row = 1
+    sheet.cell(row=row, column=1,
+               value="What cleaning actually happened, from source file to product").font = TITLE_FONT
+    row += 1
+    note = sheet.cell(
+        row=row, column=1,
+        value="One row per transformation between the .asc files and the published model. "
+              "'Measured' is produced by running a probe against the database at build time, "
+              "not transcribed. 'Reversible' says where the pre-cleaning value can still be "
+              "read -- a cleaning step you cannot undo is one you have to take on trust. "
+              "'Watched by' names the rule that reports whatever the step could not clean. "
+              "No step repairs a value: exactly one (C14) removes a row, and C21 proves the "
+              "arithmetic. Full detail in docs/CLEANING_LEDGER.md; the reasoning behind each "
+              "choice is DECISIONS.md D013-D020.",
+    )
+    note.font = SUBTLE_FONT
+    note.alignment = WRAP
+    sheet.merge_cells(start_row=row, start_column=1, end_row=row, end_column=8)
+    sheet.row_dimensions[row].height = 60
+    row += 2
+    row = write_header(
+        sheet,
+        ["Step", "Layer", "What it does", "Target", "Measured", "Unit",
+         "Why", "Reversible / watched by"],
+        row,
+    )
+
+    layer_label = {"raw": "bronze", "stg": "silver", "dq": "silver", "core": "gold"}
+    written = 0
+    with db.connect() as conn:
+        for step in cleaning_ledger.STEPS:
+            value = cleaning_ledger.measure(conn, step)
+            watched = ", ".join(step.watched_by) if step.watched_by else "-"
+            row = write_row(sheet, row, [
+                step.step,
+                f"{layer_label[step.layer]} ({step.layer})",
+                step.action,
+                step.target,
+                value if value is not None else config.NOT_EXECUTED,
+                step.unit,
+                step.why,
+                f"reversible: {step.reversible}\nwatched by: {watched}",
+            ])
+            written += 1
+    return written
+
+
 def sheet_entitlements(book: Workbook, context: dict[str, Any]) -> None:
     """Write the Entitlements tab: the Task 3 evidence.
 
@@ -804,6 +866,7 @@ def main() -> int:
     sheet_questions(book, context)
     sheet_question_detail(book, context)
     rule_counts = sheet_rules(book)
+    cleaning_steps = sheet_cleaning(book)
     sheet_assumptions(book)
     sheet_entitlements(book, context)
     sheet_run_log(book)
@@ -817,9 +880,10 @@ def main() -> int:
         ", ".join(book.sheetnames),
     )
     LOGGER.info(
-        "  defect types=%d  rules=%d  questions=%d  entitlement users=%d",
+        "  defect types=%d  rules=%d  cleaning steps=%d  questions=%d  entitlement users=%d",
         defect_types,
         rule_counts["explicit"],
+        cleaning_steps,
         len(config.QUESTION_IDS),
         len(context["entitlements"]),
     )

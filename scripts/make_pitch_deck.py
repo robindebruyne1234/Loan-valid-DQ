@@ -350,9 +350,11 @@ The row counts matching the published reference exactly is the first piece of
 evidence that the pipeline is sound: we did not get a different dataset.
 """)
 
+    _cleaning(deck)
+
     # --------------------------------------------------------- severity
     s = blank(deck)
-    heading(s, "Step 2 — tidy up, and grade everything that is broken", "silver")
+    heading(s, "Step 2b — grade everything that is still broken", "silver")
     picture(s, "03_severity.png", top=Inches(1.5), bottom_margin=Inches(1.25))
     text(s, Inches(0.6), H - Inches(1.1), Inches(12.2), Inches(0.8),
          [("We never throw a row away quietly. Red is removed and counted. Orange stays, with a "
@@ -449,6 +451,7 @@ the rows is never in that text, so no rewriting of the text can remove it.
     _results(deck)
     _decisions(deck)
     _readiness(deck)
+    _gold(deck)
     return deck
 
 
@@ -1238,6 +1241,387 @@ Close on the three claims, then stop. Do not re-summarise the deck.
 If there is one sentence to leave behind: the hard part of this brief was never
 writing rules or writing SQL - it was deciding what each defect costs, and
 making the entitlement something the question cannot argue with.
+""")
+
+
+
+
+# --------------------------------------------------------------------------
+# the cleaning: what actually happens to a value between file and product
+# --------------------------------------------------------------------------
+
+
+def _cleaning(deck: Presentation) -> None:
+    """Add the cleaning slides: what the pipeline does to a value, and why.
+
+    These sit inside part 1 rather than in a part of their own because
+    cleaning is not a phase of the work -- it is the work. The grading slides
+    that follow decide what happens to what the cleaning could not fix.
+
+    :param deck: The presentation.
+    :returns: ``None``.
+    """
+    # ------------------------------------------- what cleaning means here
+    s = blank(deck)
+    heading(s, "Step 2a — make every value mean one thing", "silver: the cleaning")
+    text(s, Inches(0.7), Inches(1.35), Inches(12), Inches(0.45),
+         [("Twenty-one steps between the file and the product. Four kinds, and the fourth is "
+           "the one that makes the data answerable.", 16, False, GREY)], spacing=8)
+    kinds = [
+        ("TYPE IT", "Text becomes a date, a number, a true or false.",
+         "1,062,394 dates parsed from six-digit text", NAVY),
+        ("NORMALISE IT", "The seven ways this source writes \"missing\" all become one.",
+         "1,380 placeholders turned into a real blank", NAVY),
+        ("DECODE IT", "Czech codes get an English label, from one list.",
+         "2,466,175 values labelled from 28 codes", NAVY),
+        ("DERIVE IT", "Work out what the source left implicit but never wrote down.",
+         "5,369 birth dates, 5,369 genders, 1,056,320 signs", GREEN),
+    ]
+    top = Inches(2.05)
+    for label, what, measured, colour in kinds:
+        box(s, Inches(0.6), int(top), Inches(2.05), Inches(1.0), fill=colour)
+        text(s, Inches(0.6), int(top) + Inches(0.3), Inches(2.05), Inches(0.4),
+             [(label, 14, True, WHITE)], align=PP_ALIGN.CENTER, spacing=0)
+        box(s, Inches(2.65), int(top), Inches(10.1), Inches(1.0), fill=PALE)
+        text(s, Inches(2.9), int(top) + Inches(0.12), Inches(9.6), Inches(0.35),
+             [(what, 14.5, True, INK)], spacing=0)
+        text(s, Inches(2.9), int(top) + Inches(0.52), Inches(9.6), Inches(0.4),
+             [(measured, 12.5, False, GREY)], spacing=0)
+        top += Inches(1.12)
+    text(s, Inches(0.6), Inches(6.72), Inches(12.2), Inches(0.5),
+         [("Every one of those numbers is measured by running a query at build time, not "
+           "typed. The full list is the Cleaning tab of the workbook.", 13.5, True, NAVY)],
+         spacing=0)
+    notes(s, """
+This slide is the answer to "what did you actually clean", and it is worth
+being slow here: the first three kinds are mechanical and nobody argues with
+them. The fourth is where judgement enters, and judgement is what a reviewer
+should want to interrogate.
+
+Deriving means the pipeline is making a claim the source never made. Gender is
+not in this dataset - it is decoded from a national identifier. A month-end
+balance is not in this dataset - it is built from postings. Each derivation is
+listed in ASSUMPTIONS.md with what changes if the assumption behind it is
+wrong.
+""")
+
+    # ------------------------------------------------- never repair a value
+    s = blank(deck)
+    heading(s, "The rule that governs all of it: never repair a value",
+            "cleaning that can be checked")
+    text(s, Inches(0.7), Inches(1.35), Inches(12), Inches(0.45),
+         [("There are three things you can do with a bad value. Two of them make the product "
+           "impossible to audit.", 16, False, GREY)], spacing=8)
+    options = [
+        ("Repair it", "Guess the missing rate, correct the odd balance, fix the duplicate.",
+         "A repaired value is indistinguishable from a real one a week later. Nobody can tell "
+         "the bank's number from ours.", RED),
+        ("Drop it", "Throw away any row with something wrong in it.",
+         "Silently changes every total and every percentage. The report then describes what "
+         "survived the loader, not the data.", RED),
+        ("Keep it, and say so", "Transform without overwriting. Grade the problem separately.",
+         "Of 21 cleaning steps, exactly ONE removes a row. It removed 1. The arithmetic is "
+         "proved: product = staging minus quarantine, on rows and on money.", GREEN),
+    ]
+    top = Inches(2.05)
+    for title, what, consequence, colour in options:
+        chosen = colour == GREEN
+        box(s, Inches(0.6), int(top), Inches(12.15), Inches(1.35),
+            fill=PALE, line=colour, line_w=2 if chosen else 1)
+        text(s, Inches(0.9), int(top) + Inches(0.12), Inches(3.1), Inches(0.4),
+             [(title, 17, True, colour)], spacing=0)
+        text(s, Inches(0.9), int(top) + Inches(0.52), Inches(3.1), Inches(0.7),
+             [(what, 11.5, False, GREY)], spacing=0)
+        text(s, Inches(4.3), int(top) + Inches(0.2), Inches(8.1), Inches(0.95),
+             [(consequence, 13.5, chosen, INK if chosen else GREY)], spacing=0)
+        if chosen:
+            box(s, Inches(11.45), int(top) + Inches(0.1), Inches(1.15), Inches(0.3), fill=GREEN)
+            text(s, Inches(11.45), int(top) + Inches(0.12), Inches(1.15), Inches(0.26),
+                 [("CHOSEN", 10, True, WHITE)], align=PP_ALIGN.CENTER, spacing=0)
+        top += Inches(1.5)
+    text(s, Inches(0.6), Inches(6.72), Inches(12.2), Inches(0.5),
+         [("And every value the cleaning did change is still readable in its original form, "
+           "beside the cleaned one. A cleaning step you cannot undo is one you have to take "
+           "on trust.", 13.5, True, NAVY)], spacing=0)
+    notes(s, """
+The third column is the whole argument. "We cleaned the data" is not a
+checkable statement; "exactly one step removes rows, it removed one, and here
+is the reconciliation" is.
+
+If pushed on the cost: yes, the product carries known-bad rows, and a consumer
+has to be willing to read a caveat. The 55 accounts whose balance chain does
+not reconcile are still there, still answerable, still marked. That is the
+honest result and it asks more of the reader than a quietly corrected number
+would.
+""")
+
+    # ------------------------------------------- the most valuable clean step
+    s = blank(deck)
+    heading(s, "The cleaning step worth the most, in one picture",
+            "why the sign is resolved once")
+    text(s, Inches(0.7), Inches(1.3), Inches(12), Inches(0.4),
+         [("The source never says whether money went in or out. It says it in Czech, in a "
+           "different column, using two different words for \"out\".", 16, False, GREY)],
+         spacing=6)
+    box(s, Inches(0.6), Inches(2.0), Inches(5.95), Inches(2.5), fill=PALE, line=RED, line_w=1.5)
+    text(s, Inches(0.9), Inches(2.12), Inches(5.3), Inches(0.35),
+         [("WHAT THE SOURCE GIVES YOU", 11.5, True, RED)], spacing=4)
+    text(s, Inches(0.9), Inches(2.5), Inches(5.3), Inches(1.9),
+         [("amount = 3,679.00     type = VYDAJ", 13, True, INK),
+          ("amount = 3,679.00     type = VYBER", 13, True, INK),
+          ("amount = 3,679.00     type = PRIJEM", 13, True, INK),
+          ("Two of those are money leaving. To total \"net flow\" you must know that "
+           "VYDAJ and VYBER both mean out — and the one that is easy to miss is VYBER, "
+           "because it also names a cash withdrawal elsewhere.", 11.5, False, GREY)],
+         spacing=5)
+    box(s, Inches(6.85), Inches(2.0), Inches(5.9), Inches(2.5), fill=PALE, line=GREEN, line_w=1.5)
+    text(s, Inches(7.15), Inches(2.12), Inches(5.3), Inches(0.35),
+         [("WHAT THE PRODUCT GIVES YOU", 11.5, True, GREEN)], spacing=4)
+    text(s, Inches(7.15), Inches(2.5), Inches(5.3), Inches(1.9),
+         [("signed_amount = -3,679.00", 13, True, INK),
+          ("signed_amount = -3,679.00", 13, True, INK),
+          ("signed_amount = +3,679.00", 13, True, INK),
+          ("Resolved once, for all 1,056,320 postings, with the original amount and the "
+           "Czech code still sitting beside it. \"Net flow\" is now a sum.", 11.5, False, GREY)],
+         spacing=5)
+    text(s, Inches(0.6), Inches(4.75), Inches(12.15), Inches(1.5),
+         [("Why this one matters more than the others: a query that gets the sign wrong does "
+           "not crash. It returns a confident, plausible, wrong number — and the most likely "
+           "way for that to happen is an AI that saw VYDAJ in its notes and did not see "
+           "VYBER.", 16, True, INK),
+          ("The way to stop a generated query being wrong is to make the right answer the "
+           "easy one to write. Not to inspect the query afterwards.", 15, True, NAVY)],
+         spacing=10)
+    notes(s, """
+If only one slide survives from the cleaning section, make it this one. It is
+the clearest example of the principle the whole submission rests on.
+
+Note what is NOT being claimed: this does not stop an AI writing a wrong query.
+It removes one specific, high-frequency way of being wrong, by moving the
+decision from query time to build time, where it is made once by a person and
+tested.
+
+Cost, if asked: one derived column on the biggest table, and three columns that
+could in principle disagree. The balance reconciliation rules are what keep
+them honest.
+""")
+
+    # ----------------------------------------------- the cleaning gap we found
+    s = blank(deck)
+    heading(s, "A cleaning step that quietly did not happen", "found in this revision")
+    text(s, Inches(0.7), Inches(1.3), Inches(12), Inches(0.4),
+         [("The best evidence that cleaning is being taken seriously is a cleaning bug found "
+           "and owned, not a claim that there were none.", 16, False, GREY)], spacing=8)
+    panels = [
+        ("WHAT HAPPENED",
+         "Standing orders carry a category code. 341 of them say LEASING — and LEASING was "
+         "missing from the one list that turns codes into English. Those 341 rows went through "
+         "the whole first build with no label.", RED),
+        ("WHY NOTHING CAUGHT IT",
+         "There IS a check that every code in the data is in the list. It covered the "
+         "transactions table and not the standing orders table. The profiler printed LEASING in "
+         "its report; no rule read it. The only rule that noticed said \"this column is often "
+         "empty\", which reads like a fact about the data rather than a step that did not run.", AMBER),
+        ("WHAT IT COST, AND WHY IT WAS SURVIVABLE",
+         "Nothing, as it happens: no question reads standing orders. That is also why it "
+         "survived — a table nothing consumes is a table whose defects nobody meets.", GREY),
+        ("WHAT CHANGED",
+         "LEASING is in the list. The check now covers every coded column, not a hand-picked "
+         "few. A new rule reports unknown order categories the way its transaction twin always "
+         "did. And two tests now fail if any row carries a code without a label, or if a coded "
+         "column is missing from the check.", GREEN),
+    ]
+    top = Inches(1.95)
+    for title, body, colour in panels:
+        box(s, Inches(0.6), int(top), Inches(0.12), Inches(1.2), fill=colour)
+        box(s, Inches(0.72), int(top), Inches(12.03), Inches(1.2), fill=PALE)
+        text(s, Inches(1.0), int(top) + Inches(0.1), Inches(11.5), Inches(0.3),
+             [(title, 12, True, colour)], spacing=0)
+        text(s, Inches(1.0), int(top) + Inches(0.42), Inches(11.5), Inches(0.72),
+             [(body, 12.5, False, INK)], spacing=0)
+        top += Inches(1.32)
+    notes(s, """
+Offer this one. It is small, it cost nothing, and it says more about how the
+pipeline is built than a clean report would.
+
+The lesson is the transferable part: a guarantee enforced per column has to be
+enumerated per column, and a hand-maintained enumeration will eventually miss
+one. The fix is not "be more careful" - it is a test that derives the list from
+the data instead of trusting the list.
+
+It is the same lesson as the stale test count in the workbook, which is why
+both are in the review rather than quietly corrected.
+""")
+
+
+# --------------------------------------------------------------------------
+# part 5: what the cleaned data can still become
+# --------------------------------------------------------------------------
+
+
+def _gold(deck: Presentation) -> None:
+    """Add part 5: the gold layer buildable from what is already cleaned.
+
+    :param deck: The presentation.
+    :returns: ``None``.
+    """
+    notes(divider(deck, "5", "What this data can still become",
+                  "The gold layer that is built, and the one the cleaned data will "
+                  "carry without a single new source file."), """
+This part exists because the product that was built is the part the ten
+questions needed, and the cleaned data supports roughly twice as much.
+
+The distinction to hold on to: nothing in this part is more cleaning. It is all
+modelling on data that is already clean, which is why it is cheap and safe.
+""")
+
+    # ------------------------------------------------- what is built vs held
+    s = blank(deck)
+    heading(s, "What is built, and what is sitting there cleaned",
+            "the gap between the two")
+    box(s, Inches(0.6), Inches(1.4), Inches(5.95), Inches(0.5), fill=GREEN)
+    text(s, Inches(0.8), Inches(1.47), Inches(5.6), Inches(0.35),
+         [("BUILT — because the ten questions needed it", 12.5, True, WHITE)], spacing=0)
+    text(s, Inches(0.8), Inches(2.0), Inches(5.6), Inches(3.4),
+         [("4 dimensions — client, account, district, card", 13, False, INK),
+          ("1 bridge — who may operate which account", 13, False, INK),
+          ("2 base facts — 682 loans, 1,056,319 postings", 13, False, INK),
+          ("1 derived fact — 185,615 month-end balances", 13, False, INK),
+          ("1 calendar, 1 code catalogue", 13, False, INK),
+          ("11 consumer views, every one entitlement-filtered", 13, False, INK),
+          ("A complete star for the questions asked. Not a complete product for "
+           "the data held.", 12.5, True, GREEN)],
+         spacing=9)
+    box(s, Inches(6.85), Inches(1.4), Inches(5.9), Inches(0.5), fill=AMBER)
+    text(s, Inches(7.05), Inches(1.47), Inches(5.6), Inches(0.35),
+         [("CLEANED, AND CONSUMED BY NOTHING", 12.5, True, WHITE)], spacing=0)
+    text(s, Inches(7.05), Inches(2.0), Inches(5.6), Inches(3.4),
+         [("6,471 standing orders — a whole table, typed, decoded and "
+           "rule-checked, reaching no product at all", 13, True, INK),
+          ("21,228,994 CZK of committed monthly payments, across 3,758 of "
+           "4,500 accounts (83%)", 12.5, False, GREY),
+          ("273,508 postings carrying a counterparty bank — 13 banks, never "
+           "grouped by", 12.5, False, GREY),
+          ("The district unemployment and crime figures, which are a two-year "
+           "history flattened into one row", 12.5, False, GREY),
+          ("892 card issue dates, so card tenure is available and unused", 12.5, False, GREY)],
+         spacing=9)
+    text(s, Inches(0.6), Inches(5.65), Inches(12.15), Inches(1.0),
+         [("The standing orders are the one worth dwelling on. They are the bank's record of "
+           "what customers have COMMITTED to pay — as opposed to what they happened to pay. "
+           "For affordability, for disposable income, for why a balance behaves as it does, "
+           "it is the most informative table in the dataset. It is also the table where the "
+           "LEASING gap was found, which is not a coincidence.", 14, False, INK)], spacing=0)
+    notes(s, """
+The honest framing: the gap is not cleaning that has not happened. Everything
+on the right is clean. It is cleaned data that nothing consumes.
+
+That is a normal and defensible state for a product built against ten specific
+questions - but it should be said out loud rather than left for someone to
+discover, because "we have a data product" and "we have a data product for
+these ten questions" are different claims.
+""")
+
+    # ---------------------------------------------------------- candidates
+    s = blank(deck)
+    heading(s, "Eight tables buildable with no new data", "gold candidates")
+    text(s, Inches(0.7), Inches(1.3), Inches(12), Inches(0.35),
+         [("Every input below is already typed, decoded and rule-checked. None of this is "
+           "more cleaning — it is modelling on clean data.", 15, False, GREY)], spacing=6)
+    rows = [
+        ("G1", "fact_standing_order", "one standing order · 6,471",
+         "Committed outgoings and affordability. The largest gap, the smallest effort.", GREEN),
+        ("G2", "fact_account_month", "account × month · ~185,057",
+         "Flow beside the stock we already have. Every trend question in one scan.", GREEN),
+        ("G3", "dim_client_profile", "one client · 5,369",
+         "Collapses the four-table join every \"clients who...\" question needs today.", NAVY),
+        ("G4", "fact_loan_performance", "one loan · 682",
+         "From 13,580 repayment postings: how a loan went wrong, not just that it did.", NAVY),
+        ("G5", "fact_district_year", "district × year · 154",
+         "Unpivots 1995/1996 pairs, so a year stops being part of a column name.", GREEN),
+        ("G6", "fact_card_activity", "account × month · 8,036 postings",
+         "Card usage and dormancy. Limited: postings carry no card id.", AMBER),
+        ("G7", "fact_interbank_flow", "bank × month · 273,508 postings",
+         "Counterparty concentration — a question the product cannot answer at all today.", NAVY),
+        ("G8", "the metric layer", "definitions, not rows",
+         "Certified metrics promoted out of YAML into objects with an owner and a test.", NAVY),
+    ]
+    top = Inches(1.72)
+    for tag, name, grain, serves, colour in rows:
+        box(s, Inches(0.6), int(top), Inches(0.52), Inches(0.58), fill=colour)
+        text(s, Inches(0.6), int(top) + Inches(0.13), Inches(0.52), Inches(0.35),
+             [(tag, 13, True, WHITE)], align=PP_ALIGN.CENTER, spacing=0)
+        box(s, Inches(1.12), int(top), Inches(11.63), Inches(0.58), fill=PALE)
+        text(s, Inches(1.32), int(top) + Inches(0.13), Inches(2.9), Inches(0.32),
+             [(name, 12.5, True, INK)], spacing=0)
+        text(s, Inches(4.3), int(top) + Inches(0.15), Inches(2.7), Inches(0.3),
+             [(grain, 11, False, GREY)], spacing=0)
+        text(s, Inches(7.1), int(top) + Inches(0.14), Inches(5.5), Inches(0.35),
+             [(serves, 11.5, False, GREY)], spacing=0)
+        top += Inches(0.645)
+    text(s, Inches(0.6), Inches(6.98), Inches(12.2), Inches(0.35),
+         [("Build order: G1, G5, G2, G3. G4, G6 and G7 each need a business owner to agree an "
+           "attribution rule first — building them before that conversation is how a product "
+           "acquires a number nobody trusts.", 12, True, NAVY)], spacing=0)
+    notes(s, """
+Do not read the table out. Pick G1 and G2 and let the rest sit there as
+evidence that the list was thought about.
+
+G1 because it is a whole business concept missing from the product, not an
+attribute. G2 because it is the one that changes what the product costs to
+query - and it pairs with the month-end balance table that already exists:
+flow beside stock, on the same grain.
+
+The last line is the one to say deliberately. Three of the eight carry a
+caveat that is a business decision, not a technical one: how to attribute a
+card posting, how to attribute a loan repayment. Those are conversations, and
+guessing at them is how you get a confidently wrong table.
+""")
+
+    # ------------------------------------------------- what cannot be built
+    s = blank(deck)
+    heading(s, "And what this data cannot become", "stated so the list above is believable")
+    text(s, Inches(0.7), Inches(1.35), Inches(12), Inches(0.4),
+         [("Five things no amount of modelling will produce from this source. Each one is a "
+           "place where a plausible-looking table would be an invention.", 15.5, False, GREY)],
+         spacing=8)
+    limits = [
+        ("No product or channel dimension",
+         "There is no product catalogue anywhere in the extract. Card type is the only "
+         "product-like attribute that exists."),
+        ("No customer segment or demographics",
+         "Beyond derived age and gender, there is nothing. Any \"segment\" would be this "
+         "pipeline's invention wearing a business name."),
+        ("No history on any dimension",
+         "Clients, accounts and districts each appear exactly once. A slowly changing "
+         "dimension cannot be built from a snapshot — it can only be started from today."),
+        ("No intra-day ordering",
+         "183 accounts have an ambiguous last posting of the day. No derived table can "
+         "resolve what the source did not record; it can only state the tie-break."),
+        ("No opening balance",
+         "The balance before an account's first posting is unknown, which is why the "
+         "month-end table starts at the first active month, not at the account open date."),
+    ]
+    top = Inches(2.05)
+    for title, body in limits:
+        box(s, Inches(0.6), int(top), Inches(12.15), Inches(0.92), fill=PALE, line=GREY, line_w=0.75)
+        text(s, Inches(0.9), int(top) + Inches(0.1), Inches(4.0), Inches(0.35),
+             [(title, 14, True, INK)], spacing=0)
+        text(s, Inches(5.1), int(top) + Inches(0.12), Inches(7.4), Inches(0.7),
+             [(body, 11.5, False, GREY)], spacing=0)
+        top += Inches(1.02)
+    text(s, Inches(0.6), Inches(7.08), Inches(12.2), Inches(0.35),
+         [("A list of what you can build is only worth reading next to a list of what you "
+           "cannot.", 13, True, NAVY)], spacing=0)
+    notes(s, """
+This slide is short and it is the one that makes the previous one credible.
+Anybody can list eight tables they could build. The question a reviewer is
+actually asking is whether you know where the data stops.
+
+The third is the one with the most consequence for a real deployment: this is a
+snapshot, so the history has to start being captured now. Every month that
+passes without capturing it is a month of history that cannot be reconstructed
+later.
 """)
 
 

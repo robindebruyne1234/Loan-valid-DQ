@@ -22,7 +22,28 @@ bank's own direction of travel, which is back on-premises for data sovereignty.
 *Cost:* no built-in lineage or scheduling, and a single node. Both are
 acceptable at this volume and neither is on the critical path of the brief.
 
-**2. Star schema with a bridge table, plus three curated views.**
+**2. Cleaning types, normalises, decodes and derives -- and never repairs.**
+*Options:* repair bad values (impute the missing rate, correct the balance);
+drop any row with a defect; or transform without overwriting an observation and
+let a separate graded rule layer decide what reaches the product. *Choice:* the
+third. Staging states it as a contract -- nothing is filtered there -- so the
+rule layer can report on the source rather than on what survived the loader.
+*Why:* a repaired value is indistinguishable from an observed one a week later,
+which is intolerable in a product someone will reconcile against a statement;
+dropping silently changes every denominator. Of 21 cleaning steps, exactly one
+removes a row (quarantine), it removed 1, and the reconciliation proves core =
+staging - quarantine on both rows and money. Every value the cleaning changed
+survives in a `_raw` column with a note, so each step is reversible and
+therefore checkable. The highest-value step is the smallest: resolving the
+transaction sign once (`signed_amount`, credits positive) rather than leaving
+every consumer to encode that the Czech words VYDAJ and VYBER both mean
+outgoing -- the most likely way for a generated query to return a confident
+wrong number. *Cost:* the product carries known-bad rows with flags on them, so
+a consumer has to read a caveat; and the audit columns are dead weight on the
+tables that have no defects. Every step, with its effect measured by a probe at
+build time, is in `docs/CLEANING_LEDGER.md` and the workbook's Cleaning tab.
+
+**3. Star schema with a bridge table, plus three curated views.**
 *Options:* one big table flattened onto the transaction; Data Vault; keep the
 source model. *Choice:* star schema -- four dimensions, one bridge, two base
 facts, one derived fact. *Why:* the ten questions have four different grains
@@ -37,7 +58,7 @@ deciding that once is the modelling work. *Cost:* joins, and a derived
 month-end balance fact that has to be rebuilt. The curated views give the model
 a join-free surface anyway.
 
-**3. Three severities, with a mechanical consequence each.**
+**4. Three severities, with a mechanical consequence each.**
 *Options:* reject every defective row; repair silently; grade the defects.
 *Choice:* grade them -- `block` quarantines the row and keeps it out of the
 product, `warn` keeps the row and attaches a flag that travels into the model
@@ -52,7 +73,7 @@ primary key can catch and which double counts a flow. *Cost:* three code paths
 instead of one, and a quarantine table to keep. In exchange, every exclusion is
 reversible, countable and attributable to a named rule.
 
-**4. The semantic layer is a validated artefact, not prompt text.**
+**5. The semantic layer is a validated artefact, not prompt text.**
 *Options:* describe the schema in the prompt; use a BI tool's metrics layer;
 write the semantics as a file the pipeline checks. *Choice:* a YAML file --
 entities with their grain, certified metric expressions, a glossary that says
@@ -67,7 +88,7 @@ safe. *Result:* the model answered 10 of 10 questions on the first attempt,
 matching all ten hand-written reference answers, with no retry and no SQL
 hand-corrected.
 
-**5. Entitlements are row level security on the base tables, keyed on `session_user`.**
+**6. Entitlements are row level security on the base tables, keyed on `session_user`.**
 *Options:* instruct the model to add the filter; filter in an application
 gateway; policies in the database. *Choice:* policies, with the gateway's SQL
 guard kept as a second line. *Why:* asking the model to filter itself is a
@@ -86,7 +107,7 @@ per user, which conflicts with naive connection pooling; the practical answers
 are a pool per role or `SET ROLE` performed by a trusted gateway on a
 privileged connection, where the gateway and not the model picks the role.
 
-**6. The LLM is treated as an untrusted query author.**
+**7. The LLM is treated as an untrusted query author.**
 It is called with no tools, no MCP servers, no filesystem and no database
 access, from a working directory outside the repository: it sees the rendered
 semantic layer and the question, and nothing else. Its SQL is parsed with
@@ -108,7 +129,7 @@ order:
    change. It becomes an incremental load: range-partition the transaction fact
    by month, rebuild only the open partition, and merge rather than replace.
    The layer contract and the SQL stay as they are; the write pattern changes.
-2. **The data quality runner.** 123 rules, each a full scan, with violating
+2. **The data quality runner.** 124 rules, each a full scan, with violating
    rows materialised in Python to be sampled. The scans have to become
    partition-scoped (check what arrived, not what was already certified), the
    violating keys have to be written by `INSERT ... SELECT` instead of travelling

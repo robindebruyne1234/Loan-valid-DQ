@@ -1444,7 +1444,32 @@ rules:
              'k_symbol_code = ' || k_symbol_code || ' is not a documented category' AS reason
       FROM {s}.trans
       WHERE k_symbol_code IS NOT NULL
-        AND k_symbol_code NOT IN ('POJISTNE', 'SLUZBY', 'UROK', 'SANKC. UROK', 'SIPO', 'DUCHOD', 'UVER')
+        AND k_symbol_code NOT IN ('POJISTNE', 'SLUZBY', 'UROK', 'SANKC. UROK', 'SIPO', 'DUCHOD', 'UVER', 'LEASING')
+
+  - rule_id: VAL_ORDER_KSYMBOL_DOMAIN
+    dimension: validity
+    table: order
+    description: "Standing order category (k_symbol) outside the documented set"
+    defect_type: "Value outside the allowed list"
+    severity: info
+    severity_rationale: >-
+      Same column and same code set as the transaction rule above, on the
+      other table that carries it. It is info for the same reason: no question
+      reads the standing orders, and an unknown category costs nothing until
+      someone groups by it. The reason this rule exists at all is that its
+      absence cost something: LEASING sat on 341 standing orders with no
+      English label for the whole first build, because the catalogue check
+      covered trans and not order. The rule is the cheap guarantee that the
+      next unknown code is reported rather than silently unlabelled.
+    affects_questions: []
+    handling: "Logged only; the code passes through to staging with no English label."
+    total_sql: 'SELECT count(*) FROM {s}."order" WHERE k_symbol_code IS NOT NULL'
+    sql: |
+      SELECT order_id::text AS business_key,
+             'k_symbol_code = ' || k_symbol_code || ' is not a documented category' AS reason
+      FROM {s}."order"
+      WHERE k_symbol_code IS NOT NULL
+        AND k_symbol_code NOT IN ('POJISTNE', 'SLUZBY', 'UROK', 'SANKC. UROK', 'SIPO', 'DUCHOD', 'UVER', 'LEASING')
 
   - rule_id: VAL_LOAN_AMOUNT_POSITIVE
     dimension: validity

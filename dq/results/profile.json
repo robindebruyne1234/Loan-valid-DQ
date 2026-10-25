@@ -1,7 +1,7 @@
 {
-  "generated_at_utc": "2026-10-22T10:51:36+00:00",
-  "git_commit": "b11c23f",
-  "stg_build_seconds": 34.264,
+  "generated_at_utc": "2026-10-25T07:51:06+00:00",
+  "git_commit": "da3e93f",
+  "stg_build_seconds": 35.239,
   "tables": [
     {
       "table": "district",
@@ -674,7 +674,7 @@
           ]
         }
       ],
-      "duration_sec": 0.023
+      "duration_sec": 0.027
     },
     {
       "table": "client",
@@ -951,7 +951,7 @@
           ]
         }
       ],
-      "duration_sec": 0.096
+      "duration_sec": 0.094
     },
     {
       "table": "account",
@@ -1218,7 +1218,7 @@
           ]
         }
       ],
-      "duration_sec": 0.088
+      "duration_sec": 0.087
     },
     {
       "table": "disp",
@@ -1441,7 +1441,7 @@
           ]
         }
       ],
-      "duration_sec": 0.058
+      "duration_sec": 0.072
     },
     {
       "table": "card",
@@ -2063,7 +2063,7 @@
           ]
         }
       ],
-      "duration_sec": 0.025
+      "duration_sec": 0.035
     },
     {
       "table": "order",
@@ -2297,9 +2297,9 @@
           "column": "k_symbol_label",
           "data_type": "text",
           "rows": 6471,
-          "nulls": 1720,
-          "null_rate": 0.265801,
-          "distinct_values": 3,
+          "nulls": 1379,
+          "null_rate": 0.213105,
+          "distinct_values": 4,
           "min_value": "household payment",
           "max_value": "loan payment",
           "min_length": 12,
@@ -2311,7 +2311,7 @@
             },
             {
               "value": null,
-              "count": 1720
+              "count": 1379
             },
             {
               "value": "loan payment",
@@ -2320,6 +2320,10 @@
             {
               "value": "insurance payment",
               "count": 532
+            },
+            {
+              "value": "leasing payment",
+              "count": 341
             }
           ]
         },
@@ -2406,7 +2410,7 @@
           ]
         }
       ],
-      "duration_sec": 0.099
+      "duration_sec": 0.18
     },
     {
       "table": "trans",
@@ -3061,7 +3065,7 @@
           ]
         }
       ],
-      "duration_sec": 21.627
+      "duration_sec": 22.008
     }
   ],
   "candidates": [

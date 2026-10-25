@@ -18,29 +18,43 @@ make test   # 114 tests
 | Generated queries and answers | same workbook, tabs **Questions** and **Q detail** | Task 2 |
 | Semantic solution and code | `deliverables/semantic_solution.zip` | Task 2 |
 | Design Decision Record | `deliverables/DDR.pdf` (2 pages, verified) and `DDR.docx`; source text `DDR_source.md` | all |
+| What the cleaning did | same workbook, tab **Cleaning**; full detail `docs/CLEANING_LEDGER.md` | Task 1, Task 2 |
 
 **Start here if you want the approach in plain words, with every one of the
 ten questions explained and answered:**
 **[`docs/HOW_WE_WORKED_SIMPLY.md`](docs/HOW_WE_WORKED_SIMPLY.md)**. No jargon.
 
+**Start here if you want to know what happened to the data itself:**
+**[`docs/CLEANING_LEDGER.md`](docs/CLEANING_LEDGER.md)** -- all 21 cleaning
+steps from source file to product, each with its effect measured by a probe
+run against the database at build time, where the pre-cleaning value survives,
+and which rule watches it. The reasoning behind each choice is `DECISIONS.md`
+D013-D020, and the assumptions each rests on are A25-A33.
+**[`docs/GOLD_LAYER.md`](docs/GOLD_LAYER.md)** answers the next question: what
+is modelled today, what is cleaned and consumed by nothing (6,471 standing
+orders, for one), and the eight tables the cleaned data will carry without a
+single new source file.
+
 Supporting: **[`deliverables/Walkthrough_Deck.pptx`](deliverables/Walkthrough_Deck.pptx)**
-(34 slides with speaker notes on every one: how it works, what it found, the
-six design decisions, and a completeness check against every ask in the brief;
+(42 slides with speaker notes on every one: how the data gets clean, what it
+found, the design decisions, a completeness check against every ask in the
+brief, and what the cleaned data can still become;
 regenerate with `python scripts/make_pitch_deck.py`),
 **[`docs/VISUAL_GUIDE.md`](docs/VISUAL_GUIDE.md)** (ten figures: the pipeline,
 the query path and where the entitlement filter lives, what each severity
 does, the star schema, two decision comparisons, the defect lifecycle and
 catalogue, the whole system map and the build sequence),
-`STATUS_REPORT.md` (what ran, what did not), `DECISIONS.md` (12 decisions with
-options, cost and consequence), `ASSUMPTIONS.md` (A1-A24), `AI_DISCLOSURE.md`, `WALKTHROUGH_NOTES.md`,
+`STATUS_REPORT.md` (what ran, what did not), `DECISIONS.md` (20 decisions with
+options, cost and consequence, of which D013-D020 are the cleaning),
+`ASSUMPTIONS.md` (A1-A33), `AI_DISCLOSURE.md`, `WALKTHROUGH_NOTES.md`,
 `docs/SECURITY_AND_CODE_REVIEW.md` (both reviews, with the two defects they
 found and fixed), `docs/REVIEW_AND_NEXT_STEPS.md`.
 
 ## Results
 
-**Task 1 -- data quality.** 123 rules executed across all six dimensions
+**Task 1 -- data quality.** 124 rules executed across all six dimensions
 (completeness, uniqueness, referential integrity, validity, cross-table
-consistency, reconciliation): 88 hand written in `dq/dq_rules.yaml`, plus a
+consistency, reconciliation): 89 hand written in `dq/dq_rules.yaml`, plus a
 completeness sweep that expands to one rule per column at run time. Every rule
 carries a severity *and* the reason for that severity written in terms of the
 ten questions; the loader refuses to run a rule that lacks one. 19 rules fire,
@@ -110,7 +124,7 @@ deliverables/ the workbook, the DDR, the ZIP, defects.csv, model_explanation.md
 ```
 make ingest        # load the raw files, verify counts, hash each file
 make profile       # build stg, profile 102 columns, list candidate defects
-make dq            # run all 123 rules, quarantine, flag, write the defect report
+make dq            # run all 124 rules, quarantine, flag, write the defect report
 make model         # build core, verify it, restore the ai views
 make reference     # run the hand-written reference queries (ground truth)
 make semantic      # validate the semantic layer and render the context pack

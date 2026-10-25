@@ -348,6 +348,11 @@ TRANS_OPERATION_CODES: dict[str, str] = {
     "PREVOD NA UCET": "remittance to another bank",
 }
 
+#: The k_symbol code set, as the SOURCE uses it. The column appears on both
+#: ``trans`` and ``order``, and the union of the two is what belongs here --
+#: LEASING occurs only on standing orders, never on a posting. What each
+#: published entity may actually contain is narrower, and is stated per entity
+#: in semantic/semantic_layer.yaml. See DECISIONS.md D017.
 K_SYMBOL_CODES: dict[str, str] = {
     "POJISTNE": "insurance payment",
     "SLUZBY": "payment for statement",
@@ -356,6 +361,7 @@ K_SYMBOL_CODES: dict[str, str] = {
     "SIPO": "household payment",
     "DUCHOD": "old age pension",
     "UVER": "loan payment",
+    "LEASING": "leasing payment",
 }
 
 #: Gender derived from ``birth_number``: women carry month + 50.

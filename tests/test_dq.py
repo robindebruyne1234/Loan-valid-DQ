@@ -235,3 +235,64 @@ def test_warn_flags_are_visible_on_the_core_rows() -> None:
     assert counts.get("con_intraday_order_ambiguous") == 183, counts
     assert counts.get("val_owner_age_at_loan_start") == 6, counts
     assert counts.get("val_owner_age_at_account_open") == 114, counts
+
+
+# ---------------------------------------------------------------------------
+# Cleaning: every decodable code in staging actually got decoded
+#
+# The first build shipped 341 standing orders carrying k_symbol = LEASING with
+# no English label, because the code catalogue check covered stg.trans and not
+# stg."order". Nothing failed: the profiler reported the code, and the only
+# rule that noticed was the null-label completeness sweep, which reads as
+# "this column is often empty" rather than "a code was not decoded".
+#
+# These tests make the silence impossible. The first asserts the outcome a
+# consumer cares about -- a code with no label is a cleaning step that did not
+# happen -- and the second pins the catalogue to every column that carries a
+# coded value, so a new coded column cannot be added without being checked.
+# ---------------------------------------------------------------------------
+
+#: (table, code column, label column) for every coded column in staging.
+CODED_COLUMNS: tuple[tuple[str, str, str], ...] = (
+    ("stg.account", "frequency_code", "frequency_label"),
+    ("stg.disp", "disp_type_code", "disp_type_label"),
+    ("stg.loan", "status_code", "status_label"),
+    ("stg.trans", "trans_type_code", "trans_type_label"),
+    ("stg.trans", "operation_code", "operation_label"),
+    ("stg.trans", "k_symbol_code", "k_symbol_label"),
+    ('stg."order"', "k_symbol_code", "k_symbol_label"),
+)
+
+
+@pytest.mark.parametrize(("table", "code", "label"), CODED_COLUMNS)
+def test_every_present_code_resolves_to_a_label(table: str, code: str, label: str) -> None:
+    """No row may carry a code the cleaning step failed to decode."""
+    with db.connect() as conn:
+        undecoded = db.fetch_all(
+            conn,
+            f"""
+            SELECT "{code}" AS code, count(*) AS rows
+            FROM {table}
+            WHERE "{code}" IS NOT NULL AND "{label}" IS NULL
+            GROUP BY 1 ORDER BY 2 DESC
+            """,
+        )
+    assert not undecoded, (
+        f"{table}.{code} holds codes with no label: {undecoded}. "
+        f"Add them to the decode map in src/config.py and to the CASE in sql/10_stg.sql."
+    )
+
+
+def test_the_code_catalogue_covers_every_coded_column() -> None:
+    """build_model must check each coded column, not only the ones on trans."""
+    from src.build_model import check_codes_against_staging  # noqa: PLC0415
+
+    import inspect  # noqa: PLC0415
+
+    source = inspect.getsource(check_codes_against_staging)
+    for table, code, _label in CODED_COLUMNS:
+        bare = table.replace('"', "")
+        assert (table in source or bare in source) and code in source, (
+            f"{table}.{code} is cleaned but is not in the code catalogue check, "
+            f"so an unknown code there would never fail a build"
+        )

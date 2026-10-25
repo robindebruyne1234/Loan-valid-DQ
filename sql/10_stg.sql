@@ -371,6 +371,7 @@ SELECT
         WHEN 'SIPO'        THEN 'household payment'
         WHEN 'DUCHOD'      THEN 'old age pension'
         WHEN 'UVER'        THEN 'loan payment'
+        WHEN 'LEASING'     THEN 'leasing payment'
     END                                            AS k_symbol_label,
     -- The source encodes "no category" three ways in this column: a quoted
     -- empty string, an unquoted empty field, and a single space.
@@ -434,6 +435,7 @@ SELECT
         WHEN 'SIPO'        THEN 'household payment'
         WHEN 'DUCHOD'      THEN 'old age pension'
         WHEN 'UVER'        THEN 'loan payment'
+        WHEN 'LEASING'     THEN 'leasing payment'
     END                                            AS k_symbol_label,
     stg.norm_text(r.bank)                          AS partner_bank,
     stg.norm_text(r.account)                       AS partner_account,

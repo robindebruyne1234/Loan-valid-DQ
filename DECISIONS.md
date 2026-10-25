@@ -375,3 +375,253 @@ iterates.
 **Consequence.** Both `make model` and `make all` leave a complete, queryable
 surface. The ai views are cheap to rebuild (they are views), so the extra step
 costs about a second.
+
+---
+
+# Cleaning decisions (D013-D020)
+
+The first twelve decisions were written while the pipeline was being built, and
+they over-record one half of the brief. Five of them (D005, D009, D010, D011,
+D012) are about access and LLM control; two (D006, D007) are about modelling;
+**none** recorded what the cleaning actually does. That is the wrong balance for
+a brief whose subject is making data AI-ready: the controls are a property of
+the serving surface, while the cleaning is the product.
+
+These eight entries close that gap. They were reconstructed from the code and
+checked against the database, and every number in them comes from the probe of
+the same name in `docs/CLEANING_LEDGER.md`.
+
+---
+
+## D013 - Cleaning never repairs a value in place
+
+**Context.** Eight source files, 1,079,680 rows, with placeholders, undecodable
+codes, unparsable dates and a balance chain that does not always reconcile. The
+textbook options for a bad value are repair it, drop it, or keep it and say so.
+
+**Options.** (a) Repair: impute the missing unemployment rate, infer the
+intended balance, correct the duplicate. (b) Drop every row with any defect.
+(c) Type, normalise, decode and derive -- but never overwrite an observation --
+and let a separately graded rule layer decide the consequence.
+
+**Choice.** (c).
+
+**Reason.** A repaired value is indistinguishable from an observed one a week
+later. That is tolerable in a model you train and throw away, and not tolerable
+in a bank's data product where someone will eventually reconcile a number
+against a statement. Dropping is worse: it silently changes every denominator.
+The chosen shape means that of the cleaning steps in the ledger, exactly one
+(C14, quarantine) removes a row from the product, it removed **1**, and C21
+proves the arithmetic on both rows and money.
+
+**Consequence.** The product carries known-bad rows with flags on them, so a
+consumer has to be willing to read a caveat. The 55 accounts whose balance
+chain does not reconcile are still in `core`, still answerable, and still
+marked -- which is the honest result, and also the one that costs the reader
+more attention than a quietly cleaned number would.
+
+---
+
+## D014 - Placeholders become NULL; the original text survives beside them
+
+**Context.** The source writes "missing" at least seven ways: empty string,
+quoted empty string, a single space, `?`, `NA`, `-`, and the word `unknown`.
+District 69 (Jesenik) carries `?` in both the 1995 unemployment rate and the
+1995 crime count.
+
+**Options.** (a) Leave the text as it is and let every consumer handle it.
+(b) Map the known placeholder set to NULL and lose the original. (c) Map to
+NULL and keep the original in a `<column>_raw` audit column, with a note.
+
+**Choice.** (c), with the placeholder list in `src/config.NULL_PLACEHOLDERS`
+and mirrored by `stg.norm_text`.
+
+**Reason.** Option (a) makes every completeness number wrong, because `?`
+counts as a value. Option (b) makes the cleaning unfalsifiable. Option (c)
+costs two columns per affected table and leaves the step checkable: C03
+measured **1,380** rows where a placeholder became NULL (1,379 standing orders
+with no category, and the one district), and each of them can still be read in
+its raw form.
+
+**Consequence.** The audit columns are dead weight on tables with no
+placeholders, which is most of them. A real warehouse would carry this as one
+side table rather than per-column, and that is the shape to move to at volume.
+
+---
+
+## D015 - Two-digit years are read as 19xx, and an unparsable date is NULL
+
+**Context.** Every date in the source is `YYMMDD` with no century. `card.issued`
+additionally carries a clock time (`931107 00:00:00`) that no other date column
+has.
+
+**Options.** (a) A sliding window (`<= 30` means 20xx). (b) Hard-code the 20th
+century. (c) Refuse to parse and keep the text.
+
+**Choice.** (b), with the trailing clock time stripped before parsing, and a
+failed parse returning NULL rather than raising.
+
+**Reason.** The dataset window is 1993-1998 and `VAL_DATE_OUT_OF_RANGE` fires
+if anything lands outside it, so the sliding window would add a rule for a case
+that cannot occur in this extract. The NULL-on-failure part matters more than
+the century: a cast that throws aborts the load and hides the defect it tripped
+over, which is precisely the value a quality report needs to see. C05 parsed
+**1,062,394** dates and C04 found **0** amounts that failed to cast.
+
+**Consequence.** This assumption (A17) is the one that breaks first if the
+dataset is ever extended past 1999. The fix is one function, and the rule that
+would catch the breakage already exists.
+
+---
+
+## D016 - Gender and birth date are derived from `birth_number`, and labelled as derived
+
+**Context.** The source has no gender column and no birth date. It has
+`birth_number`, a Czech national identifier that packs both: `YYMMDD`, with 50
+added to the month for women.
+
+**Options.** (a) Publish `birth_number` and let consumers decode it.
+(b) Decode it into `birth_date` and `gender` and drop the original.
+(c) Decode it, keep the original, and publish a validity flag beside both.
+
+**Choice.** (c).
+
+**Reason.** Leaving it packed means every age question re-implements the
+decoding, and an LLM writing that arithmetic from a context pack will get the
+month offset wrong. Dropping the original removes the only evidence the
+decoding was right. C07 decoded **5,369** birth dates and C08 derived
+**5,369** genders, with `birth_number_valid` true for all of them -- so the
+derivation is complete on this extract, which is worth knowing precisely
+because it will not be true of the next one.
+
+**Consequence.** Gender here is an inference from an identifier format, not a
+self-reported attribute, and the ledger and A18 both say so. Any analysis that
+groups by it inherits that caveat. It is also personal data derived from
+personal data, which is a question a real deployment has to answer before it
+publishes the column; this submission publishes it because the ten questions
+need age, and records the concern rather than pretending it does not exist.
+
+---
+
+## D017 - Codes are decoded to labels from one map, and the code is kept beside the label
+
+**Context.** Five tables carry Czech codes: `POPLATEK MESICNE`, `VYDAJ`,
+`PREVOD NA UCET`, `SIPO`, loan status `A`/`B`/`C`/`D`. An LLM asked about
+"withdrawals" cannot be expected to know `VYDAJ`.
+
+**Options.** (a) Publish codes only. (b) Replace codes with labels.
+(c) Publish both, from one map, and fail the build if the data holds a code the
+map does not know.
+
+**Choice.** (c). The map lives in `src/config.py`, is published as
+`core.ref_codes`, and `build_model.check_codes_against_staging` compares the
+catalogue against every coded column.
+
+**Reason.** Codes only, and the semantic layer has to carry a glossary the
+model may ignore. Labels only, and the join back to the source is gone. Both,
+from one place, and the redundancy becomes a test: if the inline label in
+staging disagrees with the catalogue, the build stops. C09 labelled
+**2,466,175** coded values against **28** published codes.
+
+**Consequence, and the one this decision was actually written for.** The check
+is only as good as its list of columns, and the first build's list had
+`stg.trans.k_symbol_code` in it but not `stg."order".k_symbol_code`. The code
+`LEASING` therefore sat on **341** standing orders with no English label
+through the entire first submission. Nothing failed: the profiler reported the
+code in `dq/results/profile.md`, and the only rule that noticed was the
+null-label completeness sweep, which reads as "this column is often empty"
+rather than "a cleaning step did not happen".
+
+The fix is three lines and the lesson is bigger than they are: a cleaning
+guarantee that is enforced per column has to be enumerated per column, and an
+enumeration maintained by hand will miss one. `LEASING` is now in the map,
+`stg."order"` is in the catalogue check, `VAL_ORDER_KSYMBOL_DOMAIN` reports
+unknown order categories the way its transaction twin always did, and
+`tests/test_dq.py` now asserts both that no staged row carries a code without a
+label and that every coded column appears in the catalogue check -- so the next
+coded column cannot be added without being covered.
+
+---
+
+## D018 - The sign of a transaction is resolved once, in staging
+
+**Context.** `trans.amount` is unsigned. Direction lives in a separate Czech
+code: `PRIJEM` increases the balance, `VYDAJ` and `VYBER` decrease it. Two
+different words mean "outgoing".
+
+**Options.** (a) Publish amount and type, and let each query apply the sign.
+(b) Publish a `direction` label and let each query apply the sign.
+(c) Publish `signed_amount` computed once, with amount and type kept beside it.
+
+**Choice.** (c).
+
+**Reason.** This is the single most valuable cleaning step in the build for
+AI-readiness, and it is worth being plain about why. Every "net flow", "total
+out", "largest withdrawal" question turns on a `CASE` over two Czech words. A
+query that gets it wrong does not fail -- it returns a confident, plausible,
+wrong number, and the most likely way for that to happen is an LLM that saw
+`VYDAJ` in a context pack and did not see `VYBER`. Resolving it once in the
+data removes the failure mode rather than guarding against it. C10 signed
+**1,056,320** postings.
+
+**Consequence.** One derived column on the largest table, and three columns
+that can in principle disagree. `VAL_TRANS_AMOUNT_NEGATIVE` and the balance
+reconciliation rules are what keep them honest. This is also the clearest
+example of the general point: the way to stop a generated query being wrong is
+to make the right answer the easy one to write, not to inspect the query
+afterwards.
+
+---
+
+## D019 - A month-end balance is derived, with the tie-break written down
+
+**Context.** Q9 asks for a closing balance. The source has no month-end
+balance; it has postings with a running `balance_after`. Worse,
+`trans_id` is not chronological within a day, so "the last posting of the
+month" is genuinely ambiguous for **183** accounts
+(`CON_INTRADAY_ORDER_AMBIGUOUS`).
+
+**Options.** (a) Make the consumer derive it per query. (b) Derive it and
+leave months with no activity missing. (c) Derive it, fill the gaps by carrying
+the last known balance forward, and mark the carried rows.
+
+**Choice.** (c): latest `trans_date` in the month, ties broken by highest
+`trans_id`, gaps carried forward with `is_carried_forward` and
+`balance_as_of_month_end` exposed.
+
+**Reason.** (a) guarantees two answers to the same question. (b) makes "average
+closing balance" silently exclude quiet accounts, which biases it upward. (c)
+costs one pre-computed table and makes the ambiguity visible rather than
+arbitrary: C20 shows **558** month ends inherited from an earlier posting, each
+marked as such.
+
+**Consequence.** The tie-break is a choice, not a fact, and for those 183
+accounts a different tie-break gives a different number. That is stated in the
+semantic layer as a caveat so it reaches the answer, and it is the reason the
+rule is `warn` rather than `info`.
+
+---
+
+## D020 - Cleaning is graded, not gated: nothing is filtered before the rules run
+
+**Context.** The staging layer could reject bad rows as it types them -- it is
+the natural place to put a filter, and it would make `core` cleaner.
+
+**Options.** (a) Filter in staging as part of the cast. (b) Filter nowhere, and
+publish everything. (c) Stage everything, grade it in a separate layer, and let
+the grade decide what reaches the product.
+
+**Choice.** (c). `sql/10_stg.sql` states it as a contract: *nothing is filtered
+out here*.
+
+**Reason.** A rule layer cannot report on rows it cannot see. If staging drops
+the duplicate transaction, the uniqueness rule has nothing to count and the
+defect report says the data is clean. Separating the two means the quality
+report describes the source rather than describing what survived the loader --
+which is the difference between a data quality report and a data quality
+anecdote.
+
+**Consequence.** `stg` is the larger of the two layers and holds rows that will
+never be published. That is the intended cost, and it is also what makes C21's
+reconciliation meaningful: `core` = `stg` - quarantine is checkable precisely
+because `stg` kept everything.

@@ -53,7 +53,7 @@ files never changed behind our backs.
 Now we sort the shopping. Dates become real dates. Czech codes become English
 words, so `POPLATEK MESICNE` becomes `monthly`.
 
-And we check everything. We wrote **123 checks** — things like *"every payment
+And we check everything. We wrote **124 checks** — things like *"every payment
 must belong to a real account"* and *"no two customers can have the same
 customer number"*.
 

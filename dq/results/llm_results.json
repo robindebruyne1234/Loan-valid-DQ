@@ -1,6 +1,6 @@
 {
-  "generated_at_utc": "2026-10-22T10:54:03+00:00",
-  "git_commit": "b11c23f",
+  "generated_at_utc": "2026-10-25T07:52:57+00:00",
+  "git_commit": "da3e93f",
   "label": "LLM-GENERATED (never hand-corrected)",
   "provider": "claude_cli",
   "model": "claude-sonnet-5-5",
@@ -23,14 +23,14 @@
           "attempt": 1,
           "executed_call": true,
           "call_error": null,
-          "duration_sec": 11.081,
+          "duration_sec": 7.459,
           "feedback_given": null,
           "generated_sql": "SELECT region, count(*) AS client_count FROM ai.client GROUP BY region ORDER BY client_count DESC, region",
-          "model_reasoning": "I used ai.client, which has one row per client, so the certified client_count metric count(*) needs no DISTINCT. I grouped by the client's own region (ai.client.region, the region the client lives in), not the account's region (assumption A1). The count includes clients who hold no account, because ai.client holds all clients.",
+          "model_reasoning": "Used ai.client, one row per client, with the client's own region (the region of the district the client lives in) as required by assumption A1, rather than ai.account.region. Because the grain is one row per client, count(*) is the certified client_count and no DISTINCT or joins are needed, which avoids double-counting clients with multiple accounts or dispositions.",
           "model_assumptions": [
-            "'Clients' means every client the caller is entitled to see in ai.client, including clients who own no account and clients who are only disponents.",
-            "'Region' means the region where the client lives (ai.client.region), not the region where an account is registered.",
-            "Counts cover only the caller's entitled clients, so the totals describe their portfolio and not the whole bank."
+            "'Clients' means all clients in ai.client, including those who hold no account or are only disponents.",
+            "'Region' means the region where the client lives (ai.client.region), not the region of any account they own.",
+            "Counts reflect only the clients the caller is entitled to see, as applied by the database policy."
           ],
           "model_caveats": [
             "C4"
@@ -122,18 +122,18 @@
         "region",
         "client_count"
       ],
-      "model_reasoning": "I used ai.client, which has one row per client, so the certified client_count metric count(*) needs no DISTINCT. I grouped by the client's own region (ai.client.region, the region the client lives in), not the account's region (assumption A1). The count includes clients who hold no account, because ai.client holds all clients.",
+      "model_reasoning": "Used ai.client, one row per client, with the client's own region (the region of the district the client lives in) as required by assumption A1, rather than ai.account.region. Because the grain is one row per client, count(*) is the certified client_count and no DISTINCT or joins are needed, which avoids double-counting clients with multiple accounts or dispositions.",
       "model_assumptions": [
-        "'Clients' means every client the caller is entitled to see in ai.client, including clients who own no account and clients who are only disponents.",
-        "'Region' means the region where the client lives (ai.client.region), not the region where an account is registered.",
-        "Counts cover only the caller's entitled clients, so the totals describe their portfolio and not the whole bank."
+        "'Clients' means all clients in ai.client, including those who hold no account or are only disponents.",
+        "'Region' means the region where the client lives (ai.client.region), not the region of any account they own.",
+        "Counts reflect only the clients the caller is entitled to see, as applied by the database policy."
       ],
       "model_caveats": [
         "C4"
       ],
       "guard_reason": "allowed (row limit 10000 applied)",
       "error": null,
-      "executed_at_utc": "2026-10-22T10:52:20+00:00"
+      "executed_at_utc": "2026-10-25T07:51:47+00:00"
     },
     "Q2": {
       "question_id": "Q2",
@@ -148,113 +148,113 @@
           "attempt": 1,
           "executed_call": true,
           "call_error": null,
-          "duration_sec": 10.841,
+          "duration_sec": 7.332,
           "feedback_given": null,
-          "generated_sql": "SELECT loan_year, count(*) AS loan_count, sum(amount) AS total_loan_amount FROM ai.loan GROUP BY loan_year ORDER BY loan_year",
-          "model_reasoning": "I used ai.loan, which has one row per loan and a materialised loan_year, so no join is needed. I summed amount (the principal granted) with the certified total_loan_amount expression, not monthly_payment * duration_months, which would include interest. I returned the loan count beside each total so the volume behind it is visible.",
+          "generated_sql": "SELECT l.loan_year AS loan_year, SUM(l.amount) AS total_loan_amount_czk, COUNT(*) AS loan_count FROM ai.loan AS l GROUP BY l.loan_year ORDER BY l.loan_year",
+          "model_reasoning": "I used ai.loan, which has one row per loan and a materialised loan_year, so no join is needed. I summed amount (the principal granted), as the certified total_loan_amount metric requires, and not monthly_payment * duration_months, which includes interest. I added the loan count for each year so the reader can see what each total is based on.",
           "model_assumptions": [
-            "'Granted' means loan_date, so loan_year is the year the loan started.",
+            "'Granted' means loan_date, so each loan counts in loan_year, the year of its start date.",
             "Amounts are in CZK and are not rounded.",
-            "Totals cover only the loans the caller is entitled to see, so another user may get different numbers.",
-            "Years with no loans do not appear. I did not join ai.calendar because the question doesn't ask for zero-filled periods, and ai.calendar has no year-level link to loans beyond loan_year."
+            "Only years with at least one visible loan are returned. ai.calendar is not joined, because the question does not ask for zero-filled periods and the caller's entitlement may hide some loans.",
+            "Totals cover only the loans the caller is entitled to see."
           ],
           "model_caveats": [],
           "guard_allowed": true,
           "guard_reason": "allowed (row limit 10000 applied)",
-          "executed_sql": "SELECT\n  loan_year,\n  COUNT(*) AS loan_count,\n  SUM(amount) AS total_loan_amount\nFROM ai.loan\nGROUP BY\n  loan_year\nORDER BY\n  loan_year\nLIMIT 10000",
+          "executed_sql": "SELECT\n  l.loan_year AS loan_year,\n  SUM(l.amount) AS total_loan_amount_czk,\n  COUNT(*) AS loan_count\nFROM ai.loan AS l\nGROUP BY\n  l.loan_year\nORDER BY\n  l.loan_year\nLIMIT 10000",
           "status": "answered",
           "row_count": 6,
           "columns": [
             "loan_year",
-            "loan_count",
-            "total_loan_amount"
+            "total_loan_amount_czk",
+            "loan_count"
           ],
           "rows": [
             {
               "loan_year": 1993,
-              "loan_count": 20,
-              "total_loan_amount": 2619276.0
+              "total_loan_amount_czk": 2619276.0,
+              "loan_count": 20
             },
             {
               "loan_year": 1994,
-              "loan_count": 101,
-              "total_loan_amount": 13379904.0
+              "total_loan_amount_czk": 13379904.0,
+              "loan_count": 101
             },
             {
               "loan_year": 1995,
-              "loan_count": 90,
-              "total_loan_amount": 13344372.0
+              "total_loan_amount_czk": 13344372.0,
+              "loan_count": 90
             },
             {
               "loan_year": 1996,
-              "loan_count": 117,
-              "total_loan_amount": 18317676.0
+              "total_loan_amount_czk": 18317676.0,
+              "loan_count": 117
             },
             {
               "loan_year": 1997,
-              "loan_count": 196,
-              "total_loan_amount": 30731364.0
+              "total_loan_amount_czk": 30731364.0,
+              "loan_count": 196
             },
             {
               "loan_year": 1998,
-              "loan_count": 158,
-              "total_loan_amount": 24869148.0
+              "total_loan_amount_czk": 24869148.0,
+              "loan_count": 158
             }
           ]
         }
       ],
       "attempts_used": 1,
-      "generated_sql": "SELECT loan_year, count(*) AS loan_count, sum(amount) AS total_loan_amount FROM ai.loan GROUP BY loan_year ORDER BY loan_year",
-      "executed_sql": "SELECT\n  loan_year,\n  COUNT(*) AS loan_count,\n  SUM(amount) AS total_loan_amount\nFROM ai.loan\nGROUP BY\n  loan_year\nORDER BY\n  loan_year\nLIMIT 10000",
+      "generated_sql": "SELECT l.loan_year AS loan_year, SUM(l.amount) AS total_loan_amount_czk, COUNT(*) AS loan_count FROM ai.loan AS l GROUP BY l.loan_year ORDER BY l.loan_year",
+      "executed_sql": "SELECT\n  l.loan_year AS loan_year,\n  SUM(l.amount) AS total_loan_amount_czk,\n  COUNT(*) AS loan_count\nFROM ai.loan AS l\nGROUP BY\n  l.loan_year\nORDER BY\n  l.loan_year\nLIMIT 10000",
       "rows": [
         {
           "loan_year": 1993,
-          "loan_count": 20,
-          "total_loan_amount": 2619276.0
+          "total_loan_amount_czk": 2619276.0,
+          "loan_count": 20
         },
         {
           "loan_year": 1994,
-          "loan_count": 101,
-          "total_loan_amount": 13379904.0
+          "total_loan_amount_czk": 13379904.0,
+          "loan_count": 101
         },
         {
           "loan_year": 1995,
-          "loan_count": 90,
-          "total_loan_amount": 13344372.0
+          "total_loan_amount_czk": 13344372.0,
+          "loan_count": 90
         },
         {
           "loan_year": 1996,
-          "loan_count": 117,
-          "total_loan_amount": 18317676.0
+          "total_loan_amount_czk": 18317676.0,
+          "loan_count": 117
         },
         {
           "loan_year": 1997,
-          "loan_count": 196,
-          "total_loan_amount": 30731364.0
+          "total_loan_amount_czk": 30731364.0,
+          "loan_count": 196
         },
         {
           "loan_year": 1998,
-          "loan_count": 158,
-          "total_loan_amount": 24869148.0
+          "total_loan_amount_czk": 24869148.0,
+          "loan_count": 158
         }
       ],
       "row_count": 6,
       "columns": [
         "loan_year",
-        "loan_count",
-        "total_loan_amount"
+        "total_loan_amount_czk",
+        "loan_count"
       ],
-      "model_reasoning": "I used ai.loan, which has one row per loan and a materialised loan_year, so no join is needed. I summed amount (the principal granted) with the certified total_loan_amount expression, not monthly_payment * duration_months, which would include interest. I returned the loan count beside each total so the volume behind it is visible.",
+      "model_reasoning": "I used ai.loan, which has one row per loan and a materialised loan_year, so no join is needed. I summed amount (the principal granted), as the certified total_loan_amount metric requires, and not monthly_payment * duration_months, which includes interest. I added the loan count for each year so the reader can see what each total is based on.",
       "model_assumptions": [
-        "'Granted' means loan_date, so loan_year is the year the loan started.",
+        "'Granted' means loan_date, so each loan counts in loan_year, the year of its start date.",
         "Amounts are in CZK and are not rounded.",
-        "Totals cover only the loans the caller is entitled to see, so another user may get different numbers.",
-        "Years with no loans do not appear. I did not join ai.calendar because the question doesn't ask for zero-filled periods, and ai.calendar has no year-level link to loans beyond loan_year."
+        "Only years with at least one visible loan are returned. ai.calendar is not joined, because the question does not ask for zero-filled periods and the caller's entitlement may hide some loans.",
+        "Totals cover only the loans the caller is entitled to see."
       ],
       "model_caveats": [],
       "guard_reason": "allowed (row limit 10000 applied)",
       "error": null,
-      "executed_at_utc": "2026-10-22T10:52:31+00:00"
+      "executed_at_utc": "2026-10-25T07:51:55+00:00"
     },
     "Q3": {
       "question_id": "Q3",
@@ -269,13 +269,13 @@
           "attempt": 1,
           "executed_call": true,
           "call_error": null,
-          "duration_sec": 10.728,
+          "duration_sec": 6.281,
           "feedback_given": null,
           "generated_sql": "SELECT count(*) AS loan_count, count(*) FILTER (WHERE is_problematic) AS problematic_loan_count, round(100.0 * count(*) FILTER (WHERE is_problematic) / count(*), 2) AS problematic_loan_share_pct FROM ai.loan",
-          "model_reasoning": "I used ai.loan, which has one row per loan and carries the certified is_problematic boolean (status B or D). I applied the certified problematic_loan_share expression as written, with no status_code comparison of my own, so it does not count only B. The total and problematic counts are returned next to the percentage so the denominator is visible.",
+          "model_reasoning": "I used ai.loan, which has one row per loan and carries the certified is_problematic column (status B or D). I applied the certified problematic_loan_share expression as written and did not rebuild the definition from status_code. I also return the total and problematic loan counts next to the percentage so the denominator is visible.",
           "model_assumptions": [
-            "'Our loans' means all loans the caller is entitled to see, so the share describes the caller's own portfolio, not the whole bank.",
-            "Loans are counted regardless of date or status, because the question sets no period or filter."
+            "'Our loans' means all loans the caller is entitled to see. The database filters rows by entitlement, so the share describes the caller's own portfolio.",
+            "'Problematic' follows the certified definition: status B (finished, unpaid) or D (running, client in debt)."
           ],
           "model_caveats": [],
           "guard_allowed": true,
@@ -313,15 +313,15 @@
         "problematic_loan_count",
         "problematic_loan_share_pct"
       ],
-      "model_reasoning": "I used ai.loan, which has one row per loan and carries the certified is_problematic boolean (status B or D). I applied the certified problematic_loan_share expression as written, with no status_code comparison of my own, so it does not count only B. The total and problematic counts are returned next to the percentage so the denominator is visible.",
+      "model_reasoning": "I used ai.loan, which has one row per loan and carries the certified is_problematic column (status B or D). I applied the certified problematic_loan_share expression as written and did not rebuild the definition from status_code. I also return the total and problematic loan counts next to the percentage so the denominator is visible.",
       "model_assumptions": [
-        "'Our loans' means all loans the caller is entitled to see, so the share describes the caller's own portfolio, not the whole bank.",
-        "Loans are counted regardless of date or status, because the question sets no period or filter."
+        "'Our loans' means all loans the caller is entitled to see. The database filters rows by entitlement, so the share describes the caller's own portfolio.",
+        "'Problematic' follows the certified definition: status B (finished, unpaid) or D (running, client in debt)."
       ],
       "model_caveats": [],
       "guard_reason": "allowed (row limit 10000 applied)",
       "error": null,
-      "executed_at_utc": "2026-10-22T10:52:41+00:00"
+      "executed_at_utc": "2026-10-25T07:52:01+00:00"
     },
     "Q4": {
       "question_id": "Q4",
@@ -336,13 +336,13 @@
           "attempt": 1,
           "executed_call": true,
           "call_error": null,
-          "duration_sec": 10.644,
+          "duration_sec": 7.188,
           "feedback_given": null,
           "generated_sql": "SELECT owner_card_type, count(*) AS loan_count, round(avg(amount), 2) AS average_loan_amount FROM ai.loan GROUP BY owner_card_type ORDER BY average_loan_amount DESC",
-          "model_reasoning": "I used ai.loan because it is already joined to the account owner and exposes owner_card_type, which means the OWNER's card and includes the literal 'no card'. Every loan therefore falls in exactly one group, and I avoided joining ai.card, where a disponent's card could be attributed to the owner. I used the certified average_loan_amount expression, round(avg(amount), 2), on the principal, and I return the loan count beside each average.",
+          "model_reasoning": "I used ai.loan because it already carries the account owner's card type, with the literal 'no card' where the owner has none. Every loan therefore falls in exactly one group, and I did not join ai.card, which could pick up a disponent's card. The average uses the certified expression round(avg(amount), 2) on the principal, and loan_count is returned next to it so each group's denominator is visible.",
           "model_assumptions": [
-            "'Average loan amount' means the average principal (ai.loan.amount) per loan, in CZK.",
-            "Loans whose owner holds no card are reported as their own 'no card' group.",
+            "'Card type of the account owner' means ai.loan.owner_card_type, so owners with no card appear as the 'no card' group.",
+            "'Loan amount' means the principal granted (amount), not monthly_payment * duration_months.",
             "Results cover only the loans the caller is entitled to see, so the averages describe their portfolio."
           ],
           "model_caveats": [],
@@ -411,16 +411,16 @@
         "loan_count",
         "average_loan_amount"
       ],
-      "model_reasoning": "I used ai.loan because it is already joined to the account owner and exposes owner_card_type, which means the OWNER's card and includes the literal 'no card'. Every loan therefore falls in exactly one group, and I avoided joining ai.card, where a disponent's card could be attributed to the owner. I used the certified average_loan_amount expression, round(avg(amount), 2), on the principal, and I return the loan count beside each average.",
+      "model_reasoning": "I used ai.loan because it already carries the account owner's card type, with the literal 'no card' where the owner has none. Every loan therefore falls in exactly one group, and I did not join ai.card, which could pick up a disponent's card. The average uses the certified expression round(avg(amount), 2) on the principal, and loan_count is returned next to it so each group's denominator is visible.",
       "model_assumptions": [
-        "'Average loan amount' means the average principal (ai.loan.amount) per loan, in CZK.",
-        "Loans whose owner holds no card are reported as their own 'no card' group.",
+        "'Card type of the account owner' means ai.loan.owner_card_type, so owners with no card appear as the 'no card' group.",
+        "'Loan amount' means the principal granted (amount), not monthly_payment * duration_months.",
         "Results cover only the loans the caller is entitled to see, so the averages describe their portfolio."
       ],
       "model_caveats": [],
       "guard_reason": "allowed (row limit 10000 applied)",
       "error": null,
-      "executed_at_utc": "2026-10-22T10:52:52+00:00"
+      "executed_at_utc": "2026-10-25T07:52:08+00:00"
     },
     "Q5": {
       "question_id": "Q5",
@@ -435,227 +435,227 @@
           "attempt": 1,
           "executed_call": true,
           "call_error": null,
-          "duration_sec": 12.768,
+          "duration_sec": 7.907,
           "feedback_given": null,
-          "generated_sql": "SELECT account_district_id AS district_id, account_district_name AS district_name, account_region AS region, sum(amount) AS total_incoming_amount, count(*) AS credit_posting_count, count(DISTINCT account_id) AS account_count FROM ai.transaction WHERE direction = 'credit' AND trans_date >= DATE '1997-01-01' AND trans_date < DATE '1998-01-01' GROUP BY account_district_id, account_district_name, account_region ORDER BY sum(amount) DESC, account_district_id LIMIT 10",
-          "model_reasoning": "I used ai.transaction, which already carries the account's district. I filtered to direction = 'credit' and summed the positive amount column, not signed_amount. I grouped by the account's district, not the owner's, because the question is about money arriving at accounts. The 1997 filter is a half-open date range. Ties are broken by district_id so the top 10 is deterministic.",
+          "generated_sql": "SELECT t.account_district_id, t.account_district_name, t.account_region, sum(t.amount) AS incoming_transaction_amount, count(*) AS credit_posting_count, count(DISTINCT t.account_id) AS accounts_with_credits FROM ai.transaction t WHERE t.direction = 'credit' AND t.trans_date >= DATE '1997-01-01' AND t.trans_date < DATE '1998-01-01' GROUP BY t.account_district_id, t.account_district_name, t.account_region ORDER BY incoming_transaction_amount DESC, t.account_district_name ASC LIMIT 10",
+          "model_reasoning": "Used ai.transaction, which is pre-joined to the account's district, filtered to direction = 'credit' and summed the positive amount (certified incoming_transaction_amount), not signed_amount. Districts are the account's registered district rather than the owner's, and the 1997 window uses a half-open date range. Supporting counts of credit postings and accounts are returned beside each total.",
           "model_assumptions": [
-            "'Districts' means the district the account is registered in (account_district_*), not where the account owner lives.",
-            "'1997' means trans_date from 1997-01-01 to 1997-12-31 inclusive.",
-            "Amounts are in CZK and are not rounded.",
-            "Totals cover only the clients the caller is entitled to see, so another user may get different numbers.",
-            "A district with no credits in 1997 cannot rank in the top 10, so no calendar join is needed."
+            "'District' means the district the account is registered in (account_district_name), per the transaction entity's guidance for Q5.",
+            "'In 1997' means trans_date from 1997-01-01 to 1997-12-31 inclusive.",
+            "Totals cover only the clients the caller is entitled to see, so another user may see a different ranking.",
+            "Ties on total are broken alphabetically by district name; amounts are CZK and not rounded."
           ],
           "model_caveats": [
             "C5",
+            "C6",
             "C7"
           ],
           "guard_allowed": true,
           "guard_reason": "allowed",
-          "executed_sql": "SELECT\n  account_district_id AS district_id,\n  account_district_name AS district_name,\n  account_region AS region,\n  SUM(amount) AS total_incoming_amount,\n  COUNT(*) AS credit_posting_count,\n  COUNT(DISTINCT account_id) AS account_count\nFROM ai.transaction\nWHERE\n  direction = 'credit'\n  AND trans_date >= CAST('1997-01-01' AS DATE)\n  AND trans_date < CAST('1998-01-01' AS DATE)\nGROUP BY\n  account_district_id,\n  account_district_name,\n  account_region\nORDER BY\n  SUM(amount) DESC,\n  account_district_id\nLIMIT 10",
+          "executed_sql": "SELECT\n  t.account_district_id,\n  t.account_district_name,\n  t.account_region,\n  SUM(t.amount) AS incoming_transaction_amount,\n  COUNT(*) AS credit_posting_count,\n  COUNT(DISTINCT t.account_id) AS accounts_with_credits\nFROM ai.transaction AS t\nWHERE\n  t.direction = 'credit'\n  AND t.trans_date >= CAST('1997-01-01' AS DATE)\n  AND t.trans_date < CAST('1998-01-01' AS DATE)\nGROUP BY\n  t.account_district_id,\n  t.account_district_name,\n  t.account_region\nORDER BY\n  incoming_transaction_amount DESC,\n  t.account_district_name ASC\nLIMIT 10",
           "status": "answered",
           "row_count": 10,
           "columns": [
-            "district_id",
-            "district_name",
-            "region",
-            "total_incoming_amount",
+            "account_district_id",
+            "account_district_name",
+            "account_region",
+            "incoming_transaction_amount",
             "credit_posting_count",
-            "account_count"
+            "accounts_with_credits"
           ],
           "rows": [
             {
-              "district_id": 1,
-              "district_name": "Hl.m. Praha",
-              "region": "Prague",
-              "total_incoming_amount": 115130200.1,
+              "account_district_id": 1,
+              "account_district_name": "Hl.m. Praha",
+              "account_region": "Prague",
+              "incoming_transaction_amount": 115130200.1,
               "credit_posting_count": 13611,
-              "account_count": 554
+              "accounts_with_credits": 554
             },
             {
-              "district_id": 70,
-              "district_name": "Karvina",
-              "region": "north Moravia",
-              "total_incoming_amount": 28506437.1,
+              "account_district_id": 70,
+              "account_district_name": "Karvina",
+              "account_region": "north Moravia",
+              "incoming_transaction_amount": 28506437.1,
               "credit_posting_count": 3802,
-              "account_count": 152
+              "accounts_with_credits": 152
             },
             {
-              "district_id": 74,
-              "district_name": "Ostrava - mesto",
-              "region": "north Moravia",
-              "total_incoming_amount": 27689271.9,
+              "account_district_id": 74,
+              "account_district_name": "Ostrava - mesto",
+              "account_region": "north Moravia",
+              "incoming_transaction_amount": 27689271.9,
               "credit_posting_count": 3378,
-              "account_count": 135
+              "accounts_with_credits": 135
             },
             {
-              "district_id": 54,
-              "district_name": "Brno - mesto",
-              "region": "south Moravia",
-              "total_incoming_amount": 23095083.4,
+              "account_district_id": 54,
+              "account_district_name": "Brno - mesto",
+              "account_region": "south Moravia",
+              "incoming_transaction_amount": 23095083.4,
               "credit_posting_count": 3041,
-              "account_count": 128
+              "accounts_with_credits": 128
             },
             {
-              "district_id": 64,
-              "district_name": "Zlin",
-              "region": "south Moravia",
-              "total_incoming_amount": 19723168.5,
+              "account_district_id": 64,
+              "account_district_name": "Zlin",
+              "account_region": "south Moravia",
+              "incoming_transaction_amount": 19723168.5,
               "credit_posting_count": 2299,
-              "account_count": 92
+              "accounts_with_credits": 92
             },
             {
-              "district_id": 68,
-              "district_name": "Frydek - Mistek",
-              "region": "north Moravia",
-              "total_incoming_amount": 19087598.8,
+              "account_district_id": 68,
+              "account_district_name": "Frydek - Mistek",
+              "account_region": "north Moravia",
+              "incoming_transaction_amount": 19087598.8,
               "credit_posting_count": 2006,
-              "account_count": 83
+              "accounts_with_credits": 83
             },
             {
-              "district_id": 72,
-              "district_name": "Olomouc",
-              "region": "north Moravia",
-              "total_incoming_amount": 15916397.0,
+              "account_district_id": 72,
+              "account_district_name": "Olomouc",
+              "account_region": "north Moravia",
+              "incoming_transaction_amount": 15916397.0,
               "credit_posting_count": 2129,
-              "account_count": 88
+              "accounts_with_credits": 88
             },
             {
-              "district_id": 5,
-              "district_name": "Kolin",
-              "region": "central Bohemia",
-              "total_incoming_amount": 14471603.6,
+              "account_district_id": 5,
+              "account_district_name": "Kolin",
+              "account_region": "central Bohemia",
+              "incoming_transaction_amount": 14471603.6,
               "credit_posting_count": 1542,
-              "account_count": 65
+              "accounts_with_credits": 65
             },
             {
-              "district_id": 52,
-              "district_name": "Usti nad Orlici",
-              "region": "east Bohemia",
-              "total_incoming_amount": 14085167.4,
+              "account_district_id": 52,
+              "account_district_name": "Usti nad Orlici",
+              "account_region": "east Bohemia",
+              "incoming_transaction_amount": 14085167.4,
               "credit_posting_count": 1431,
-              "account_count": 57
+              "accounts_with_credits": 57
             },
             {
-              "district_id": 19,
-              "district_name": "Prachatice",
-              "region": "south Bohemia",
-              "total_incoming_amount": 12163147.0,
+              "account_district_id": 19,
+              "account_district_name": "Prachatice",
+              "account_region": "south Bohemia",
+              "incoming_transaction_amount": 12163147.0,
               "credit_posting_count": 1359,
-              "account_count": 55
+              "accounts_with_credits": 55
             }
           ]
         }
       ],
       "attempts_used": 1,
-      "generated_sql": "SELECT account_district_id AS district_id, account_district_name AS district_name, account_region AS region, sum(amount) AS total_incoming_amount, count(*) AS credit_posting_count, count(DISTINCT account_id) AS account_count FROM ai.transaction WHERE direction = 'credit' AND trans_date >= DATE '1997-01-01' AND trans_date < DATE '1998-01-01' GROUP BY account_district_id, account_district_name, account_region ORDER BY sum(amount) DESC, account_district_id LIMIT 10",
-      "executed_sql": "SELECT\n  account_district_id AS district_id,\n  account_district_name AS district_name,\n  account_region AS region,\n  SUM(amount) AS total_incoming_amount,\n  COUNT(*) AS credit_posting_count,\n  COUNT(DISTINCT account_id) AS account_count\nFROM ai.transaction\nWHERE\n  direction = 'credit'\n  AND trans_date >= CAST('1997-01-01' AS DATE)\n  AND trans_date < CAST('1998-01-01' AS DATE)\nGROUP BY\n  account_district_id,\n  account_district_name,\n  account_region\nORDER BY\n  SUM(amount) DESC,\n  account_district_id\nLIMIT 10",
+      "generated_sql": "SELECT t.account_district_id, t.account_district_name, t.account_region, sum(t.amount) AS incoming_transaction_amount, count(*) AS credit_posting_count, count(DISTINCT t.account_id) AS accounts_with_credits FROM ai.transaction t WHERE t.direction = 'credit' AND t.trans_date >= DATE '1997-01-01' AND t.trans_date < DATE '1998-01-01' GROUP BY t.account_district_id, t.account_district_name, t.account_region ORDER BY incoming_transaction_amount DESC, t.account_district_name ASC LIMIT 10",
+      "executed_sql": "SELECT\n  t.account_district_id,\n  t.account_district_name,\n  t.account_region,\n  SUM(t.amount) AS incoming_transaction_amount,\n  COUNT(*) AS credit_posting_count,\n  COUNT(DISTINCT t.account_id) AS accounts_with_credits\nFROM ai.transaction AS t\nWHERE\n  t.direction = 'credit'\n  AND t.trans_date >= CAST('1997-01-01' AS DATE)\n  AND t.trans_date < CAST('1998-01-01' AS DATE)\nGROUP BY\n  t.account_district_id,\n  t.account_district_name,\n  t.account_region\nORDER BY\n  incoming_transaction_amount DESC,\n  t.account_district_name ASC\nLIMIT 10",
       "rows": [
         {
-          "district_id": 1,
-          "district_name": "Hl.m. Praha",
-          "region": "Prague",
-          "total_incoming_amount": 115130200.1,
+          "account_district_id": 1,
+          "account_district_name": "Hl.m. Praha",
+          "account_region": "Prague",
+          "incoming_transaction_amount": 115130200.1,
           "credit_posting_count": 13611,
-          "account_count": 554
+          "accounts_with_credits": 554
         },
         {
-          "district_id": 70,
-          "district_name": "Karvina",
-          "region": "north Moravia",
-          "total_incoming_amount": 28506437.1,
+          "account_district_id": 70,
+          "account_district_name": "Karvina",
+          "account_region": "north Moravia",
+          "incoming_transaction_amount": 28506437.1,
           "credit_posting_count": 3802,
-          "account_count": 152
+          "accounts_with_credits": 152
         },
         {
-          "district_id": 74,
-          "district_name": "Ostrava - mesto",
-          "region": "north Moravia",
-          "total_incoming_amount": 27689271.9,
+          "account_district_id": 74,
+          "account_district_name": "Ostrava - mesto",
+          "account_region": "north Moravia",
+          "incoming_transaction_amount": 27689271.9,
           "credit_posting_count": 3378,
-          "account_count": 135
+          "accounts_with_credits": 135
         },
         {
-          "district_id": 54,
-          "district_name": "Brno - mesto",
-          "region": "south Moravia",
-          "total_incoming_amount": 23095083.4,
+          "account_district_id": 54,
+          "account_district_name": "Brno - mesto",
+          "account_region": "south Moravia",
+          "incoming_transaction_amount": 23095083.4,
           "credit_posting_count": 3041,
-          "account_count": 128
+          "accounts_with_credits": 128
         },
         {
-          "district_id": 64,
-          "district_name": "Zlin",
-          "region": "south Moravia",
-          "total_incoming_amount": 19723168.5,
+          "account_district_id": 64,
+          "account_district_name": "Zlin",
+          "account_region": "south Moravia",
+          "incoming_transaction_amount": 19723168.5,
           "credit_posting_count": 2299,
-          "account_count": 92
+          "accounts_with_credits": 92
         },
         {
-          "district_id": 68,
-          "district_name": "Frydek - Mistek",
-          "region": "north Moravia",
-          "total_incoming_amount": 19087598.8,
+          "account_district_id": 68,
+          "account_district_name": "Frydek - Mistek",
+          "account_region": "north Moravia",
+          "incoming_transaction_amount": 19087598.8,
           "credit_posting_count": 2006,
-          "account_count": 83
+          "accounts_with_credits": 83
         },
         {
-          "district_id": 72,
-          "district_name": "Olomouc",
-          "region": "north Moravia",
-          "total_incoming_amount": 15916397.0,
+          "account_district_id": 72,
+          "account_district_name": "Olomouc",
+          "account_region": "north Moravia",
+          "incoming_transaction_amount": 15916397.0,
           "credit_posting_count": 2129,
-          "account_count": 88
+          "accounts_with_credits": 88
         },
         {
-          "district_id": 5,
-          "district_name": "Kolin",
-          "region": "central Bohemia",
-          "total_incoming_amount": 14471603.6,
+          "account_district_id": 5,
+          "account_district_name": "Kolin",
+          "account_region": "central Bohemia",
+          "incoming_transaction_amount": 14471603.6,
           "credit_posting_count": 1542,
-          "account_count": 65
+          "accounts_with_credits": 65
         },
         {
-          "district_id": 52,
-          "district_name": "Usti nad Orlici",
-          "region": "east Bohemia",
-          "total_incoming_amount": 14085167.4,
+          "account_district_id": 52,
+          "account_district_name": "Usti nad Orlici",
+          "account_region": "east Bohemia",
+          "incoming_transaction_amount": 14085167.4,
           "credit_posting_count": 1431,
-          "account_count": 57
+          "accounts_with_credits": 57
         },
         {
-          "district_id": 19,
-          "district_name": "Prachatice",
-          "region": "south Bohemia",
-          "total_incoming_amount": 12163147.0,
+          "account_district_id": 19,
+          "account_district_name": "Prachatice",
+          "account_region": "south Bohemia",
+          "incoming_transaction_amount": 12163147.0,
           "credit_posting_count": 1359,
-          "account_count": 55
+          "accounts_with_credits": 55
         }
       ],
       "row_count": 10,
       "columns": [
-        "district_id",
-        "district_name",
-        "region",
-        "total_incoming_amount",
+        "account_district_id",
+        "account_district_name",
+        "account_region",
+        "incoming_transaction_amount",
         "credit_posting_count",
-        "account_count"
+        "accounts_with_credits"
       ],
-      "model_reasoning": "I used ai.transaction, which already carries the account's district. I filtered to direction = 'credit' and summed the positive amount column, not signed_amount. I grouped by the account's district, not the owner's, because the question is about money arriving at accounts. The 1997 filter is a half-open date range. Ties are broken by district_id so the top 10 is deterministic.",
+      "model_reasoning": "Used ai.transaction, which is pre-joined to the account's district, filtered to direction = 'credit' and summed the positive amount (certified incoming_transaction_amount), not signed_amount. Districts are the account's registered district rather than the owner's, and the 1997 window uses a half-open date range. Supporting counts of credit postings and accounts are returned beside each total.",
       "model_assumptions": [
-        "'Districts' means the district the account is registered in (account_district_*), not where the account owner lives.",
-        "'1997' means trans_date from 1997-01-01 to 1997-12-31 inclusive.",
-        "Amounts are in CZK and are not rounded.",
-        "Totals cover only the clients the caller is entitled to see, so another user may get different numbers.",
-        "A district with no credits in 1997 cannot rank in the top 10, so no calendar join is needed."
+        "'District' means the district the account is registered in (account_district_name), per the transaction entity's guidance for Q5.",
+        "'In 1997' means trans_date from 1997-01-01 to 1997-12-31 inclusive.",
+        "Totals cover only the clients the caller is entitled to see, so another user may see a different ranking.",
+        "Ties on total are broken alphabetically by district name; amounts are CZK and not rounded."
       ],
       "model_caveats": [
         "C5",
+        "C6",
         "C7"
       ],
       "guard_reason": "allowed",
       "error": null,
-      "executed_at_utc": "2026-10-22T10:53:05+00:00"
+      "executed_at_utc": "2026-10-25T07:52:16+00:00"
     },
     "Q6": {
       "question_id": "Q6",
@@ -670,171 +670,145 @@
           "attempt": 1,
           "executed_call": true,
           "call_error": null,
-          "duration_sec": 10.552,
+          "duration_sec": 7.772,
           "feedback_given": null,
-          "generated_sql": "SELECT c.year_month AS month, c.month_start AS month_start, count(a.account_id) AS new_accounts FROM ai.calendar c LEFT JOIN ai.account a ON a.open_date = c.date_key WHERE c.year = 1996 GROUP BY c.year_month, c.month_start ORDER BY c.month_start",
-          "model_reasoning": "I used ai.account, where open_date defines a new account. I joined it from ai.calendar, which keeps one row per day, so the 12 months of 1996 all appear and a month with no openings shows 0 instead of dropping out. I used count(a.account_id), not count(*), so that days with no account are not counted as one.",
+          "generated_sql": "SELECT c.year_month AS month, COUNT(a.account_id) AS new_accounts FROM ai.calendar c LEFT JOIN ai.account a ON a.open_date = c.date_key WHERE c.year = 1996 GROUP BY c.year_month ORDER BY c.year_month",
+          "model_reasoning": "I used ai.account, where open_date defines a new account, and joined it to ai.calendar on each day so every month of 1996 is returned. Months with no new accounts show 0 instead of dropping out (QR6). I counted a.account_id rather than count(*), because the left join produces a row for each calendar day and count(*) would count empty days as 1.",
           "model_assumptions": [
-            "'In 1996' means open_date from 1996-01-01 to 1996-12-31, taken from the calendar year.",
-            "Counts cover only the accounts the caller is entitled to see, because the database filters them. They are not necessarily the whole bank.",
-            "One row per month is returned, so a month with no new accounts is shown as 0."
+            "'Per month in 1996' means calendar months January to December 1996, grouped by ai.calendar.year_month.",
+            "Counts cover only the accounts the caller is entitled to see, because the database applies that filter to ai.account.",
+            "A month showing 0 means no entitled account was opened that month. It does not mean the bank opened none."
           ],
           "model_caveats": [],
           "guard_allowed": true,
           "guard_reason": "allowed (row limit 10000 applied)",
-          "executed_sql": "SELECT\n  c.year_month AS month,\n  c.month_start AS month_start,\n  COUNT(a.account_id) AS new_accounts\nFROM ai.calendar AS c\nLEFT JOIN ai.account AS a\n  ON a.open_date = c.date_key\nWHERE\n  c.year = 1996\nGROUP BY\n  c.year_month,\n  c.month_start\nORDER BY\n  c.month_start\nLIMIT 10000",
+          "executed_sql": "SELECT\n  c.year_month AS month,\n  COUNT(a.account_id) AS new_accounts\nFROM ai.calendar AS c\nLEFT JOIN ai.account AS a\n  ON a.open_date = c.date_key\nWHERE\n  c.year = 1996\nGROUP BY\n  c.year_month\nORDER BY\n  c.year_month\nLIMIT 10000",
           "status": "answered",
           "row_count": 12,
           "columns": [
             "month",
-            "month_start",
             "new_accounts"
           ],
           "rows": [
             {
               "month": "1996-01",
-              "month_start": "1996-01-01",
               "new_accounts": 106
             },
             {
               "month": "1996-02",
-              "month_start": "1996-02-01",
               "new_accounts": 104
             },
             {
               "month": "1996-03",
-              "month_start": "1996-03-01",
               "new_accounts": 124
             },
             {
               "month": "1996-04",
-              "month_start": "1996-04-01",
               "new_accounts": 101
             },
             {
               "month": "1996-05",
-              "month_start": "1996-05-01",
               "new_accounts": 91
             },
             {
               "month": "1996-06",
-              "month_start": "1996-06-01",
               "new_accounts": 113
             },
             {
               "month": "1996-07",
-              "month_start": "1996-07-01",
               "new_accounts": 137
             },
             {
               "month": "1996-08",
-              "month_start": "1996-08-01",
               "new_accounts": 133
             },
             {
               "month": "1996-09",
-              "month_start": "1996-09-01",
               "new_accounts": 108
             },
             {
               "month": "1996-10",
-              "month_start": "1996-10-01",
               "new_accounts": 115
             },
             {
               "month": "1996-11",
-              "month_start": "1996-11-01",
               "new_accounts": 106
             },
             {
               "month": "1996-12",
-              "month_start": "1996-12-01",
               "new_accounts": 125
             }
           ]
         }
       ],
       "attempts_used": 1,
-      "generated_sql": "SELECT c.year_month AS month, c.month_start AS month_start, count(a.account_id) AS new_accounts FROM ai.calendar c LEFT JOIN ai.account a ON a.open_date = c.date_key WHERE c.year = 1996 GROUP BY c.year_month, c.month_start ORDER BY c.month_start",
-      "executed_sql": "SELECT\n  c.year_month AS month,\n  c.month_start AS month_start,\n  COUNT(a.account_id) AS new_accounts\nFROM ai.calendar AS c\nLEFT JOIN ai.account AS a\n  ON a.open_date = c.date_key\nWHERE\n  c.year = 1996\nGROUP BY\n  c.year_month,\n  c.month_start\nORDER BY\n  c.month_start\nLIMIT 10000",
+      "generated_sql": "SELECT c.year_month AS month, COUNT(a.account_id) AS new_accounts FROM ai.calendar c LEFT JOIN ai.account a ON a.open_date = c.date_key WHERE c.year = 1996 GROUP BY c.year_month ORDER BY c.year_month",
+      "executed_sql": "SELECT\n  c.year_month AS month,\n  COUNT(a.account_id) AS new_accounts\nFROM ai.calendar AS c\nLEFT JOIN ai.account AS a\n  ON a.open_date = c.date_key\nWHERE\n  c.year = 1996\nGROUP BY\n  c.year_month\nORDER BY\n  c.year_month\nLIMIT 10000",
       "rows": [
         {
           "month": "1996-01",
-          "month_start": "1996-01-01",
           "new_accounts": 106
         },
         {
           "month": "1996-02",
-          "month_start": "1996-02-01",
           "new_accounts": 104
         },
         {
           "month": "1996-03",
-          "month_start": "1996-03-01",
           "new_accounts": 124
         },
         {
           "month": "1996-04",
-          "month_start": "1996-04-01",
           "new_accounts": 101
         },
         {
           "month": "1996-05",
-          "month_start": "1996-05-01",
           "new_accounts": 91
         },
         {
           "month": "1996-06",
-          "month_start": "1996-06-01",
           "new_accounts": 113
         },
         {
           "month": "1996-07",
-          "month_start": "1996-07-01",
           "new_accounts": 137
         },
         {
           "month": "1996-08",
-          "month_start": "1996-08-01",
           "new_accounts": 133
         },
         {
           "month": "1996-09",
-          "month_start": "1996-09-01",
           "new_accounts": 108
         },
         {
           "month": "1996-10",
-          "month_start": "1996-10-01",
           "new_accounts": 115
         },
         {
           "month": "1996-11",
-          "month_start": "1996-11-01",
           "new_accounts": 106
         },
         {
           "month": "1996-12",
-          "month_start": "1996-12-01",
           "new_accounts": 125
         }
       ],
       "row_count": 12,
       "columns": [
         "month",
-        "month_start",
         "new_accounts"
       ],
-      "model_reasoning": "I used ai.account, where open_date defines a new account. I joined it from ai.calendar, which keeps one row per day, so the 12 months of 1996 all appear and a month with no openings shows 0 instead of dropping out. I used count(a.account_id), not count(*), so that days with no account are not counted as one.",
+      "model_reasoning": "I used ai.account, where open_date defines a new account, and joined it to ai.calendar on each day so every month of 1996 is returned. Months with no new accounts show 0 instead of dropping out (QR6). I counted a.account_id rather than count(*), because the left join produces a row for each calendar day and count(*) would count empty days as 1.",
       "model_assumptions": [
-        "'In 1996' means open_date from 1996-01-01 to 1996-12-31, taken from the calendar year.",
-        "Counts cover only the accounts the caller is entitled to see, because the database filters them. They are not necessarily the whole bank.",
-        "One row per month is returned, so a month with no new accounts is shown as 0."
+        "'Per month in 1996' means calendar months January to December 1996, grouped by ai.calendar.year_month.",
+        "Counts cover only the accounts the caller is entitled to see, because the database applies that filter to ai.account.",
+        "A month showing 0 means no entitled account was opened that month. It does not mean the bank opened none."
       ],
       "model_caveats": [],
       "guard_reason": "allowed (row limit 10000 applied)",
       "error": null,
-      "executed_at_utc": "2026-10-22T10:53:16+00:00"
+      "executed_at_utc": "2026-10-25T07:52:24+00:00"
     },
     "Q7": {
       "question_id": "Q7",
@@ -849,13 +823,13 @@
           "attempt": 1,
           "executed_call": true,
           "call_error": null,
-          "duration_sec": 14.199,
+          "duration_sec": 8.478,
           "feedback_given": null,
-          "generated_sql": "SELECT loan_status, count(*) AS loan_count, round(avg(owner_age_at_loan_start), 2) AS average_age_at_loan_start, count(*) FILTER (WHERE 'val_owner_age_at_loan_start' = ANY(data_quality_flags)) AS flagged_under_15_loans, round(avg(owner_age_at_loan_start) FILTER (WHERE NOT ('val_owner_age_at_loan_start' = ANY(data_quality_flags))), 2) AS average_age_excluding_flagged FROM ai.loan GROUP BY loan_status ORDER BY loan_status",
-          "model_reasoning": "I used ai.loan because it already carries the pre-computed exact owner_age_at_loan_start and the business-language loan_status, so no joins are needed. I applied the certified average_age_at_loan_start expression (round(avg(...), 2)) and did not derive age from birth dates. I also added loan counts per status and the average with the 6 flagged under-15 loans excluded, as caveat C3 requires.",
+          "generated_sql": "SELECT loan_status, status_code, count(*) AS loan_count, round(avg(owner_age_at_loan_start), 2) AS average_age_at_loan_start, count(*) FILTER (WHERE data_quality_flags @> ARRAY['val_owner_age_at_loan_start']) AS flagged_under_15_loans, round(avg(owner_age_at_loan_start) FILTER (WHERE NOT (data_quality_flags @> ARRAY['val_owner_age_at_loan_start'])), 2) AS average_age_excluding_flagged, count(*) FILTER (WHERE NOT (data_quality_flags @> ARRAY['val_owner_age_at_loan_start'])) AS loan_count_excluding_flagged FROM ai.loan GROUP BY loan_status, status_code ORDER BY status_code",
+          "model_reasoning": "I used ai.loan because it already carries the pre-computed exact owner_age_at_loan_start and the business-language loan_status, so no joins are needed. I applied the certified average_age_at_loan_start expression (round(avg(...),2)) rather than computing age from birth dates. Because caveat C3 asks for the average with and without the 6 under-15 loans, I also return the flagged count and the average excluding them, plus loan counts as the denominators.",
           "model_assumptions": [
-            "'Per loan status' means grouping by the business-language loan_status, which has the same four groups as status_code A-D.",
-            "The flag 'val_owner_age_at_loan_start' in data_quality_flags identifies the 6 under-15 loans for the with/without comparison.",
+            "'Per loan status' means the four statuses in ai.loan.loan_status, grouped with status_code for ordering.",
+            "The flagged loans are identified by the 'val_owner_age_at_loan_start' value in data_quality_flags, as described in the semantic layer.",
             "Results cover only the loans the caller is entitled to see, so counts and averages describe their portfolio."
           ],
           "model_caveats": [
@@ -863,93 +837,113 @@
           ],
           "guard_allowed": true,
           "guard_reason": "allowed (row limit 10000 applied)",
-          "executed_sql": "SELECT\n  loan_status,\n  COUNT(*) AS loan_count,\n  ROUND(CAST(AVG(owner_age_at_loan_start) AS DECIMAL), 2) AS average_age_at_loan_start,\n  COUNT(*) FILTER(WHERE\n    'val_owner_age_at_loan_start' = ANY(\n      data_quality_flags\n    )) AS flagged_under_15_loans,\n  ROUND(\n    CAST(AVG(owner_age_at_loan_start) FILTER(WHERE\n      NOT (\n        'val_owner_age_at_loan_start' = ANY(\n          data_quality_flags\n        )\n      )) AS DECIMAL),\n    2\n  ) AS average_age_excluding_flagged\nFROM ai.loan\nGROUP BY\n  loan_status\nORDER BY\n  loan_status\nLIMIT 10000",
+          "executed_sql": "SELECT\n  loan_status,\n  status_code,\n  COUNT(*) AS loan_count,\n  ROUND(CAST(AVG(owner_age_at_loan_start) AS DECIMAL), 2) AS average_age_at_loan_start,\n  COUNT(*) FILTER(WHERE\n    data_quality_flags @> ARRAY['val_owner_age_at_loan_start']) AS flagged_under_15_loans,\n  ROUND(\n    CAST(AVG(owner_age_at_loan_start) FILTER(WHERE\n      NOT (\n        data_quality_flags @> ARRAY['val_owner_age_at_loan_start']\n      )) AS DECIMAL),\n    2\n  ) AS average_age_excluding_flagged,\n  COUNT(*) FILTER(WHERE\n    NOT (\n      data_quality_flags @> ARRAY['val_owner_age_at_loan_start']\n    )) AS loan_count_excluding_flagged\nFROM ai.loan\nGROUP BY\n  loan_status,\n  status_code\nORDER BY\n  status_code\nLIMIT 10000",
           "status": "answered",
           "row_count": 4,
           "columns": [
             "loan_status",
+            "status_code",
             "loan_count",
             "average_age_at_loan_start",
             "flagged_under_15_loans",
-            "average_age_excluding_flagged"
+            "average_age_excluding_flagged",
+            "loan_count_excluding_flagged"
           ],
           "rows": [
             {
               "loan_status": "finished, paid in full",
+              "status_code": "A",
               "loan_count": 203,
               "average_age_at_loan_start": 37.07,
               "flagged_under_15_loans": 4,
-              "average_age_excluding_flagged": 37.53
+              "average_age_excluding_flagged": 37.53,
+              "loan_count_excluding_flagged": 199
             },
             {
               "loan_status": "finished, unpaid (default)",
+              "status_code": "B",
               "loan_count": 31,
               "average_age_at_loan_start": 39.61,
               "flagged_under_15_loans": 0,
-              "average_age_excluding_flagged": 39.61
-            },
-            {
-              "loan_status": "running, client in debt",
-              "loan_count": 45,
-              "average_age_at_loan_start": 37.0,
-              "flagged_under_15_loans": 0,
-              "average_age_excluding_flagged": 37.0
+              "average_age_excluding_flagged": 39.61,
+              "loan_count_excluding_flagged": 31
             },
             {
               "loan_status": "running, no problem",
+              "status_code": "C",
               "loan_count": 403,
               "average_age_at_loan_start": 38.7,
               "flagged_under_15_loans": 2,
-              "average_age_excluding_flagged": 38.82
+              "average_age_excluding_flagged": 38.82,
+              "loan_count_excluding_flagged": 401
+            },
+            {
+              "loan_status": "running, client in debt",
+              "status_code": "D",
+              "loan_count": 45,
+              "average_age_at_loan_start": 37.0,
+              "flagged_under_15_loans": 0,
+              "average_age_excluding_flagged": 37.0,
+              "loan_count_excluding_flagged": 45
             }
           ]
         }
       ],
       "attempts_used": 1,
-      "generated_sql": "SELECT loan_status, count(*) AS loan_count, round(avg(owner_age_at_loan_start), 2) AS average_age_at_loan_start, count(*) FILTER (WHERE 'val_owner_age_at_loan_start' = ANY(data_quality_flags)) AS flagged_under_15_loans, round(avg(owner_age_at_loan_start) FILTER (WHERE NOT ('val_owner_age_at_loan_start' = ANY(data_quality_flags))), 2) AS average_age_excluding_flagged FROM ai.loan GROUP BY loan_status ORDER BY loan_status",
-      "executed_sql": "SELECT\n  loan_status,\n  COUNT(*) AS loan_count,\n  ROUND(CAST(AVG(owner_age_at_loan_start) AS DECIMAL), 2) AS average_age_at_loan_start,\n  COUNT(*) FILTER(WHERE\n    'val_owner_age_at_loan_start' = ANY(\n      data_quality_flags\n    )) AS flagged_under_15_loans,\n  ROUND(\n    CAST(AVG(owner_age_at_loan_start) FILTER(WHERE\n      NOT (\n        'val_owner_age_at_loan_start' = ANY(\n          data_quality_flags\n        )\n      )) AS DECIMAL),\n    2\n  ) AS average_age_excluding_flagged\nFROM ai.loan\nGROUP BY\n  loan_status\nORDER BY\n  loan_status\nLIMIT 10000",
+      "generated_sql": "SELECT loan_status, status_code, count(*) AS loan_count, round(avg(owner_age_at_loan_start), 2) AS average_age_at_loan_start, count(*) FILTER (WHERE data_quality_flags @> ARRAY['val_owner_age_at_loan_start']) AS flagged_under_15_loans, round(avg(owner_age_at_loan_start) FILTER (WHERE NOT (data_quality_flags @> ARRAY['val_owner_age_at_loan_start'])), 2) AS average_age_excluding_flagged, count(*) FILTER (WHERE NOT (data_quality_flags @> ARRAY['val_owner_age_at_loan_start'])) AS loan_count_excluding_flagged FROM ai.loan GROUP BY loan_status, status_code ORDER BY status_code",
+      "executed_sql": "SELECT\n  loan_status,\n  status_code,\n  COUNT(*) AS loan_count,\n  ROUND(CAST(AVG(owner_age_at_loan_start) AS DECIMAL), 2) AS average_age_at_loan_start,\n  COUNT(*) FILTER(WHERE\n    data_quality_flags @> ARRAY['val_owner_age_at_loan_start']) AS flagged_under_15_loans,\n  ROUND(\n    CAST(AVG(owner_age_at_loan_start) FILTER(WHERE\n      NOT (\n        data_quality_flags @> ARRAY['val_owner_age_at_loan_start']\n      )) AS DECIMAL),\n    2\n  ) AS average_age_excluding_flagged,\n  COUNT(*) FILTER(WHERE\n    NOT (\n      data_quality_flags @> ARRAY['val_owner_age_at_loan_start']\n    )) AS loan_count_excluding_flagged\nFROM ai.loan\nGROUP BY\n  loan_status,\n  status_code\nORDER BY\n  status_code\nLIMIT 10000",
       "rows": [
         {
           "loan_status": "finished, paid in full",
+          "status_code": "A",
           "loan_count": 203,
           "average_age_at_loan_start": 37.07,
           "flagged_under_15_loans": 4,
-          "average_age_excluding_flagged": 37.53
+          "average_age_excluding_flagged": 37.53,
+          "loan_count_excluding_flagged": 199
         },
         {
           "loan_status": "finished, unpaid (default)",
+          "status_code": "B",
           "loan_count": 31,
           "average_age_at_loan_start": 39.61,
           "flagged_under_15_loans": 0,
-          "average_age_excluding_flagged": 39.61
-        },
-        {
-          "loan_status": "running, client in debt",
-          "loan_count": 45,
-          "average_age_at_loan_start": 37.0,
-          "flagged_under_15_loans": 0,
-          "average_age_excluding_flagged": 37.0
+          "average_age_excluding_flagged": 39.61,
+          "loan_count_excluding_flagged": 31
         },
         {
           "loan_status": "running, no problem",
+          "status_code": "C",
           "loan_count": 403,
           "average_age_at_loan_start": 38.7,
           "flagged_under_15_loans": 2,
-          "average_age_excluding_flagged": 38.82
+          "average_age_excluding_flagged": 38.82,
+          "loan_count_excluding_flagged": 401
+        },
+        {
+          "loan_status": "running, client in debt",
+          "status_code": "D",
+          "loan_count": 45,
+          "average_age_at_loan_start": 37.0,
+          "flagged_under_15_loans": 0,
+          "average_age_excluding_flagged": 37.0,
+          "loan_count_excluding_flagged": 45
         }
       ],
       "row_count": 4,
       "columns": [
         "loan_status",
+        "status_code",
         "loan_count",
         "average_age_at_loan_start",
         "flagged_under_15_loans",
-        "average_age_excluding_flagged"
+        "average_age_excluding_flagged",
+        "loan_count_excluding_flagged"
       ],
-      "model_reasoning": "I used ai.loan because it already carries the pre-computed exact owner_age_at_loan_start and the business-language loan_status, so no joins are needed. I applied the certified average_age_at_loan_start expression (round(avg(...), 2)) and did not derive age from birth dates. I also added loan counts per status and the average with the 6 flagged under-15 loans excluded, as caveat C3 requires.",
+      "model_reasoning": "I used ai.loan because it already carries the pre-computed exact owner_age_at_loan_start and the business-language loan_status, so no joins are needed. I applied the certified average_age_at_loan_start expression (round(avg(...),2)) rather than computing age from birth dates. Because caveat C3 asks for the average with and without the 6 under-15 loans, I also return the flagged count and the average excluding them, plus loan counts as the denominators.",
       "model_assumptions": [
-        "'Per loan status' means grouping by the business-language loan_status, which has the same four groups as status_code A-D.",
-        "The flag 'val_owner_age_at_loan_start' in data_quality_flags identifies the 6 under-15 loans for the with/without comparison.",
+        "'Per loan status' means the four statuses in ai.loan.loan_status, grouped with status_code for ordering.",
+        "The flagged loans are identified by the 'val_owner_age_at_loan_start' value in data_quality_flags, as described in the semantic layer.",
         "Results cover only the loans the caller is entitled to see, so counts and averages describe their portfolio."
       ],
       "model_caveats": [
@@ -957,7 +951,7 @@
       ],
       "guard_reason": "allowed (row limit 10000 applied)",
       "error": null,
-      "executed_at_utc": "2026-10-22T10:53:30+00:00"
+      "executed_at_utc": "2026-10-25T07:52:33+00:00"
     },
     "Q8": {
       "question_id": "Q8",
@@ -972,18 +966,16 @@
           "attempt": 1,
           "executed_call": true,
           "call_error": null,
-          "duration_sec": 10.674,
+          "duration_sec": 7.915,
           "feedback_given": null,
           "generated_sql": "SELECT owner_gender AS gender, count(*) AS owner_count, round(100.0 * count(*) / sum(count(*)) OVER (), 2) AS share_pct, sum(count(*)) OVER () AS total_gold_card_owners FROM ai.account_owner WHERE owner_card_type = 'gold' GROUP BY owner_gender ORDER BY owner_gender",
-          "model_reasoning": "Used ai.account_owner, which already resolves the card held by the account OWNER, filtered to owner_card_type = 'gold'. This avoids ai.card, where a disponent's gold card would wrongly make that client count as an owner with a gold card. Applied the certified gender_share expression with counts and the total shown beside the percentages.",
+          "model_reasoning": "I used ai.account_owner because it holds the card of the account OWNER and has one row per account. This avoids ai.card, which would count gold cards held by disponents. The query uses the certified gender_share expression and returns counts next to the percentages. Each row is an account, so a client who owns several gold-card accounts would be counted once per account.",
           "model_assumptions": [
-            "The split is per account, because ai.account_owner has one row per account. An owner of several accounts who holds a gold card on more than one of them would be counted once for each account.",
-            "The split covers only the clients the caller is entitled to see, so it describes their portfolio and not the whole bank.",
-            "A gender with no gold-card owners would not appear as a row."
+            "'Account owners holding a gold card' means owners whose own card is gold (owner_card_type = 'gold'). A gold card held only by a disponent does not count.",
+            "The split is counted per account, which matches the grain of ai.account_owner. In this book a client with several accounts would count once per account.",
+            "The split covers only the clients the caller is entitled to see, so it describes their portfolio and not the whole bank."
           ],
-          "model_caveats": [
-            "C4"
-          ],
+          "model_caveats": [],
           "guard_allowed": true,
           "guard_reason": "allowed (row limit 10000 applied)",
           "executed_sql": "SELECT\n  owner_gender AS gender,\n  COUNT(*) AS owner_count,\n  ROUND(CAST(100.0 * COUNT(*) / SUM(COUNT(*)) OVER () AS DECIMAL), 2) AS share_pct,\n  SUM(COUNT(*)) OVER () AS total_gold_card_owners\nFROM ai.account_owner\nWHERE\n  owner_card_type = 'gold'\nGROUP BY\n  owner_gender\nORDER BY\n  owner_gender\nLIMIT 10000",
@@ -1035,18 +1027,16 @@
         "share_pct",
         "total_gold_card_owners"
       ],
-      "model_reasoning": "Used ai.account_owner, which already resolves the card held by the account OWNER, filtered to owner_card_type = 'gold'. This avoids ai.card, where a disponent's gold card would wrongly make that client count as an owner with a gold card. Applied the certified gender_share expression with counts and the total shown beside the percentages.",
+      "model_reasoning": "I used ai.account_owner because it holds the card of the account OWNER and has one row per account. This avoids ai.card, which would count gold cards held by disponents. The query uses the certified gender_share expression and returns counts next to the percentages. Each row is an account, so a client who owns several gold-card accounts would be counted once per account.",
       "model_assumptions": [
-        "The split is per account, because ai.account_owner has one row per account. An owner of several accounts who holds a gold card on more than one of them would be counted once for each account.",
-        "The split covers only the clients the caller is entitled to see, so it describes their portfolio and not the whole bank.",
-        "A gender with no gold-card owners would not appear as a row."
+        "'Account owners holding a gold card' means owners whose own card is gold (owner_card_type = 'gold'). A gold card held only by a disponent does not count.",
+        "The split is counted per account, which matches the grain of ai.account_owner. In this book a client with several accounts would count once per account.",
+        "The split covers only the clients the caller is entitled to see, so it describes their portfolio and not the whole bank."
       ],
-      "model_caveats": [
-        "C4"
-      ],
+      "model_caveats": [],
       "guard_reason": "allowed (row limit 10000 applied)",
       "error": null,
-      "executed_at_utc": "2026-10-22T10:53:41+00:00"
+      "executed_at_utc": "2026-10-25T07:52:41+00:00"
     },
     "Q9": {
       "question_id": "Q9",
@@ -1061,14 +1051,14 @@
           "attempt": 1,
           "executed_call": true,
           "call_error": null,
-          "duration_sec": 10.865,
+          "duration_sec": 8.571,
           "feedback_given": null,
-          "generated_sql": "SELECT round(avg(closing_balance), 2) AS average_month_end_balance, count(*) AS accounts_with_balance, count(*) FILTER (WHERE is_carried_forward) AS carried_forward_balances FROM ai.account_month_end_balance WHERE month_end_date = DATE '1998-12-31'",
-          "model_reasoning": "I used ai.account_month_end_balance because it already applies the intra-day tie-break and the carry-forward. I filtered to month_end_date = 1998-12-31 and used the certified average_month_end_balance expression, round(avg(closing_balance), 2). I did not compute balances from ai.transaction. I also return the account count and the carried-forward count beside the average, so the denominator is visible.",
+          "generated_sql": "SELECT DATE '1998-12-31' AS month_end_date, round(avg(closing_balance), 2) AS average_closing_balance, count(*) AS accounts_with_balance, count(*) FILTER (WHERE is_carried_forward) AS carried_forward_balances, count(*) FILTER (WHERE 'con_balance_reconciliation_material' = ANY(account_data_quality_flags)) AS accounts_with_reconciliation_flag FROM ai.account_month_end_balance WHERE month_end_date = DATE '1998-12-31'",
+          "model_reasoning": "I used ai.account_month_end_balance, which already applies the highest-transaction-id tie-break and the carry-forward. That avoids recomputing balances from ai.transaction. I filtered to month_end_date 1998-12-31 and averaged only the accounts that have a known balance, so no account is counted as zero. I report the supporting counts next to the average: accounts included, carried-forward balances, and accounts flagged for balance reconciliation.",
           "model_assumptions": [
-            "'Average account balance at the end of December 1998' means the average closing balance across accounts that have a known balance on 1998-12-31, in CZK.",
-            "Accounts with no known balance on that date are not counted as zero.",
-            "The result covers only the accounts the caller is entitled to see."
+            "'Average account balance' means the certified average_month_end_balance: the mean closing_balance across accounts with a known balance at 1998-12-31.",
+            "The average covers only the accounts the caller is entitled to see, since the database applies that filter.",
+            "Balances are in CZK and negative balances (overdrafts) are included unclipped."
           ],
           "model_caveats": [
             "C1",
@@ -1076,44 +1066,52 @@
           ],
           "guard_allowed": true,
           "guard_reason": "allowed (row limit 10000 applied)",
-          "executed_sql": "SELECT\n  ROUND(CAST(AVG(closing_balance) AS DECIMAL), 2) AS average_month_end_balance,\n  COUNT(*) AS accounts_with_balance,\n  COUNT(*) FILTER(WHERE\n    is_carried_forward) AS carried_forward_balances\nFROM ai.account_month_end_balance\nWHERE\n  month_end_date = CAST('1998-12-31' AS DATE)\nLIMIT 10000",
+          "executed_sql": "SELECT\n  CAST('1998-12-31' AS DATE) AS month_end_date,\n  ROUND(CAST(AVG(closing_balance) AS DECIMAL), 2) AS average_closing_balance,\n  COUNT(*) AS accounts_with_balance,\n  COUNT(*) FILTER(WHERE\n    is_carried_forward) AS carried_forward_balances,\n  COUNT(*) FILTER(WHERE\n    'con_balance_reconciliation_material' = ANY(\n      account_data_quality_flags\n    )) AS accounts_with_reconciliation_flag\nFROM ai.account_month_end_balance\nWHERE\n  month_end_date = CAST('1998-12-31' AS DATE)\nLIMIT 10000",
           "status": "answered",
           "row_count": 1,
           "columns": [
-            "average_month_end_balance",
+            "month_end_date",
+            "average_closing_balance",
             "accounts_with_balance",
-            "carried_forward_balances"
+            "carried_forward_balances",
+            "accounts_with_reconciliation_flag"
           ],
           "rows": [
             {
-              "average_month_end_balance": 43808.94,
+              "month_end_date": "1998-12-31",
+              "average_closing_balance": 43808.94,
               "accounts_with_balance": 4500,
-              "carried_forward_balances": 76
+              "carried_forward_balances": 76,
+              "accounts_with_reconciliation_flag": 55
             }
           ]
         }
       ],
       "attempts_used": 1,
-      "generated_sql": "SELECT round(avg(closing_balance), 2) AS average_month_end_balance, count(*) AS accounts_with_balance, count(*) FILTER (WHERE is_carried_forward) AS carried_forward_balances FROM ai.account_month_end_balance WHERE month_end_date = DATE '1998-12-31'",
-      "executed_sql": "SELECT\n  ROUND(CAST(AVG(closing_balance) AS DECIMAL), 2) AS average_month_end_balance,\n  COUNT(*) AS accounts_with_balance,\n  COUNT(*) FILTER(WHERE\n    is_carried_forward) AS carried_forward_balances\nFROM ai.account_month_end_balance\nWHERE\n  month_end_date = CAST('1998-12-31' AS DATE)\nLIMIT 10000",
+      "generated_sql": "SELECT DATE '1998-12-31' AS month_end_date, round(avg(closing_balance), 2) AS average_closing_balance, count(*) AS accounts_with_balance, count(*) FILTER (WHERE is_carried_forward) AS carried_forward_balances, count(*) FILTER (WHERE 'con_balance_reconciliation_material' = ANY(account_data_quality_flags)) AS accounts_with_reconciliation_flag FROM ai.account_month_end_balance WHERE month_end_date = DATE '1998-12-31'",
+      "executed_sql": "SELECT\n  CAST('1998-12-31' AS DATE) AS month_end_date,\n  ROUND(CAST(AVG(closing_balance) AS DECIMAL), 2) AS average_closing_balance,\n  COUNT(*) AS accounts_with_balance,\n  COUNT(*) FILTER(WHERE\n    is_carried_forward) AS carried_forward_balances,\n  COUNT(*) FILTER(WHERE\n    'con_balance_reconciliation_material' = ANY(\n      account_data_quality_flags\n    )) AS accounts_with_reconciliation_flag\nFROM ai.account_month_end_balance\nWHERE\n  month_end_date = CAST('1998-12-31' AS DATE)\nLIMIT 10000",
       "rows": [
         {
-          "average_month_end_balance": 43808.94,
+          "month_end_date": "1998-12-31",
+          "average_closing_balance": 43808.94,
           "accounts_with_balance": 4500,
-          "carried_forward_balances": 76
+          "carried_forward_balances": 76,
+          "accounts_with_reconciliation_flag": 55
         }
       ],
       "row_count": 1,
       "columns": [
-        "average_month_end_balance",
+        "month_end_date",
+        "average_closing_balance",
         "accounts_with_balance",
-        "carried_forward_balances"
+        "carried_forward_balances",
+        "accounts_with_reconciliation_flag"
       ],
-      "model_reasoning": "I used ai.account_month_end_balance because it already applies the intra-day tie-break and the carry-forward. I filtered to month_end_date = 1998-12-31 and used the certified average_month_end_balance expression, round(avg(closing_balance), 2). I did not compute balances from ai.transaction. I also return the account count and the carried-forward count beside the average, so the denominator is visible.",
+      "model_reasoning": "I used ai.account_month_end_balance, which already applies the highest-transaction-id tie-break and the carry-forward. That avoids recomputing balances from ai.transaction. I filtered to month_end_date 1998-12-31 and averaged only the accounts that have a known balance, so no account is counted as zero. I report the supporting counts next to the average: accounts included, carried-forward balances, and accounts flagged for balance reconciliation.",
       "model_assumptions": [
-        "'Average account balance at the end of December 1998' means the average closing balance across accounts that have a known balance on 1998-12-31, in CZK.",
-        "Accounts with no known balance on that date are not counted as zero.",
-        "The result covers only the accounts the caller is entitled to see."
+        "'Average account balance' means the certified average_month_end_balance: the mean closing_balance across accounts with a known balance at 1998-12-31.",
+        "The average covers only the accounts the caller is entitled to see, since the database applies that filter.",
+        "Balances are in CZK and negative balances (overdrafts) are included unclipped."
       ],
       "model_caveats": [
         "C1",
@@ -1121,7 +1119,7 @@
       ],
       "guard_reason": "allowed (row limit 10000 applied)",
       "error": null,
-      "executed_at_utc": "2026-10-22T10:53:52+00:00"
+      "executed_at_utc": "2026-10-25T07:52:49+00:00"
     },
     "Q10": {
       "question_id": "Q10",
@@ -1136,14 +1134,14 @@
           "attempt": 1,
           "executed_call": true,
           "call_error": null,
-          "duration_sec": 11.594,
+          "duration_sec": 7.85,
           "feedback_given": null,
           "generated_sql": "SELECT statement_frequency, count(*) AS loan_count, count(*) FILTER (WHERE is_problematic) AS problematic_loan_count, round(100.0 * count(*) FILTER (WHERE is_problematic) / count(*), 2) AS problematic_loan_share FROM ai.loan GROUP BY statement_frequency ORDER BY problematic_loan_share DESC, statement_frequency",
-          "model_reasoning": "I used ai.loan, which already carries statement_frequency and the certified is_problematic flag. I computed the within-group rate (problematic loans divided by all loans of that frequency) with the certified problematic_loan_share expression, not each group's share of all problematic loans. I returned the full ranking with both counts so the denominators are visible, and I did not re-derive problematic from status_code.",
+          "model_reasoning": "I used ai.loan, which already carries the account's statement_frequency and the certified is_problematic flag, so no join is needed. I computed the within-group rate (problematic loans divided by all loans of that frequency) with the certified problematic_loan_share expression. I did not redefine problematic from status_code. I return the full ranking with both counts so the size of each denominator is visible. The top row is the answer.",
           "model_assumptions": [
-            "The highest share is the first row of the ranking; the query returns all frequencies, ordered by share descending.",
-            "Shares are computed over the loans the caller is entitled to see, so they describe the caller's portfolio.",
-            "Groups with few loans can have a high share that rests on a small denominator, so read the loan_count column beside each share."
+            "'Share of problematic loans' means the within-group rate: problematic loans of a frequency divided by all loans of that frequency. It does not mean that frequency's share of all problematic loans.",
+            "The result covers only the loans the caller is entitled to see, so the shares describe their portfolio.",
+            "If the top two frequencies are close and one has a small loan count, the ranking may not be robust, so read the counts beside each share."
           ],
           "model_caveats": [],
           "guard_allowed": true,
@@ -1209,16 +1207,16 @@
         "problematic_loan_count",
         "problematic_loan_share"
       ],
-      "model_reasoning": "I used ai.loan, which already carries statement_frequency and the certified is_problematic flag. I computed the within-group rate (problematic loans divided by all loans of that frequency) with the certified problematic_loan_share expression, not each group's share of all problematic loans. I returned the full ranking with both counts so the denominators are visible, and I did not re-derive problematic from status_code.",
+      "model_reasoning": "I used ai.loan, which already carries the account's statement_frequency and the certified is_problematic flag, so no join is needed. I computed the within-group rate (problematic loans divided by all loans of that frequency) with the certified problematic_loan_share expression. I did not redefine problematic from status_code. I return the full ranking with both counts so the size of each denominator is visible. The top row is the answer.",
       "model_assumptions": [
-        "The highest share is the first row of the ranking; the query returns all frequencies, ordered by share descending.",
-        "Shares are computed over the loans the caller is entitled to see, so they describe the caller's portfolio.",
-        "Groups with few loans can have a high share that rests on a small denominator, so read the loan_count column beside each share."
+        "'Share of problematic loans' means the within-group rate: problematic loans of a frequency divided by all loans of that frequency. It does not mean that frequency's share of all problematic loans.",
+        "The result covers only the loans the caller is entitled to see, so the shares describe their portfolio.",
+        "If the top two frequencies are close and one has a small loan count, the ranking may not be robust, so read the counts beside each share."
       ],
       "model_caveats": [],
       "guard_reason": "allowed (row limit 10000 applied)",
       "error": null,
-      "executed_at_utc": "2026-10-22T10:54:03+00:00"
+      "executed_at_utc": "2026-10-25T07:52:57+00:00"
     }
   }
 }

@@ -1,10 +1,10 @@
 # Data quality report
 
-- run_id: `55ac5752-e529-4ad3-b3b6-2723e5a50227`
+- run_id: `116e896d-afb0-4ddf-8119-c059382d5394`
 - dataset: `stg`
-- executed at: 2026-10-22T10:51:53+00:00 (git b11c23f)
+- executed at: 2026-10-25T07:51:23+00:00 (git da3e93f)
 - command: `make dq`
-- rules executed: **123** (19 fired, 104 clean, 0 errored)
+- rules executed: **124** (19 fired, 105 clean, 0 errored)
 
 ## Executive summary
 
@@ -12,7 +12,7 @@
 |---|---:|---:|---|
 | **block** | 1 | 1 | rows quarantined, excluded from core and from the ai views |
 | **warn** | 6 | 440 | rows kept and flagged, metrics carry a caveat |
-| **info** | 12 | 2,556,535 | standardised and logged, no answer changes |
+| **info** | 12 | 2,556,194 | standardised and logged, no answer changes |
 
 Rows quarantined this run: **1** (trans: 1)
 
@@ -87,8 +87,8 @@ Rows quarantined this run: **1** (trans: 1)
 | `COMP_NULL__trans__k_symbol_label` | trans | 535,314 | 50.6773% | - | Missing value in trans.k_symbol_label |
 | `COMP_TRANS_OPERATION_STRUCTURAL` | trans | 183,114 | 17.3351% | - | Transaction operation absent (structurally, for interest postings) |
 | `VAL_TRANS_BALANCE_NEGATIVE` | trans | 2,999 | 0.2839% | Q9 | Balance after the transaction is negative (overdraft) |
-| `COMP_NULL__order__k_symbol_label` | order | 1,720 | 26.5801% | - | Missing value in order.k_symbol_label |
 | `COMP_NULL__order__k_symbol_code` | order | 1,379 | 21.3105% | - | Missing value in order.k_symbol_code |
+| `COMP_NULL__order__k_symbol_label` | order | 1,379 | 21.3105% | - | Missing value in order.k_symbol_label |
 | `CON_CLIENT_ACCOUNT_DISTRICT_MISMATCH` | disp | 409 | 9.0889% | Q1, Q5 | Owner's own district differs from the district of the account they own |
 | `UNQ_CLIENT_SAME_BIRTH_DISTRICT` | client | 26 | 0.4843% | Q1, Q8 | Two clients share birth number and district (possible duplicate person) |
 | `VAL_TRANS_AMOUNT_POSITIVE` | trans | 14 | 0.0013% | - | Transaction amount is zero or negative |
@@ -207,6 +207,7 @@ only exists after the incident is not a control.
 | `VAL_LOAN_PAYMENT_POSITIVE` | warn | Monthly payment is zero or negative |
 | `VAL_LOAN_STATUS_DOMAIN` | block | Loan status outside the allowed set A, B, C, D |
 | `VAL_ORDER_AMOUNT_POSITIVE` | info | Standing order amount is zero or negative |
+| `VAL_ORDER_KSYMBOL_DOMAIN` | info | Standing order category (k_symbol) outside the documented set |
 | `VAL_TRANS_AMOUNT_NEGATIVE` | block | Transaction amount is negative |
 | `VAL_TRANS_DATE_UNPARSABLE` | block | Transaction date present in the source but not a real date |
 | `VAL_TRANS_OPERATION_DOMAIN` | warn | Transaction operation outside the documented set |

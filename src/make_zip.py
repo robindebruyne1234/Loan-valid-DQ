@@ -63,7 +63,8 @@ INCLUDE_FILES: tuple[str, ...] = (
     "data/questions.csv",
     "deliverables/defects.csv",
     "deliverables/model_explanation.md",
-    "scripts/simulate_agents.py",
+    # scripts/simulate_agents.py is already covered by the ("scripts", "*")
+    # tree above; listing it here as well wrote it into the archive twice.
     "packages/berka_control/pyproject.toml",
     "packages/berka_bronze/pyproject.toml",
     "packages/berka_silver/pyproject.toml",
@@ -81,25 +82,34 @@ Excel workbook, which is a separate deliverable.
 ## Read in this order
 
 1. `README.md` -- what was built, how to run it, and what the results were.
-2. `docs/VISUAL_GUIDE.md` -- six figures: the pipeline, the query path and
+2. `docs/CLEANING_LEDGER.md` -- **what the cleaning actually did**: every
+   transformation between the source file and the product, with its effect
+   measured by a probe run against the database at build time, where the
+   original value survives, and which rule watches it. `DECISIONS.md`
+   D013-D020 is the reasoning behind each choice.
+3. `docs/GOLD_LAYER.md` -- what is modelled today, what is cleaned and
+   consumed by nothing, and the eight tables the cleaned data will carry with
+   no new source file.
+4. `docs/VISUAL_GUIDE.md` -- ten figures: the pipeline, the query path and
    where the entitlement filter lives, what each severity does, the star
-   schema, and two decision comparisons.
-3. `semantic/semantic_layer.yaml` -- **the semantic solution**: the single
+   schema, two decision comparisons, the defect lifecycle and catalogue, the
+   system map and the build sequence.
+5. `semantic/semantic_layer.yaml` -- **the semantic solution**: the single
    source of business meaning. Entities with their grain, certified metric
    definitions, a glossary that says what each word is NOT, the data quality
    caveats with row counts, and the traps each question contains.
-4. `semantic/context_pack.md` -- that file rendered into the exact text the LLM
+6. `semantic/context_pack.md` -- that file rendered into the exact text the LLM
    received. Nothing else was in its context.
-5. `semantic/prompt_template.md` -- the prompt around it.
-6. `src/sql_guard.py` -- what happens to the SQL the model produces before it
+7. `semantic/prompt_template.md` -- the prompt around it.
+8. `src/sql_guard.py` -- what happens to the SQL the model produces before it
    is allowed to run.
-7. `sql/50_sec_rls.sql` -- the entitlement model and the row level security
+9. `sql/50_sec_rls.sql` -- the entitlement model and the row level security
    policies (Task 3).
-8. `dq/dq_rules.yaml` -- the {rule_count} hand-written data quality rules, each with its
-   severity and the reason for that severity (Task 1).
-9. `llm_logs/` -- one JSON file per model call: prompt, model, parameters, raw
+10. `dq/dq_rules.yaml` -- the {rule_count} hand-written data quality rules, each
+   with its severity and the reason for that severity (Task 1).
+11. `llm_logs/` -- one JSON file per model call: prompt, model, parameters, raw
    response, timing and cost. This is the evidence behind the Questions tab.
-10. `dq/results/` -- the profile, the candidate defects, the data quality report,
+12. `dq/results/` -- the profile, the candidate defects, the data quality report,
    the reference answers, the LLM answers and the evaluation.
 
 ## Not part of the assessed pipeline
@@ -115,7 +125,8 @@ touch them. Run them with `make simulate`.
 ## Layout
 
 ```
-docs/         VISUAL_GUIDE.md and the diagram sources and renders
+docs/         the cleaning ledger, the gold layer analysis, the visual
+              guide and the diagram sources and renders
 semantic/     the semantic layer, the rendered context pack, the prompt
 sql/          numbered SQL, in execution order (00 schemas .. 70 defect injector)
 src/          Python orchestration; src/config.py holds every shared constant

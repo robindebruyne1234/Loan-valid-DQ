@@ -60,7 +60,10 @@ CODE_SETS: dict[str, tuple[dict[str, str], str]] = {
     ),
     "transaction_category": (
         config.K_SYMBOL_CODES,
-        "What the posting was for (the source k_symbol column).",
+        "What the posting or standing order was for (the source k_symbol "
+        "column, which both tables carry). LEASING occurs only on standing "
+        "orders; what each published entity can actually contain is narrower "
+        "and is stated per entity in the semantic layer.",
     ),
 }
 
@@ -168,6 +171,11 @@ def check_codes_against_staging(conn: psycopg.Connection) -> list[str]:
         ("transaction_type", "stg.trans", "trans_type_code", "trans_type_label"),
         ("transaction_operation", "stg.trans", "operation_code", "operation_label"),
         ("transaction_category", "stg.trans", "k_symbol_code", "k_symbol_label"),
+        # The k_symbol column appears on standing orders too. Leaving this
+        # table out is how LEASING reached the product undecoded on 341 rows:
+        # the profiler reported the code, but nothing checked it against the
+        # catalogue, so no build ever failed. See DECISIONS.md D017.
+        ("transaction_category", 'stg."order"', "k_symbol_code", "k_symbol_label"),
     )
     problems: list[str] = []
     for code_set, table, code_column, label_column in checks:
