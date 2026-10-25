@@ -98,7 +98,10 @@ def show(role: str, label: str, view: dict[str, Any]) -> None:
     """
     totals, ent = view["totals"], view["entitlement"]
     print(f"  logged in as : {role}   ({label})")
-    print(f"  principal    : {ent['principal_type']}, entitled to {ent['portfolios']}")
+    # A principal granted nothing has NULL here. "None" is Python leaking into
+    # a stakeholder demo; "(nothing yet)" is the point being made.
+    entitled = ent["portfolios"] or "(nothing yet)"
+    print(f"  principal    : {ent['principal_type']}, entitled to {entitled}")
     print(f"  can reach    : {totals['clients']:,} clients | "
           f"{totals['accounts']:,} accounts | {totals['loans']:,} loans | "
           f"{totals['transactions']:,} transactions")
@@ -216,10 +219,15 @@ def who_can_reach(client_id: int) -> None:
             """,
             (client_id,),
         )
-    print(f"  {'principal':<15}{'kind':<22}{'may':<9}{'because':<13}reason")
+    print(f"  {'principal':<14}{'kind':<21}{'may':<8}{'because':<12}reason")
     for row in rows:
-        print(f"  {row['db_role']:<15}{row['user_type']:<22}{row['permission']:<9}"
-              f"{row['grant_source']:<13}{(row['reason'] or '')[:24]}")
+        reason = row["reason"] or ""
+        # The reason is the column that earns this view its place, so it gets
+        # the space left over rather than the first truncation.
+        if len(reason) > 55:
+            reason = reason[:54].rstrip() + "\u2026"
+        print(f"  {row['db_role']:<14}{row['user_type']:<21}{row['permission']:<8}"
+              f"{row['grant_source']:<12}{reason}")
     print(f"  -- {len(rows)} live grants. This is the answer to a privacy question,")
     print("     and it comes from the model rather than from someone's memory.")
 
