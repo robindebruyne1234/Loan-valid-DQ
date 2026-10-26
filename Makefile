@@ -15,7 +15,7 @@ export PYTHONPATH
 .PHONY: help up down deps deps-check ingest profile dq model ledger reference \
         semantic questions entitlements evaluate workbook ddr zip deliverables \
         test build all clean status diagrams simulate demo demo-login \
-        demo-interactive web
+        demo-interactive web web-open
 
 help:  ## Show the available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -62,6 +62,9 @@ demo-interactive:  ## Same, but the audience picks the persona and types the cod
 
 web:  ## Serve the click-through walkthrough on http://localhost:8080
 	$(PY) -m src.webapp --host $(WEB_HOST) --port $(WEB_PORT)
+
+web-open:  ## Same, and open it in your browser
+	$(PY) -m src.webapp --host $(WEB_HOST) --port $(WEB_PORT) --open
 
 reference:  ## Run the hand-written reference queries and store the ground truth
 	$(PY) -m src.run_reference

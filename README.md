@@ -33,8 +33,11 @@ when something breaks. About twenty minutes, most of it waiting.
 
 **Start here if you would rather click than read:**
 ```
-make up && make build && make web      # then open http://localhost:8080
+make up && make build && make web-open      # opens http://localhost:8080
 ```
+`deliverables/Setup_Workbook.xlsx` is the same thing as a checklist you tick
+off: every command in its own cell, what you should see, and what to do if you
+do not.
 A seven-step walkthrough of the same pipeline: the text that arrives, what
 the cleaning does to it, how each defect is graded, the published model, who
 may read it, a two-step login, and finally a real question put to a real

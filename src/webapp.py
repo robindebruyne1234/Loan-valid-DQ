@@ -774,6 +774,33 @@ class Handler(BaseHTTPRequestHandler):
         self._send(200, target.read_bytes(), guessed or "application/octet-stream")
 
 
+def open_browser(url: str) -> None:
+    """Open a URL in the user's browser, including from inside WSL.
+
+    ``webbrowser`` finds nothing to launch in a bare WSL distribution, which
+    is exactly where most people run this, so the Windows side is tried
+    explicitly. Failure is reported, never raised: the server is already up
+    and the URL is in the log.
+
+    :param url: The page to open.
+    :returns: ``None``.
+    """
+    import shutil  # noqa: PLC0415
+    import subprocess  # noqa: PLC0415
+    import webbrowser  # noqa: PLC0415
+
+    for launcher in ("wslview", "explorer.exe", "xdg-open", "open"):
+        if shutil.which(launcher):
+            try:
+                subprocess.Popen([launcher, url], stdout=subprocess.DEVNULL,
+                                 stderr=subprocess.DEVNULL)
+                return
+            except OSError:
+                continue
+    if not webbrowser.open(url):
+        LOGGER.warning("could not open a browser; open %s yourself", url)
+
+
 def main(argv: list[str] | None = None) -> int:
     """Start the server.
 
@@ -784,6 +811,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--host", default="127.0.0.1",
                         help="bind address; 0.0.0.0 to accept from the network")
     parser.add_argument("--port", type=int, default=8080)
+    parser.add_argument("--open", action="store_true",
+                        help="open the page in a browser once the server is up")
     args = parser.parse_args(argv)
 
     health = Handler._health(Handler)  # type: ignore[arg-type]
@@ -800,7 +829,10 @@ def main(argv: list[str] | None = None) -> int:
         LOGGER.info("llm -> %s / %s", config.LLM_PROVIDER, config.LLM_MODEL)
 
     server = ThreadingHTTPServer((args.host, args.port), Handler)
-    LOGGER.info("serving the walkthrough on http://%s:%d", args.host, args.port)
+    url = f"http://{'localhost' if args.host in ('127.0.0.1', '0.0.0.0') else args.host}:{args.port}"
+    LOGGER.info("serving the walkthrough on %s", url)
+    if args.open:
+        threading.Timer(1.0, open_browser, args=(url,)).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:
