@@ -31,6 +31,17 @@ why, what each command does, what good output looks like, how to query the
 clean gold data yourself, how to run the AI step or skip it, and what to do
 when something breaks. About twenty minutes, most of it waiting.
 
+**Start here if you would rather click than read:**
+```
+make up && make build && make web      # then open http://localhost:8080
+```
+A seven-step walkthrough of the same pipeline: the text that arrives, what
+the cleaning does to it, how each defect is graded, the published model, who
+may read it, a two-step login, and finally a real question put to a real
+model and answered under the real entitlement filter — with the design choice
+and the assumption behind every step given as much room as the data.
+`docs/DEPLOYMENT.md` puts it on an Oracle Always Free box at a DuckDNS name.
+
 **Start here if you want to see the privacy work in front of an audience:**
 **[`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)** -- a fifteen-minute
 stakeholder walkthrough: what to run, what to point at, what each moment

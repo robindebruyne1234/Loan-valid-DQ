@@ -167,6 +167,41 @@ def demo_fresh_code(db_role: str) -> str:
         time.sleep(wait)
 
 
+def demo_code_state(db_role: str) -> tuple[str | None, int]:
+    """Return a usable code, or how long until one exists. Never sleeps.
+
+    The blocking :func:`demo_fresh_code` is right for a script, which can
+    afford to wait. It is wrong behind an HTTP request: a browser gets a
+    thirty-second spinner with nothing to explain it, and a proxy may give up
+    first. This reports the situation and lets the caller decide.
+
+    **Demo only**, for the same reason as :func:`current_code`: it reads the
+    shared secret, which in a real deployment lives on the user's phone.
+
+    :param db_role: The principal.
+    :returns: ``(code, 0)`` when one is available, or ``(None, seconds)``
+        when the current code has been spent and a new one is due.
+    :raises AuthenticationError: When the principal has no second factor.
+    """
+    with db.connect() as owner_conn:
+        row = db.fetch_all(
+            owner_conn,
+            """
+            SELECT secret, last_step,
+                   floor(extract(epoch FROM now()) / %s)::bigint AS server_step
+            FROM sec.auth_factor
+            WHERE db_role = %s AND factor_type = 'totp'
+            """,
+            (config.TOTP_PERIOD_SECONDS, db_role),
+        )
+    if not row:
+        raise AuthenticationError(f"{db_role}: no second factor enrolled")
+    secret, spent = row[0]["secret"], row[0]["last_step"]
+    if spent is None or min(current_step(), int(row[0]["server_step"])) > int(spent):
+        return current_code(secret), 0
+    return None, seconds_remaining() + 1
+
+
 def verify_second_factor(conn: psycopg.Connection, code: str) -> Session:
     """Present the second factor on an already-authenticated connection.
 

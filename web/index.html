@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Governed Data Product — walkthrough</title>
+<meta name="description" content="A click-through of a bank data product: what arrives, what cleaning does to it, how defects are graded, who may read the result, and a question answered under the entitlement filter.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>🏦</text></svg>">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <div class="brand">The Governed Data Product
+      <small>Berka (PKDD'99) — public research data, no real customers</small></div>
+    <span class="pill" id="health">checking…</span>
+    <span class="pill" id="whoami">not logged in</span>
+    <button class="ghost small" id="theme" title="Switch theme">◐</button>
+  </div>
+</header>
+
+<main class="wrap">
+  <nav class="rail" id="rail" aria-label="Walkthrough steps"></nav>
+
+  <div id="banner"></div>
+
+  <p class="kicker" id="kicker"></p>
+  <h1 id="title">Loading…</h1>
+  <p class="lede" id="lede"></p>
+
+  <section id="content"></section>
+
+  <div class="nav">
+    <button class="ghost" id="prev">← Previous</button>
+    <button id="next">Next →</button>
+    <span class="spacer" id="counter"></span>
+  </div>
+</main>
+
+<script src="/app.js"></script>
+</body>
+</html>

@@ -171,3 +171,4 @@
 {"step": "demo", "command": "make demo", "executed_at_utc": "2026-10-25T21:21:30+00:00", "detail": {"principals": 8, "attempts": 13, "leaks": 0}}
 {"step": "workbook", "command": "make workbook", "executed_at_utc": "2026-10-25T21:26:06+00:00", "detail": {"tabs": ["Overview", "Defect types", "Model", "Questions", "Q detail", "DQ rules", "Cleaning", "Assumptions", "Entitlements", "Run log"], "defect_types": 14}}
 {"step": "zip", "command": "make zip", "executed_at_utc": "2026-10-25T21:26:06+00:00", "detail": {"files": 157, "size_kb": 4050.9}}
+{"step": "zip", "command": "make zip", "executed_at_utc": "2026-10-26T00:16:21+00:00", "detail": {"files": 163, "size_kb": 4083.2}}

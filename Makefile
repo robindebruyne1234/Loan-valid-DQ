@@ -6,6 +6,8 @@
 # Every target is idempotent: re-running it rebuilds from the raw files.
 
 PY ?= python3
+WEB_HOST ?= 127.0.0.1
+WEB_PORT ?= 8080
 PYTHONPATH := $(CURDIR)
 export PYTHONPATH
 
@@ -13,7 +15,7 @@ export PYTHONPATH
 .PHONY: help up down deps deps-check ingest profile dq model ledger reference \
         semantic questions entitlements evaluate workbook ddr zip deliverables \
         test build all clean status diagrams simulate demo demo-login \
-        demo-interactive
+        demo-interactive web
 
 help:  ## Show the available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -57,6 +59,9 @@ demo-login:  ## Stakeholder walkthrough: switch between logins, two steps each
 
 demo-interactive:  ## Same, but the audience picks the persona and types the code
 	$(PY) -m src.demo_console --interactive
+
+web:  ## Serve the click-through walkthrough on http://localhost:8080
+	$(PY) -m src.webapp --host $(WEB_HOST) --port $(WEB_PORT)
 
 reference:  ## Run the hand-written reference queries and store the ground truth
 	$(PY) -m src.run_reference

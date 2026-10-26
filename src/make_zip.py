@@ -36,6 +36,7 @@ INCLUDE_TREES: tuple[tuple[str, str], ...] = (
     ("llm_logs", "*.json"),
     ("scripts", "*"),
     ("docs", "*.md"),
+    ("web", "*"),
     ("docs/diagrams", "*"),
     # Next-step material: the three layer agents and the simulation that
     # exercises their boundary. Clearly labelled as such in the manifest --
@@ -85,7 +86,9 @@ Excel workbook, which is a separate deliverable.
    `docs/GETTING_STARTED.md` if you want to run it yourself from nothing.
 2. `docs/DEMO_SCRIPT.md` -- how to show the privacy model to stakeholders in
    fifteen minutes: what to run, what to point at, and the questions to
-   expect. Driven by `make demo-login`.
+   expect. Driven by `make demo-login`; `make web` is the same story as a
+   page you click through, and `docs/DEPLOYMENT.md` puts that page on a
+   free-tier host behind TLS.
 3. `docs/ACCESS_AND_AUTH.md` -- the design behind it: three kinds of
    identifier, four sources of access (ownership, disposition, portfolio,
    delegation) and two factors enforced by the database rather than by an
