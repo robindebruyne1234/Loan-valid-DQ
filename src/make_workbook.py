@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import csv
 import json
+import sys
 from typing import Any
 
 import yaml
@@ -732,7 +733,7 @@ def count_tests() -> int | str:
 
     try:
         result = subprocess.run(
-            ["python3", "-m", "pytest", "tests/", "--collect-only", "-q"],
+            [sys.executable, "-m", "pytest", "tests/", "--collect-only", "-q"],
             capture_output=True,
             text=True,
             timeout=300,

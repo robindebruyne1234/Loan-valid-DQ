@@ -165,8 +165,9 @@ def build() -> Workbook:
          "bank sends, what cleaning does to it, how defects are graded, the published model, who "
          "may read it and why, a two-step login, and a real question answered under the "
          "entitlement filter."),
-        ("Works on", "Windows with WSL2 (recommended), macOS, or Linux. Native Windows without "
-                     "WSL is not supported: the build uses make and bash."),
+        ("Works on", "Windows with WSL2, macOS, or Linux (tabs 1-4). Native Windows without WSL "
+                     "or Docker, using a locally installed PostgreSQL and PowerShell: see the "
+                     "“Windows native” tab instead of tabs 1-4."),
         ("You need installed", "Docker Desktop (runs the database) · Python 3.11 or newer · "
                                "git · make. Tab 1 checks each and tells you how to fix a miss."),
         ("You do NOT need", "PostgreSQL installed (Docker provides it) · any data download (the "
@@ -175,12 +176,13 @@ def build() -> Workbook:
                             "it runs without one)."),
         ("The command, once set up", "make up   then   make web-open"),
         ("Where to type commands",
-         "On Windows: the Ubuntu app (WSL), NOT PowerShell. Type  wsl  in the Start menu if you "
-         "do not see it. Every command in this workbook is for that terminal."),
+         "WSL route: the Ubuntu app, not PowerShell. Every command in tabs 1-5 is for that "
+         "terminal. Native route: PowerShell (or the VS Code terminal), commands in the "
+         "“Windows native” tab only."),
         ("How long", "Install ~10 min · first build ~6 min · after that, starting it takes seconds."),
         ("Tests in the repo", f"{tests} (so `make build` ends with “{tests} passed”)"),
         ("Tabs", "1 Install  →  2 Get the code  →  3 Build  →  4 Open the site  →  "
-                 "5 Use it  →  Troubleshooting  →  Reset  →  Every command"),
+                 "5 Use it  →  Windows native  →  Troubleshooting  →  Reset  →  Every command"),
     ]
     for label, text in facts:
         ws.cell(row=row, column=1, value=label).font = Font(bold=True, color=NAVY)
@@ -359,6 +361,49 @@ def build() -> Workbook:
          "Klara's is one row: herself. That difference is the point of the whole project.",
          "“NOT EXECUTED”: no model is configured. See the “AI step” section of the "
          "Troubleshooting tab. Steps 1 to 6 do not need one."),
+    ], 1)
+
+    steps_sheet(wb, "Windows native", "Windows without WSL or Docker",
+                "PowerShell in the repository folder (VS Code: Terminal → New Terminal). "
+                "Uses your own PostgreSQL. Replaces tabs 1-4; tab 5 is the same.", [
+        ("Check Python is 3.11 or newer.",
+         "py -3 --version",
+         "Python 3.11.x or newer.",
+         "Not found or older: install Python 3.11+ from python.org (tick “Add to PATH”)."),
+        ("Check PostgreSQL is installed and running (Services → postgresql-x64-16).",
+         "Get-Service postgresql*",
+         "Status Running.",
+         "Not listed: install PostgreSQL 16 from postgresql.org (EDB installer). "
+         "Stopped: Start-Service postgresql-x64-16 (as administrator)."),
+        ("Allow this script to run in this window only.",
+         "Set-ExecutionPolicy -Scope Process Bypass",
+         "No output.",
+         "Or prefix every command with: powershell -ExecutionPolicy Bypass -File"),
+        ("Create .venv and install the Python packages.",
+         "scripts\\windows.ps1 setup",
+         "setup | dependencies installed into .venv",
+         "“needs 3.11 or newer”: pass your interpreter, e.g.  "
+         "scripts\\windows.ps1 setup -Python C:\\Python312\\python.exe"),
+        ("Create the project role and database (once). psql asks for the password you "
+         "chose for the postgres superuser when installing PostgreSQL.",
+         "scripts\\windows.ps1 init-db",
+         "CREATE ROLE, CREATE DATABASE, GRANT … then init-db | done",
+         "“psql.exe not found”: add C:\\Program Files\\PostgreSQL\\16\\bin to PATH. "
+         "“password authentication failed for user postgres”: wrong superuser password."),
+        ("Build everything (same steps as make build, without the LLM).",
+         "scripts\\windows.ps1 build",
+         f"Ends with “{tests} passed” and build | done.",
+         "“Cannot connect to PostgreSQL”: service stopped, or init-db not run. "
+         "A PGUSER/PGPASSWORD set for another login overrides the project defaults: "
+         "Remove-Item Env:PGUSER, Env:PGPASSWORD"),
+        ("Open the walkthrough in your browser. Then follow tab 5.",
+         "scripts\\windows.ps1 web-open",
+         "serving the walkthrough on http://localhost:8080, and a browser tab opens.",
+         "Port in use:  scripts\\windows.ps1 web-open -WebPort 8081"),
+        ("Later: tests only, or the stakeholder console demo.",
+         "scripts\\windows.ps1 test\nscripts\\windows.ps1 demo-login",
+         f"“{tests} passed”; the console demo ends with === END ===.",
+         "Run build first if the database was reset."),
     ], 1)
 
     ws = wb.create_sheet("Troubleshooting")

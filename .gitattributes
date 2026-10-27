@@ -1,0 +1,4 @@
+# Keep the source extracts byte-identical on every OS (no CRLF conversion on
+# Windows checkouts), so the SHA-256 recorded in raw.load_audit is the same.
+*.asc -text
+*.asc.gz binary
