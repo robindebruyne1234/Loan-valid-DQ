@@ -8,14 +8,16 @@
 --        -v owner=berka_owner -v owner_pw=berka_owner_pw -v dbname=berka ^
 --        -f scripts/windows_init_db.sql
 --
--- Idempotent: an existing role keeps its password, an existing database is
--- left alone. UTF8 is forced because a Windows cluster may default to WIN1252.
+-- Idempotent: an existing database is left alone. The role's password is
+-- (re)set every run, so a role left over from an earlier attempt with another
+-- password stops causing "password authentication failed". UTF8 is forced
+-- because a Windows cluster may default to WIN1252.
 
 SELECT format('CREATE ROLE %I LOGIN CREATEROLE PASSWORD %L', :'owner', :'owner_pw')
 WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'owner') \gexec
 
 -- build_security creates the consumer roles, so the owner needs CREATEROLE.
-SELECT format('ALTER ROLE %I LOGIN CREATEROLE', :'owner') \gexec
+SELECT format('ALTER ROLE %I LOGIN CREATEROLE PASSWORD %L', :'owner', :'owner_pw') \gexec
 
 SELECT format('CREATE DATABASE %I OWNER %I ENCODING ''UTF8'' TEMPLATE template0',
               :'dbname', :'owner')
