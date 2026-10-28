@@ -172,3 +172,5 @@
 {"step": "workbook", "command": "make workbook", "executed_at_utc": "2026-10-25T21:26:06+00:00", "detail": {"tabs": ["Overview", "Defect types", "Model", "Questions", "Q detail", "DQ rules", "Cleaning", "Assumptions", "Entitlements", "Run log"], "defect_types": 14}}
 {"step": "zip", "command": "make zip", "executed_at_utc": "2026-10-25T21:26:06+00:00", "detail": {"files": 157, "size_kb": 4050.9}}
 {"step": "zip", "command": "make zip", "executed_at_utc": "2026-10-26T00:16:21+00:00", "detail": {"files": 163, "size_kb": 4083.2}}
+{"step": "semantic", "command": "make semantic", "executed_at_utc": "2026-10-28T09:06:20+00:00", "detail": {"entities": 11, "columns": 105, "context_pack_chars": 33391, "problems": []}}
+{"step": "semantic", "command": "make semantic", "executed_at_utc": "2026-10-28T09:06:31+00:00", "detail": {"entities": 11, "columns": 105, "context_pack_chars": 33388, "problems": []}}

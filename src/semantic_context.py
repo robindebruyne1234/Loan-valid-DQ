@@ -78,7 +78,10 @@ def validate(layer: dict[str, Any], conn: psycopg.Connection) -> list[str]:
             problems.append(f"{name}: described in the semantic layer but does not exist")
             continue
 
-        described_columns = {column["name"] for column in entity["columns"]}
+        names = [column["name"] for column in entity["columns"]]
+        for duplicate in sorted({n for n in names if names.count(n) > 1}):
+            problems.append(f"{name}.{duplicate}: described more than once")
+        described_columns = set(names)
         actual_columns = set(live_columns[view])
         for missing in sorted(described_columns - actual_columns):
             problems.append(f"{name}.{missing}: described but not present in the view")
@@ -108,6 +111,31 @@ def validate(layer: dict[str, Any], conn: psycopg.Connection) -> list[str]:
                     f"{name}: declared grain '{entity['grain']}' is false -- "
                     f"{duplicates} duplicate values of ({', '.join(key)})"
                 )
+
+        # The row count is published to the model as a sense check, so it
+        # must be today's figure. Run as the owner, so it is unfiltered.
+        declared_rows = entity.get("row_count_unfiltered")
+        if declared_rows is not None:
+            actual_rows = int(db.fetch_value(conn, f"SELECT count(*) FROM {name}") or 0)
+            if actual_rows != int(declared_rows):
+                problems.append(
+                    f"{name}: row_count_unfiltered says {declared_rows}, the view has {actual_rows}"
+                )
+
+        problems += _validate_joins(entity, conn)
+
+    entity_columns = {
+        entity["name"]: {column["name"] for column in entity["columns"]}
+        for entity in layer["entities"]
+    }
+    for metric in layer["metrics"]:
+        time_column = metric.get("time_column")
+        columns = entity_columns.get(metric["entity"])
+        if time_column and columns is not None and time_column not in columns:
+            problems.append(
+                f"metric {metric['name']}: time_column {time_column} is not a column "
+                f"of {metric['entity']}"
+            )
 
     for view in sorted(set(live_columns) - described):
         problems.append(
@@ -142,6 +170,72 @@ def validate(layer: dict[str, Any], conn: psycopg.Connection) -> list[str]:
             sum(len(e["columns"]) for e in layer["entities"]),
             len(layer["caveats"]),
         )
+    return problems
+
+
+#: Join cardinalities the semantic layer may declare, and what each promises:
+#: (left side unique on its join column, right side unique on its join column).
+CARDINALITIES: dict[str, tuple[bool, bool]] = {
+    "one-to-one": (True, True),
+    "one-to-many": (True, False),
+    "many-to-one": (False, True),
+}
+
+
+def _join_columns(on: str) -> tuple[str, str]:
+    """Split a declared join condition into its left and right column.
+
+    :param on: ``"column"`` (same name on both sides) or ``"left = right"``.
+    :returns: Tuple of (left column, right column).
+    """
+    if "=" in on:
+        left, right = (part.strip() for part in on.split("=", 1))
+        return left, right
+    return on.strip(), on.strip()
+
+
+def _validate_joins(entity: dict[str, Any], conn: psycopg.Connection) -> list[str]:
+    """Check each declared join against the data: columns, cardinality, coverage.
+
+    A join path is advice the model follows without being able to check it,
+    so a wrong cardinality is a silent double count and an undeclared
+    unmatched side is a silent row loss. Both are measured, not trusted.
+
+    :param entity: One entity from the semantic layer.
+    :param conn: Open connection (owner, so unfiltered).
+    :returns: Problems found; empty when every join is as declared.
+    """
+    problems: list[str] = []
+    name = entity["name"]
+    for join in entity.get("joins") or []:
+        target, label = join["to"], f"{name} -> {join['to']}"
+        cardinality = join.get("cardinality")
+        if cardinality not in CARDINALITIES:
+            problems.append(f"{label}: cardinality must be one of {sorted(CARDINALITIES)}")
+            continue
+        left, right = _join_columns(join["on"])
+        try:
+            left_max = int(db.fetch_value(conn, f'SELECT coalesce(max(n), 0) FROM (SELECT count(*) n FROM {name} GROUP BY "{left}") z') or 0)
+            right_max = int(db.fetch_value(conn, f'SELECT coalesce(max(n), 0) FROM (SELECT count(*) n FROM {target} GROUP BY "{right}") z') or 0)
+            unmatched = int(db.fetch_value(
+                conn,
+                f'SELECT count(*) FROM {name} x WHERE NOT EXISTS '
+                f'(SELECT 1 FROM {target} y WHERE y."{right}" = x."{left}")',
+            ) or 0)
+        except psycopg.Error as exc:
+            conn.rollback()
+            problems.append(f"{label} on {join['on']}: does not run ({exc.diag.message_primary})")
+            continue
+        left_unique, right_unique = CARDINALITIES[cardinality]
+        if left_unique and left_max > 1:
+            problems.append(f"{label}: declared {cardinality}, but {left} repeats up to {left_max} times in {name}")
+        if right_unique and right_max > 1:
+            problems.append(f"{label}: declared {cardinality}, but {right} repeats up to {right_max} times in {target}")
+        if unmatched and not join.get("optional"):
+            problems.append(
+                f"{label}: {unmatched} rows of {name} have no match, so an INNER JOIN drops "
+                f"them; declare optional: true"
+            )
     return problems
 
 
@@ -188,6 +282,8 @@ def render_context_pack(layer: dict[str, Any]) -> str:
         out.append(f"  - expression: `{metric['expression']}`")
         if metric.get("filter"):
             out.append(f"  - filter: `{metric['filter']}`")
+        if metric.get("time_column"):
+            out.append(f"  - time_column: `{metric['time_column']}` (filter and group periods on this date)")
         if metric.get("grain_note"):
             out.append(f"  - grain: {metric['grain_note'].strip()}")
         if metric.get("careful"):
@@ -222,7 +318,11 @@ def render_context_pack(layer: dict[str, Any]) -> str:
             out.append("Joins:")
             for join in entity["joins"]:
                 note = f" -- {join['note']}" if join.get("note") else ""
-                out.append(f"- to `{join['to']}` on `{join['on']}`{note}")
+                shape = join.get("cardinality", "")
+                if join.get("optional"):
+                    shape += "; optional: not every row has a match"
+                shape = f" ({shape})" if shape else ""
+                out.append(f"- to `{join['to']}` on `{join['on']}`{shape}{note}")
             out.append("")
 
     out += ["## Data quality caveats to repeat in your answer", ""]
