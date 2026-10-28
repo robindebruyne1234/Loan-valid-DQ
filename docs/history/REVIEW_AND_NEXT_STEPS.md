@@ -1,5 +1,7 @@
 # Review and next steps
 
+> **Historical record** -- the end-of-build review, kept for traceability. Its figures, file paths and open items are as of when it was written and are **not** maintained. The current state, with evidence, is [`docs/DELIVERY_AUDIT.md`](../DELIVERY_AUDIT.md); current decisions are [`DECISIONS.md`](../../DECISIONS.md).
+
 Written at the end of the build session. Everything below was checked against
 the repository and the database rather than recalled; where a claim could not
 be verified, it says so.

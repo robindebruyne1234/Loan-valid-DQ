@@ -10,8 +10,10 @@ the SQL, all the Python, the rule set, the prompt template, the LLM call logs
 (the evidence behind the Questions tab), the results and the documentation.
 
 Deliberately excluded: the 17 MB of raw data (it is public and the README says
-where to get it), the virtual environment, caches and the workbook itself,
-which is a separate deliverable.
+where to get it), the virtual environment, caches, the workbook and the DDR
+(separate deliverables), the walkthrough preparation and the generators of
+non-deliverable artefacts, and the historical review records in
+``docs/history/``. All of those stay in the repository.
 
 Run with ``make zip``.
 """
@@ -34,6 +36,10 @@ INCLUDE_TREES: tuple[tuple[str, str], ...] = (
     ("dq", "dq_rules.yaml"),
     ("dq/results", "*"),
     ("llm_logs", "*.json"),
+    # A local model's run, kept apart from the recorded run and cited on the
+    # workbook's Questions tab as secondary evidence.
+    ("dq/results/local", "*.json"),
+    ("llm_logs/local", "*.json"),
     ("scripts", "*"),
     ("docs", "*.md"),
     ("web", "*"),
@@ -52,11 +58,9 @@ INCLUDE_TREES: tuple[tuple[str, str], ...] = (
 #: Individual files at the repository root.
 INCLUDE_FILES: tuple[str, ...] = (
     "README.md",
-    "PLAN.md",
     "DECISIONS.md",
     "ASSUMPTIONS.md",
     "AI_DISCLOSURE.md",
-    "WALKTHROUGH_NOTES.md",
     "STATUS_REPORT.md",
     "Makefile",
     "docker-compose.yml",
@@ -64,6 +68,7 @@ INCLUDE_FILES: tuple[str, ...] = (
     "data/questions.csv",
     "deliverables/defects.csv",
     "deliverables/model_explanation.md",
+    "deliverables/DDR_source.md",
     # scripts/simulate_agents.py is already covered by the ("scripts", "*")
     # tree above; listing it here as well wrote it into the archive twice.
     "packages/berka_control/pyproject.toml",
@@ -72,18 +77,33 @@ INCLUDE_FILES: tuple[str, ...] = (
     "packages/berka_gold/pyproject.toml",
 )
 
+#: Files inside the trees above that are left out on purpose: preparation for
+#: the walkthrough, and generators of artefacts that are not deliverables.
+#: They stay in the repository.
+EXCLUDE: frozenset[str] = frozenset({
+    "docs/INTERVIEW_PREPARATION.md",
+    "scripts/make_pitch_deck.py",
+    "scripts/make_setup_workbook.py",
+})
+
 MANIFEST_TEMPLATE = """\
 # semantic_solution.zip -- what is in here and where to start
 
 This archive is the "semantic solution and any code/agents" deliverable for the
 Berka take-home. It is a snapshot of the repository minus the raw data files
-(17 MB of public PKDD'99 data; README.md says where to get them) and minus the
-Excel workbook, which is a separate deliverable.
+(17 MB of public PKDD'99 data; README.md says where to get them), minus the
+Excel workbook and the Design Decision Record (separate deliverables; the DDR's
+source text is `deliverables/DDR_source.md`), and minus the walkthrough
+preparation and the historical review records, which stay in the repository.
 
 ## Read in this order
 
-1. `README.md` -- what was built, how to run it, and what the results were.
-   `docs/GETTING_STARTED.md` if you want to run it yourself from nothing.
+1. `README.md` -- what was built, how to run it, and an index of the documents.
+   `docs/DELIVERY_AUDIT.md` -- every important claim mapped to its evidence,
+   the test results of this build, and the known limitations.
+   `docs/GETTING_STARTED.md` (Linux, WSL, Docker) or
+   `docs/LOCAL_LLM_WINDOWS.md` (native Windows with a local Ollama model) to
+   run it yourself.
 2. `docs/DEMO_SCRIPT.md` -- how to show the privacy model to stakeholders in
    fifteen minutes: what to run, what to point at, and the questions to
    expect. Driven by `make demo-login`; `make web` is the same story as a
@@ -116,16 +136,21 @@ Excel workbook, which is a separate deliverable.
    received. Nothing else was in its context.
 10. `semantic/prompt_template.md` -- the prompt around it.
 11. `src/sql_guard.py` -- what happens to the SQL the model produces before it
-   is allowed to run.
+   is allowed to run. It decides whether a statement may run, not whether it
+   answers the question: `docs/SEMANTIC_MODEL_AUDIT.md` measures that gap, and
+   `scripts/ir_check_prototype.py` is a prototype, not wired into the app.
 12. `sql/50_sec_rls.sql` and `sql/51_sec_auth.sql` -- the entitlement model,
    the row level security policies, the access grant set and the two-factor
    machinery (Task 3).
 13. `dq/dq_rules.yaml` -- the {rule_count} hand-written data quality rules, each
    with its severity and the reason for that severity (Task 1).
 14. `llm_logs/` -- one JSON file per model call: prompt, model, parameters, raw
-   response, timing and cost. This is the evidence behind the Questions tab.
+   response, timing and cost. This is the evidence behind the Questions tab
+   (Claude Sonnet 5.5). `llm_logs/local/` holds a separate local-model run.
 15. `dq/results/` -- the profile, the candidate defects, the data quality report,
-   the reference answers, the LLM answers and the evaluation.
+   the reference answers, the LLM answers and the evaluation;
+   `dq/results/local/` is the local model's run, scored the same way and never
+   merged with the recorded one.
 
 ## Not part of the assessed pipeline
 
@@ -140,25 +165,39 @@ touch them. Run them with `make simulate`.
 ## Layout
 
 ```
-docs/         the cleaning ledger, the gold layer analysis, the visual
-              guide and the diagram sources and renders
+docs/         the delivery audit, setup guides, access design, cleaning
+              ledger, semantic audit, visual guide and diagrams
 semantic/     the semantic layer, the rendered context pack, the prompt
 sql/          numbered SQL, in execution order (00 schemas .. 70 defect injector)
 src/          Python orchestration; src/config.py holds every shared constant
+scripts/      windows.ps1 (native Windows targets), database and diagram helpers
 tests/        the test suite, including the row level security bypass attempts
 dq/           the rule set and every result it produced
 llm_logs/     one audited record per LLM call
-deliverables/ defects.csv and the model explanation
+deliverables/ defects.csv, the model explanation and the DDR source text
 ```
 
 ## To run it
 
 ```
 make up        # PostgreSQL 16 (docker compose, or a native cluster)
-make all       # the whole pipeline, about 4.5 minutes
+make all       # the whole pipeline (4m28s measured once on the Linux build)
 make test      # the test suite
 make simulate  # the next-step agent simulation (no database needed)
 ```
+
+Native Windows, PostgreSQL installed locally (built and tested on 18):
+
+```
+scripts\\windows.ps1 setup
+scripts\\windows.ps1 init-db
+scripts\\windows.ps1 build
+scripts\\windows.ps1 test
+```
+
+No credentials are included: connection settings come from the PG* variables
+with the documented demo defaults, and an API key, if one is used, from the
+environment only.
 """
 
 
@@ -184,8 +223,9 @@ def collect() -> list[tuple[Path, str]]:
         if not base.exists():
             continue
         for path in sorted(base.glob(pattern)):
-            if path.is_file() and "__pycache__" not in path.parts:
-                entries.append((path, str(path.relative_to(config.PROJECT_ROOT))))
+            name = path.relative_to(config.PROJECT_ROOT).as_posix()
+            if path.is_file() and "__pycache__" not in path.parts and name not in EXCLUDE:
+                entries.append((path, name))
     for name in INCLUDE_FILES:
         path = config.PROJECT_ROOT / name
         if path.is_file():

@@ -1088,7 +1088,7 @@ Read the right-hand column out loud. Volunteering the thin parts is cheaper
 than having them found, and it is the difference between a demo and an
 engineering review.
 
-Each one has a next step attached in REVIEW_AND_NEXT_STEPS section 4, in
+Each one has a next step attached in docs/history/REVIEW_AND_NEXT_STEPS.md section 4, in
 dependency order: the six Bronze tests come first because nothing else in the
 layered plan can be verified until they exist.
 """)

@@ -536,7 +536,11 @@ def write_dq_report(
         "",
         "## Executive summary",
         "",
-        "| severity | defect types firing | rows affected | what it means |",
+        "Counted per **rule**. Several rules can describe one defect type, so the "
+        "defect register (`deliverables/defects.csv`, the workbook's Defect types tab) "
+        "has fewer rows than this table has firing rules.",
+        "",
+        "| severity | rules firing | rows affected | what it means |",
         "|---|---:|---:|---|",
     ]
     meaning = {

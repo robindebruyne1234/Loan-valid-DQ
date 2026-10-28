@@ -1,5 +1,7 @@
 # Build review 2: identity, access grants and two-factor authentication
 
+> **Historical record** -- the review of the identity, access-grant and two-factor build, kept for traceability. Its figures, file paths and open items are as of when it was written and are **not** maintained. The current state, with evidence, is [`docs/DELIVERY_AUDIT.md`](../DELIVERY_AUDIT.md); current decisions are [`DECISIONS.md`](../../DECISIONS.md).
+
 Written immediately after the build, against the repository and the database
 rather than from memory.
 

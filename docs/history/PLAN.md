@@ -1,5 +1,7 @@
 # PLAN
 
+> **Historical record** -- the original build plan, kept for traceability. Its figures, file paths and open items are as of when it was written and are **not** maintained. The current state, with evidence, is [`docs/DELIVERY_AUDIT.md`](../DELIVERY_AUDIT.md); current decisions are [`DECISIONS.md`](../../DECISIONS.md).
+
 Take-home: **The Governed Data Product for AI** (Berka / PKDD'99 Czech bank data).
 Goal: raw banking tables -> trusted, documented, entitlement-aware data product
 that an LLM can query correctly, plus the four deliverables the brief asks for.

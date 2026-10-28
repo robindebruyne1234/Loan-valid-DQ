@@ -15,7 +15,7 @@ export PYTHONPATH
 .PHONY: help up down deps deps-check ingest profile dq model ledger reference \
         semantic questions entitlements evaluate workbook ddr zip deliverables \
         test build all clean status diagrams simulate demo demo-login \
-        demo-interactive web web-open
+        demo-interactive web web-open questions-local evaluate-local
 
 help:  ## Show the available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -80,6 +80,14 @@ questions:  ## Ask the LLM the 10 questions through the semantic layer
 
 evaluate:  ## Compare LLM answers against the reference answers
 	$(PY) -m src.evaluate
+
+# Another model's run (LLM_PROVIDER=ollama ...) goes to its own files, so it can
+# never replace the recorded run that the deliverables are built from.
+questions-local:  ## Ask a local model the 10 questions; writes dq/results/local/
+	$(PY) -m src.run_questions --output dq/results/local/llm_results.json --log-subdir local
+
+evaluate-local:  ## Score the local model's run; writes dq/results/local/evaluation.json
+	$(PY) -m src.evaluate --llm-results dq/results/local/llm_results.json --output dq/results/local/evaluation.json
 
 workbook:  ## Build the Excel submission workbook
 	$(PY) -m src.make_workbook

@@ -10,12 +10,14 @@ Tabs, in the order a reviewer will read them:
 1. ``Overview``        -- what this file is, how it was produced, and when
 2. ``Defect types``    -- the Task 1 deliverable
 3. ``Model``           -- the Task 2 model explanation
-4. ``Questions``       -- the Task 2 answers: reference and LLM SQL side by side
+4. ``Questions``       -- the ten questions: reference and LLM SQL side by side
 5. ``Q detail``        -- the full result rows behind both
-6. ``DQ rules``        -- all 124 rules with severity and justification
-7. ``Assumptions``     -- A1-A24
-8. ``Entitlements``    -- the Task 3 evidence: what each user actually sees
-9. ``Run log``         -- provenance: command and timestamp per step
+6. ``DQ rules``        -- every hand-written rule with severity and justification
+7. ``Cleaning``        -- every cleaning step, its effect measured at build time
+8. ``Assumptions``     -- ASSUMPTIONS.md, current and superseded marked
+9. ``Decisions``       -- DECISIONS.md, current and superseded marked
+10. ``Entitlements``   -- the Task 3 evidence: what each user actually sees
+11. ``Run log``        -- provenance: command and timestamp per step
 
 Run with ``make workbook``.
 """
@@ -24,6 +26,7 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 import sys
 from typing import Any
 
@@ -76,6 +79,22 @@ def write_header(sheet: Worksheet, headers: list[str], row: int = 1) -> int:
         cell.border = BOX
     sheet.freeze_panes = sheet.cell(row=row + 1, column=1)
     return row + 1
+
+
+def set_print_layout(book: Workbook) -> None:
+    """Make every tab print legibly: landscape, one page wide, A4.
+
+    :param book: The finished workbook.
+    :returns: ``None``.
+    """
+    for sheet in book.worksheets:
+        sheet.page_setup.orientation = "landscape"
+        sheet.page_setup.paperSize = sheet.PAPERSIZE_A4
+        sheet.page_setup.fitToWidth = 1
+        sheet.page_setup.fitToHeight = 0
+        sheet.sheet_properties.pageSetUpPr.fitToPage = True
+        sheet.oddFooter.right.text = "&A -- page &P of &N"
+    book["Defect types"].freeze_panes = "B2"
 
 
 def set_widths(sheet: Worksheet, widths: list[int]) -> None:
@@ -160,10 +179,12 @@ def sheet_overview(book: Workbook, context: dict[str, Any]) -> None:
     evaluation = context["evaluation"] or {}
     llm = context["llm"] or {}
     dq_summary = context["dq_summary"]
+    local = context["local_evaluation"] or {}
+    local_tally = ", ".join(f"{k} {v}" for k, v in sorted((local.get("tally") or {}).items()))
     facts: list[tuple[str, Any]] = [
         ("Built at (UTC)", db.utc_now_iso()),
         ("Git commit", db.git_commit()),
-        ("Database", f"PostgreSQL 16, schemas raw / stg / dq / core / ai / sec"),
+        ("Database", f"PostgreSQL {context['server_version']}, schemas raw / stg / dq / core / ai / sec"),
         ("Dataset", "Berka (PKDD'99), public copy; row counts match the published reference exactly"),
         ("Source files", "8 .asc files, SHA-256 recorded per file in raw.load_audit"),
         ("", ""),
@@ -186,26 +207,43 @@ def sheet_overview(book: Workbook, context: dict[str, Any]) -> None:
                            f"{context['semantic_columns']} described columns, "
                            f"{context['semantic_metrics']} certified metrics, "
                            f"{context['semantic_caveats']} caveats"),
-        ("LLM provider / model", f"{llm.get('provider', config.NOT_EXECUTED)} / "
-                                 f"{llm.get('model', '-')}"),
+        ("LLM provider / model", f"[LLM] {llm.get('provider', config.NOT_EXECUTED)} / "
+                                 f"{llm.get('model', '-')}, run {llm.get('generated_at_utc', '-')} "
+                                 f"at commit {llm.get('git_commit', '-')}"),
         ("LLM isolation", "No tools, no MCP, no filesystem, no database access. "
                           "It sees only the rendered semantic layer."),
+        ("Semantic pack of that run", f"{llm.get('context_pack_chars', '-')} characters. The pack "
+                                      f"delivered now is {context['context_pack_chars']} characters: "
+                                      "the semantic audit (c855be4) changed it after the run, and the "
+                                      "Claude run could not be repeated on this machine. See Questions."),
         ("Questions answered", f"{llm.get('answered', 0)} of {llm.get('total', 10)}"),
-        ("Answers matching reference", f"{evaluation.get('tally', {}).get('match', 0)} of 10"),
+        ("Answers matching reference", f"{evaluation.get('tally', {}).get('match', 0)} of 10 "
+                                       f"(src/evaluate.py, value comparison)"),
+        ("Secondary local run", f"[LLM] {local.get('llm_provider', '-')} / {local.get('llm_model', '-')} "
+                                f"at commit {local.get('git_commit', '-')}: {local_tally or 'not run'}. "
+                                "Kept separate; not the submission evidence."
+                                if local else "none recorded"),
         ("", ""),
         ("TASK 3 -- entitlements", ""),
         ("Where the filter sits", "Row level security policies on the core tables; "
                                   "the ai views are security_invoker"),
         ("Identity", "session_user (the authenticated database role), not a "
                      "session variable"),
-        ("Bypass attempts tested", "9, all refused (tests/test_rls.py)"),
+        ("Bypass attempts tested", "9 tests, all refused (tests/test_rls.py; listed on the "
+                                   "Entitlements tab)"),
         ("Onboarding", "4 inserts and one credential; no policy, view or query "
                        "change"),
         ("", ""),
-        ("Tests", f"{context['test_count']} passing"
+        ("Tests", f"{context['test_count']} collected by this build. Pass/fail of the "
+                  "delivery run is recorded in docs/DELIVERY_AUDIT.md, not here."
                    if isinstance(context["test_count"], int)
                    else f"test count {context['test_count']}"),
-        ("Full pipeline", "make up && make all -- 4m28s end to end from an empty database"),
+        ("Full pipeline", "make up && make all (Linux/Docker) or scripts\\windows.ps1 all "
+                          "(native Windows). 4m28s was measured once on the Linux build; "
+                          "not re-measured since."),
+        ("Evidence labels", "[RUN] executed; [CODE] read in the source; [LLM] output of the "
+                            "named model; [REC] recommended, not built; [ASSUMED] needs "
+                            "business confirmation."),
     ]
     for label, value in facts:
         if not label and not value:
@@ -299,7 +337,9 @@ def sheet_model(book: Workbook, context: dict[str, Any]) -> None:
         ("loan", "owner, card, frequency", "core.v_loan_enriched",
          "One row per loan, no fan-out; verified after every build."),
         ("account", "month-end balance", "core.fact_account_month_end_balance",
-         "Tie-break and carry-forward already applied."),
+         "Carry-forward applied; same-day tie-break is the highest trans_id (A14). Known "
+         "limitation, not corrected in this delivery: trans_id is not chronological, so an "
+         "individual account's closing balance can be off (caveat C2)."),
     ):
         row = write_row(sheet, row, [from_entity, to_entity, path, note, "", ""])
 
@@ -310,7 +350,10 @@ def sheet_model(book: Workbook, context: dict[str, Any]) -> None:
     for question_id, obj, why in (
         ("Q1 clients per region", "core.v_client_region", "Region of the client's own district."),
         ("Q2 loan amount per year", "core.fact_loan", "loan_year is materialised."),
-        ("Q3 share of problematic loans", "core.fact_loan.is_problematic", "One certified definition (status B or D)."),
+        ("Q3 share of problematic loans", "core.fact_loan.is_problematic",
+         "One definition, used everywhere: status B (finished, unpaid) or D (running, in "
+         "debt), over all 682 loans. Status meanings are from the dataset description; "
+         "treating B+D as 'problematic' is assumption A4 [ASSUMED], awaiting business sign-off."),
         ("Q4 average loan amount per owner's card type", "core.v_loan_enriched.owner_card_type",
          "Owner-only card join; loans whose owner holds no card fall in 'no card'."),
         ("Q5 top districts by incoming amount 1997", "core.fact_transaction + dim_account + dim_district",
@@ -322,7 +365,7 @@ def sheet_model(book: Workbook, context: dict[str, Any]) -> None:
         ("Q8 gender split of gold card owners", "core.v_account_owner",
          "Owner's own card only, so a disponent's gold card cannot leak in."),
         ("Q9 average balance end of Dec 1998", "core.fact_account_month_end_balance",
-         "Month-end grain with carry-forward applied."),
+         "Month-end grain with carry-forward applied; tie-break limitation as above (A14, C2)."),
         ("Q10 problematic share per statement frequency", "core.v_loan_enriched.statement_frequency",
          "Frequency travels with the loan."),
     ):
@@ -337,40 +380,48 @@ def sheet_questions(book: Workbook, context: dict[str, Any]) -> None:
     :returns: ``None``.
     """
     sheet = book.create_sheet("Questions")
-    set_widths(sheet, [6, 52, 70, 46, 70, 46, 12, 34, 40])
+    set_widths(sheet, [6, 52, 70, 46, 70, 46, 12, 40, 34, 40])
     row = 1
     sheet.cell(row=row, column=1, value="The 10 questions: generated query and answer").font = TITLE_FONT
     row += 1
     llm = context["llm"] or {}
+    evaluation = context["evaluation"] or {}
     note = sheet.cell(
         row=row, column=1,
         value=(
-            "REFERENCE columns are hand-written SQL, used as ground truth and never shown to the model. "
-            f"LLM columns are the unedited output of {llm.get('provider', config.NOT_EXECUTED)} / "
-            f"{llm.get('model', '-')}, called with no tools, no database access and no "
-            "reference answers -- it saw only the rendered semantic layer. Generated SQL is "
-            "reproduced exactly as the model produced it; nothing was hand-corrected. "
-            f"Executed as the consumer role '{llm.get('run_as_role', '-')}', so every query "
-            "passed through the row level security policies."
+            "REFERENCE columns are hand-written SQL (sql/60_reference_queries.sql), used as ground "
+            "truth and never shown to the model, re-executed against the current database. "
+            f"LLM columns [LLM] are the unedited output of {llm.get('provider', config.NOT_EXECUTED)} / "
+            f"{llm.get('model', '-')}, recorded {llm.get('generated_at_utc', '-')} at commit "
+            f"{llm.get('git_commit', '-')} with a {llm.get('context_pack_chars', '-')}-character "
+            "semantic pack; it had no tools, no database access and no reference answers. "
+            f"Executed as '{llm.get('run_as_role', '-')}', through the row level security policies. "
+            "Nothing was hand-corrected. VERDICT is src/evaluate.py's value comparison (every "
+            "reference value must appear in the answer, tolerance 0.011; ranking order checked "
+            f"for Q5, Q6, Q10), scored at commit {evaluation.get('git_commit', '-')}. A match "
+            "means the numbers agree, not that the SQL is the only correct form. LIMITATION: the "
+            f"pack delivered now ({context['context_pack_chars']} characters) was changed by the "
+            "semantic audit after this run; the audit reports a 10/10 re-run on the new pack whose "
+            "outputs are not in the repository, and no Claude run was possible on this machine."
         ),
     )
     note.font = SUBTLE_FONT
     note.alignment = WRAP
-    sheet.merge_cells(start_row=row, start_column=1, end_row=row, end_column=9)
-    sheet.row_dimensions[row].height = 58
+    sheet.merge_cells(start_row=row, start_column=1, end_row=row, end_column=10)
+    sheet.row_dimensions[row].height = 110
     row += 2
 
     row = write_header(
         sheet,
         ["#", "Question", "REFERENCE SQL (hand written)", "REFERENCE answer",
-         "LLM-GENERATED SQL", "LLM answer", "Verdict", "Model's stated caveats",
-         "Interpretation applied (see Assumptions tab)"],
+         "LLM-GENERATED SQL", "LLM answer", "Verdict", "Comparison detail",
+         "Model's stated caveats", "Interpretation applied (see Assumptions tab)"],
         row,
     )
 
     reference = context["reference"]["results"]
     llm_results = (context["llm"] or {}).get("results", {})
-    verdicts = {v["question_id"]: v for v in (context["evaluation"] or {}).get("verdicts", [])}
+    verdicts = {v["question_id"]: v for v in evaluation.get("verdicts", [])}
 
     for question_id in config.QUESTION_IDS:
         ref = reference[question_id]
@@ -391,6 +442,7 @@ def sheet_questions(book: Workbook, context: dict[str, Any]) -> None:
                 answer.get("generated_sql") or config.NOT_EXECUTED,
                 format_rows(answer.get("rows", [])) or config.NOT_EXECUTED,
                 verdict.get("verdict", config.NOT_EXECUTED),
+                comparison_detail(verdict, answer),
                 ", ".join(answer.get("model_caveats") or []) or "-",
                 interpretation,
             ],
@@ -401,6 +453,71 @@ def sheet_questions(book: Workbook, context: dict[str, Any]) -> None:
         verdict_cell.fill = VERDICT_FILL.get(verdict.get("verdict", ""), VERDICT_FILL["not_executed"])
         verdict_cell.font = Font(bold=True)
         sheet.row_dimensions[row - 1].height = 150
+
+    # A second provider's run, kept apart: never merged into the table above.
+    local_eval = context["local_evaluation"]
+    local_llm = context["local_llm"] or {}
+    if not local_eval:
+        return
+    row += 1
+    sheet.cell(row=row, column=1,
+               value="Secondary run on a local model -- NOT the submission evidence").font = TITLE_FONT
+    row += 1
+    note = sheet.cell(
+        row=row, column=1,
+        value=(f"[LLM] {local_eval.get('llm_provider')} / {local_eval.get('llm_model')}, recorded "
+               f"{local_llm.get('generated_at_utc', '-')} at commit {local_eval.get('git_commit', '-')} "
+               f"with the {local_llm.get('context_pack_chars', '-')}-character pack, scored by the "
+               "same evaluator against the same reference. Files: dq/results/local/. A partial or "
+               "mismatch is the small model's interpretation; the database and the guard behaved "
+               "the same for both providers. Improving it is out of scope for this delivery."),
+    )
+    note.font = SUBTLE_FONT
+    note.alignment = WRAP
+    sheet.merge_cells(start_row=row, start_column=1, end_row=row, end_column=10)
+    sheet.row_dimensions[row].height = 46
+    row += 1
+    row = write_header(sheet, ["#", "Question", "", "", "LLM-GENERATED SQL (local model)",
+                               "LLM answer", "Verdict", "Comparison detail", "", ""], row)
+    local_results = local_llm.get("results", {})
+    for verdict in local_eval.get("verdicts", []):
+        question_id = verdict["question_id"]
+        answer = local_results.get(question_id, {})
+        row = write_row(sheet, row, [
+            question_id, reference[question_id]["question"], "", "",
+            answer.get("generated_sql") or config.NOT_EXECUTED,
+            format_rows(answer.get("rows", []), limit=6) or config.NOT_EXECUTED,
+            verdict.get("verdict", config.NOT_EXECUTED),
+            comparison_detail(verdict, answer), "", "",
+        ])
+        sheet.cell(row=row - 1, column=5).font = MONO_FONT
+        cell = sheet.cell(row=row - 1, column=7)
+        cell.fill = VERDICT_FILL.get(verdict.get("verdict", ""), VERDICT_FILL["not_executed"])
+        cell.font = Font(bold=True)
+        sheet.row_dimensions[row - 1].height = 110
+
+
+def comparison_detail(verdict: dict[str, Any], answer: dict[str, Any]) -> str:
+    """Say in words why a verdict is what it is.
+
+    :param verdict: One entry of an evaluation's ``verdicts``.
+    :param answer: The matching LLM result.
+    :returns: Readable text for the Questions tab.
+    """
+    if not verdict:
+        return config.NOT_EXECUTED
+    text = (f"{verdict.get('matched_values', 0)} of {verdict.get('expected_values', 0)} reference "
+            f"values found; {answer.get('attempts_used', verdict.get('attempts_used', '-'))} "
+            f"attempt(s); {verdict.get('llm_row_count', '-')} answer row(s) vs "
+            f"{verdict.get('reference_row_count', '-')}.")
+    missing = verdict.get("missing") or []
+    if missing:
+        shown = "; ".join(f"{m.get('key') or '-'} {m.get('measure')} = {m.get('value')}"
+                          for m in missing[:4])
+        text += f" Missing: {shown}{' ...' if len(missing) > 4 else ''}."
+    if verdict.get("order_checked") and not verdict.get("order_ok"):
+        text += f" {verdict.get('note')}"
+    return text
 
 
 def sheet_question_detail(book: Workbook, context: dict[str, Any]) -> None:
@@ -531,12 +648,21 @@ def sheet_assumptions(book: Workbook) -> None:
     :returns: ``None``.
     """
     sheet = book.create_sheet("Assumptions")
-    set_widths(sheet, [8, 16, 70, 62, 62])
+    set_widths(sheet, [8, 22, 16, 70, 62, 62])
     row = 1
     sheet.cell(row=row, column=1, value="Assumptions (referenced by ID from the other tabs)").font = TITLE_FONT
+    row += 1
+    note = sheet.cell(
+        row=row, column=1,
+        value="Every row is [ASSUMED]: an interpretation this build had to make, none of them "
+              "confirmed by the bank. A superseded assumption is kept for traceability and is "
+              "NOT the rule in force; its replacement is named in the Status column.")
+    note.font, note.alignment = SUBTLE_FONT, WRAP
+    sheet.merge_cells(start_row=row, start_column=1, end_row=row, end_column=6)
+    sheet.row_dimensions[row].height = 30
     row += 2
     row = write_header(
-        sheet, ["ID", "Area", "Assumption", "Why", "What changes if wrong"], row
+        sheet, ["ID", "Status", "Area", "Assumption", "Why", "What changes if wrong"], row
     )
     text = config.PROJECT_ROOT.joinpath("ASSUMPTIONS.md").read_text(encoding="utf-8")
     for line in text.splitlines():
@@ -546,7 +672,97 @@ def sheet_assumptions(book: Workbook) -> None:
         if len(cells) < 5:
             continue
         cells = [cell.replace("**", "").replace("`", "") for cell in cells]
-        row = write_row(sheet, row, cells[:5])
+        identifier, status = cells[0], "current [ASSUMED]"
+        superseded = re.search(r"\((superseded by [^)]*)\)", identifier, flags=re.I)
+        if superseded:
+            identifier = identifier[:superseded.start()].strip()
+            status = superseded.group(1).upper()
+        row = write_row(sheet, row, [identifier, status, *cells[1:5]])
+        if superseded:
+            for column in range(1, 7):
+                sheet.cell(row=row - 1, column=column).font = SUBTLE_FONT
+
+
+def _plain(text: str) -> str:
+    """Strip Markdown emphasis and reflow paragraphs for a cell.
+
+    :param text: Markdown text.
+    :returns: Plain text, one line per paragraph.
+    """
+    text = text.replace("**", "").replace("`", "")
+    paragraphs = re.split(r"\n\s*\n", text.strip())
+    return "\n".join(" ".join(p.split()) for p in paragraphs if p.strip())
+
+
+def parse_decisions() -> list[dict[str, str]]:
+    """Split ``DECISIONS.md`` into one record per decision.
+
+    Only what the log records is used; a field it does not record stays empty
+    rather than being written here.
+
+    :returns: Records with id, title, status, options, choice, reason, cost.
+    """
+    text = config.PROJECT_ROOT.joinpath("DECISIONS.md").read_text(encoding="utf-8")
+    parts = re.split(r"^## (D\d+) - (.*)$", text, flags=re.M)
+    records = []
+    for i in range(1, len(parts), 3):
+        body = re.split(r"^---\s*$", parts[i + 2], flags=re.M)[0]
+        pieces = re.split(r"^\*\*([A-Za-z ,]+?)\.\*\*", body, flags=re.M)
+        fields = [(pieces[j].strip(), _plain(pieces[j + 1])) for j in range(1, len(pieces), 2)]
+
+        def pick(*names: str) -> str:
+            return "\n\n".join(v for k, v in fields if any(k.startswith(n) for n in names))
+
+        title = _plain(parts[i + 1])
+        superseded = re.search(r"\((superseded by [^)]*)\)", title, flags=re.I)
+        records.append({
+            "id": parts[i],
+            "title": title[:superseded.start()].strip() if superseded else title,
+            "status": superseded.group(1).upper() if superseded else "current",
+            "options": pick("Options") or pick("Context"),
+            "choice": pick("Choice"),
+            "reason": pick("Reason", "Result") or pick("What happened", "How it was caught"),
+            "cost": pick("Cost", "What it costs", "Consequence") or (
+                "Recorded together with the reason." if any("consequence" in k.lower()
+                                                            for k, _ in fields)
+                else "Not recorded separately in DECISIONS.md."),
+        })
+    return records
+
+
+def sheet_decisions(book: Workbook) -> int:
+    """Write the Decisions tab from ``DECISIONS.md``.
+
+    :param book: Target workbook.
+    :returns: Number of decisions written.
+    """
+    records = parse_decisions()
+    sheet = book.create_sheet("Decisions")
+    set_widths(sheet, [7, 20, 38, 50, 44, 56, 56])
+    sheet.cell(row=1, column=1, value="Design decisions: options, choice, reason, cost").font = TITLE_FONT
+    note = sheet.cell(
+        row=2, column=1,
+        value="Read from DECISIONS.md, which holds the full text. A superseded decision is kept "
+              "for traceability and is NOT in force; its replacement is named in the Status "
+              "column. The two-page summary is deliverables/DDR.pdf.")
+    note.font, note.alignment = SUBTLE_FONT, WRAP
+    sheet.merge_cells(start_row=2, start_column=1, end_row=2, end_column=7)
+    sheet.row_dimensions[2].height = 30
+    row = write_header(sheet, ["ID", "Status", "Decision", "Options considered", "Choice",
+                               "Reason", "Cost and consequence"], 4)
+    for record in records:
+        row = write_row(sheet, row, [record["id"], record["status"], record["title"],
+                                     record["options"], record["choice"],
+                                     record["reason"] or "-", record["cost"] or "-"])
+        sheet.cell(row=row - 1, column=1).font = Font(bold=True)
+        if record["status"] != "current":
+            for column in range(2, 8):
+                sheet.cell(row=row - 1, column=column).font = SUBTLE_FONT
+        longest = max(len(record["options"]) // 48, len(record["reason"]) // 54,
+                      len(record["cost"]) // 54, 3)
+        sheet.row_dimensions[row - 1].height = min(409, 14 * (longest + 1))
+    sheet.auto_filter.ref = f"A4:G{row - 1}"
+    return len(records)
 
 
 def sheet_cleaning(book: Workbook) -> int:
@@ -667,23 +883,35 @@ def sheet_entitlements(book: Workbook, context: dict[str, Any]) -> None:
     row += 1
     sheet.cell(row=row, column=1, value="Bypass attempts, and what happened").font = TITLE_FONT
     row += 1
-    row = write_header(sheet, ["Attempt", "Result", "", "", "", "", "", ""], row)
-    for attempt, result in (
-        ("SET ROLE to another relationship manager", "refused: no membership in that role"),
-        ("SET ROLE to the pipeline owner (which bypasses RLS)", "refused: no membership"),
+    row = write_header(sheet, ["Attempt", "Result", "Test (tests/test_rls.py)", "", "", "", "", ""],
+                       row)
+    for attempt, result, test in (
+        ("SET ROLE to another relationship manager", "refused: no membership in that role",
+         "test_cannot_switch_to_another_user_role"),
+        ("SET ROLE to the pipeline owner (which bypasses RLS)", "refused: no membership",
+         "test_cannot_switch_to_the_pipeline_owner"),
         ("Query the core base tables directly, around the ai views",
-         "allowed, and still filtered: the policy is on the table, so reaching the table reaches the policy"),
-        ("Read raw / stg / dq / inject", "refused: no privilege on those schemas"),
+         "allowed, and still filtered: the policy is on the table, so reaching the table reaches the policy",
+         "test_querying_the_base_tables_directly_is_still_filtered"),
+        ("Read raw / stg / dq / inject", "refused: no privilege on those schemas",
+         "test_cannot_read_the_raw_or_staging_layers"),
         ("set_config('app.end_user', <other user>)",
-         "no effect: identity is session_user, not a session variable"),
-        ("INSERT into sec.portfolio_client to self-grant a portfolio", "refused: no privilege"),
-        ("ALTER TABLE ... DISABLE ROW LEVEL SECURITY", "refused: not the table owner"),
-        ("DROP POLICY", "refused: not the table owner"),
-        ("UPDATE / DELETE / TRUNCATE anything in core", "refused: consumers hold SELECT only"),
+         "no effect: identity is session_user, not a session variable",
+         "test_setting_a_session_variable_does_not_change_visibility"),
+        ("INSERT into sec.portfolio_client to self-grant a portfolio", "refused: no privilege",
+         "test_cannot_grant_itself_a_portfolio"),
+        ("ALTER TABLE ... DISABLE ROW LEVEL SECURITY, or DROP POLICY",
+         "refused: not the table owner", "test_cannot_disable_or_drop_the_policy"),
+        ("UPDATE / DELETE / TRUNCATE anything in core", "refused: consumers hold SELECT only",
+         "test_consumer_cannot_write_anywhere_in_the_product"),
         ("FULL OUTER JOIN to widen the result",
-         "no leak: each table carries its own policy, so the result is the intersection"),
+         "no leak: each table carries its own policy, so the result is the intersection",
+         "test_a_join_cannot_widen_the_result"),
+        ("A disponent reads the owner's other data",
+         "refused: a disposition grants the account, never the person (D024)",
+         "test_a_disponent_reaches_the_account_but_not_its_owner"),
     ):
-        row = write_row(sheet, row, [attempt, result, "", "", "", "", "", ""])
+        row = write_row(sheet, row, [attempt, result, test, "", "", "", "", ""])
 
 
 def sheet_run_log(book: Workbook) -> None:
@@ -806,6 +1034,7 @@ def gather_context() -> dict[str, Any]:
         users = db.fetch_all(
             conn, "SELECT db_role, display_name FROM sec.app_user ORDER BY db_role"
         )
+        server_version = str(db.fetch_value(conn, "SHOW server_version")).split()[0]
 
     entitlements = []
     for user in users:
@@ -836,6 +1065,10 @@ def gather_context() -> dict[str, Any]:
         "reference": reference,
         "llm": load_json(config.LLM_RESULTS_JSON),
         "evaluation": load_json(config.EVALUATION_JSON),
+        "local_llm": load_json(config.LOCAL_LLM_RESULTS_JSON),
+        "local_evaluation": load_json(config.LOCAL_EVALUATION_JSON),
+        "context_pack_chars": len((config.SEMANTIC_DIR / "context_pack.md").read_text(encoding="utf-8")),
+        "server_version": server_version,
         "core_counts": core_counts,
         "policies": policies,
         "entitlements": entitlements,
@@ -872,8 +1105,10 @@ def main() -> int:
     rule_counts = sheet_rules(book)
     cleaning_steps = sheet_cleaning(book)
     sheet_assumptions(book)
+    decisions = sheet_decisions(book)
     sheet_entitlements(book, context)
     sheet_run_log(book)
+    set_print_layout(book)
 
     config.DELIVERABLES_DIR.mkdir(parents=True, exist_ok=True)
     book.save(config.WORKBOOK_XLSX)
@@ -884,10 +1119,12 @@ def main() -> int:
         ", ".join(book.sheetnames),
     )
     LOGGER.info(
-        "  defect types=%d  rules=%d  cleaning steps=%d  questions=%d  entitlement users=%d",
+        "  defect types=%d  rules=%d  cleaning steps=%d  decisions=%d  questions=%d  "
+        "entitlement users=%d",
         defect_types,
         rule_counts["explicit"],
         cleaning_steps,
+        decisions,
         len(config.QUESTION_IDS),
         len(context["entitlements"]),
     )

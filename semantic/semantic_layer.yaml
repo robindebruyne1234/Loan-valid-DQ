@@ -148,7 +148,9 @@ glossary:
   - term: problematic loan
     definition: >-
       A loan with status B (finished, not repaid) or D (running, client in
-      debt). Available as the boolean `is_problematic`.
+      debt). Available as the boolean `is_problematic`. This is the product's
+      one definition (assumption A4); the business has not yet confirmed it,
+      so use it exactly as stated rather than a variant.
     not: >-
       Status A (finished, paid in full) or C (running, no problem). Counting
       only B -- realised losses -- is a different and much smaller number
@@ -289,8 +291,12 @@ metrics:
   - name: gender_share
     description: Share of a population by gender, as a percentage.
     expression: round(100.0 * count(*) / sum(count(*)) OVER (), 2)
-    entity: any entity with a gender column
-    careful: Percentages must sum to 100; report the counts as well.
+    entity: ai.client
+    group_by: gender
+    careful: >-
+      Percentages must sum to 100; report the counts as well. For account
+      owners the same split groups ai.account_owner (or ai.loan) by
+      `owner_gender`: the column is named differently there.
 
 # -----------------------------------------------------------------------------
 # Entities. One per view in the ai schema.

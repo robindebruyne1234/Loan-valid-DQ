@@ -127,7 +127,8 @@ helper never even knows there was a lock, and nothing it could possibly write
 can unlock it, because the lock is not part of the question.
 
 > **Proof, not promises:** we logged in as four different staff members and
-> counted. Anna sees 1,481 customers. Ben in the south sees 1,386. The risk
+> counted. Anna sees 1,481 customers. Ben in the south sees his 1,386, plus
+> one more while he covers for Anna under a time-limited delegation. The risk
 > manager sees all 5,369. A brand-new employee with no customers assigned sees
 > **0** — not everything, which is what a badly built system would do.
 >

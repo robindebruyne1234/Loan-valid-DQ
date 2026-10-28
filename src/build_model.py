@@ -463,7 +463,9 @@ MODEL_OBJECTS: tuple[tuple[str, str, str, str, str], ...] = (
      "'The balance at the end of December 1998' (Q9) is a modelling decision, "
      "not a column: it needs a tie-break for intra-day order and a "
      "carry-forward for months with no posting. Both are decided here, once, "
-     "and marked with is_carried_forward."),
+     "and marked with is_carried_forward. Known limitation: same-day ties go to "
+     "the highest trans_id, which is not chronological, so an individual "
+     "account's closing balance can be off (A14, caveat C2)."),
     ("v_account_owner", "curated view", "one account", "account_id",
      "The only place that decides what 'the account owner' means. Four "
      "questions say the phrase; without this view each generated query would "
@@ -608,7 +610,8 @@ def write_model_explanation(conn: psycopg.Connection) -> None:
         "The district the account is registered in. Q5 uses this. The two differ for 9.1 percent of owners. |",
         "| loan | owner, card, frequency | `core.v_loan_enriched` | One row per loan, no fan-out. |",
         "| account | month-end balance | `core.fact_account_month_end_balance` | "
-        "Pre-computed; carrying forward and tie-breaks are already decided. |",
+        "Pre-computed; carry-forward applied; same-day ties by highest trans_id, "
+        "a documented choice that is not chronological (A14, caveat C2). |",
         "",
         "## Which object answers which question",
         "",

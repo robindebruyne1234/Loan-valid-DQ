@@ -57,6 +57,24 @@ def test_the_request_constrains_the_answer_and_sizes_the_context(
     assert sent["keep_alive"] == config.OLLAMA_KEEP_ALIVE
 
 
+def test_the_real_prompt_fits_the_default_context_window() -> None:
+    """The delivered semantic layer must fit the window the client asks for.
+
+    The pre-check refuses a prompt whose conservative size, plus the answer
+    budget, exceeds ``OLLAMA_NUM_CTX``. When the semantic audit grew the pack,
+    every question was refused as ``context_overflow`` at the old default.
+    """
+    from src import semantic_context  # noqa: PLC0415
+
+    pack = semantic_context.render_context_pack(semantic_context.load_semantic_layer())
+    longest = max(run_questions.load_questions(), key=lambda q: len(q["question"]))
+    prompt = run_questions.build_prompt(pack, longest["id"], longest["question"])
+    estimated = int(len(prompt) / llm_client.PROMPT_CHARS_PER_TOKEN_LOW)
+    assert estimated + config.OLLAMA_NUM_PREDICT <= config.OLLAMA_NUM_CTX, (
+        f"prompt of {len(prompt)} chars needs OLLAMA_NUM_CTX >= "
+        f"{estimated + config.OLLAMA_NUM_PREDICT}")
+
+
 def test_gpu_layers_are_left_to_ollama_unless_configured(
     fake: fake_ollama.FakeOllama, monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -43,7 +43,7 @@ QR12. **Count and sum at the grain of the entity the question is about. Never ag
 **disponent** -- A client authorised to transact on an account they do not own, for example a spouse. 869 of 4,500 accounts have one.
   - Where: `ai.card.holder_is_account_owner = false`
 
-**problematic loan** -- A loan with status B (finished, not repaid) or D (running, client in debt). Available as the boolean `is_problematic`.
+**problematic loan** -- A loan with status B (finished, not repaid) or D (running, client in debt). Available as the boolean `is_problematic`. This is the product's one definition (assumption A4); the business has not yet confirmed it, so use it exactly as stated rather than a variant.
   - NOT: Status A (finished, paid in full) or C (running, no problem). Counting only B -- realised losses -- is a different and much smaller number (assumption A4).
   - Where: `ai.loan.is_problematic`
 
@@ -126,9 +126,10 @@ QR12. **Count and sum at the grain of the entity the question is about. Never ag
   - expression: `round(avg(owner_age_at_loan_start), 2)`
   - time_column: `loan_date` (filter and group periods on this date)
 
-**gender_share** on `any entity with a gender column`: Share of a population by gender, as a percentage.
+**gender_share** on `ai.client`: Share of a population by gender, as a percentage.
   - expression: `round(100.0 * count(*) / sum(count(*)) OVER (), 2)`
-  - careful: Percentages must sum to 100; report the counts as well.
+  - group by: `gender`
+  - careful: Percentages must sum to 100; report the counts as well. For account owners the same split groups ai.account_owner (or ai.loan) by `owner_gender`: the column is named differently there.
 
 ## Entities
 

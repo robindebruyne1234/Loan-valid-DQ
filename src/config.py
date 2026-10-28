@@ -48,6 +48,10 @@ DQ_REPORT_MD: Path = DQ_RESULTS_DIR / "dq_report.md"
 REFERENCE_RESULTS_JSON: Path = DQ_RESULTS_DIR / "reference_results.json"
 LLM_RESULTS_JSON: Path = DQ_RESULTS_DIR / "llm_results.json"
 EVALUATION_JSON: Path = DQ_RESULTS_DIR / "evaluation.json"
+#: A local model's run (scripts\windows.ps1 questions-local / evaluate-local),
+#: kept apart so it can never be mistaken for the recorded run above.
+LOCAL_LLM_RESULTS_JSON: Path = DQ_RESULTS_DIR / "local" / "llm_results.json"
+LOCAL_EVALUATION_JSON: Path = DQ_RESULTS_DIR / "local" / "evaluation.json"
 RUN_LOG_JSONL: Path = DQ_RESULTS_DIR / "run_log.jsonl"
 
 DEFECTS_CSV: Path = DELIVERABLES_DIR / "defects.csv"
@@ -479,8 +483,11 @@ OLLAMA_HOST: str = _http_url(os.environ.get("OLLAMA_HOST", "http://127.0.0.1:114
 
 #: Context window requested from Ollama, in tokens. Set explicitly because
 #: Ollama's default is a few thousand tokens and the semantic layer alone is
-#: larger: an unset window silently drops the start of the prompt.
-OLLAMA_NUM_CTX: int = int(os.environ.get("OLLAMA_NUM_CTX", "12288"))
+#: larger: an unset window silently drops the start of the prompt. 16,384
+#: because the semantic audit grew the prompt to about 36,000 characters,
+#: which the conservative pre-check sizes at about 12,000 tokens; 12,288 then
+#: refused every question. ``tests/test_llm_client.py`` keeps the two in step.
+OLLAMA_NUM_CTX: int = int(os.environ.get("OLLAMA_NUM_CTX", "16384"))
 
 #: Maximum tokens the model may generate for one answer.
 OLLAMA_NUM_PREDICT: int = int(os.environ.get("OLLAMA_NUM_PREDICT", "1024"))

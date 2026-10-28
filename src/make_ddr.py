@@ -18,6 +18,7 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
+import sys
 from typing import Any
 
 from docx import Document
@@ -166,6 +167,8 @@ def convert_to_pdf() -> int | None:
     """
     soffice = shutil.which("soffice") or shutil.which("libreoffice")
     if not soffice:
+        if sys.platform == "win32":
+            return _convert_with_word()
         LOGGER.warning("LibreOffice not found -> cannot produce a PDF or verify the page count")
         return None
 
@@ -187,6 +190,41 @@ def convert_to_pdf() -> int | None:
     data = config.DDR_PDF.read_bytes()
     pages = len(re.findall(rb"/Type\s*/Page[^s]", data))
     return pages or None
+
+
+def _convert_with_word() -> int | None:
+    """Convert to PDF through Microsoft Word, for Windows without LibreOffice.
+
+    Word reports its own page count for the document it laid out; the PDF it
+    exported is counted as well, and the larger of the two is returned, so a
+    disagreement can only make the check stricter.
+
+    :returns: The page count, or ``None`` when Word is unavailable or failed.
+    """
+    powershell = shutil.which("powershell") or shutil.which("pwsh")
+    if not powershell:
+        LOGGER.warning("neither LibreOffice nor PowerShell found -> page count not verified")
+        return None
+    config.DDR_PDF.unlink(missing_ok=True)
+    docx, pdf = (str(path).replace("'", "''") for path in (config.DDR_DOCX, config.DDR_PDF))
+    script = (
+        "$ErrorActionPreference = 'Stop'; $word = New-Object -ComObject Word.Application; "
+        "$word.Visible = $false; try { "
+        f"$doc = $word.Documents.Open('{docx}', $false, $true); "
+        "$pages = $doc.ComputeStatistics(2); "
+        f"$doc.ExportAsFixedFormat('{pdf}', 17); $doc.Close($false); Write-Output $pages "
+        "} finally { $word.Quit() }"
+    )
+    result = subprocess.run([powershell, "-NoProfile", "-NonInteractive", "-Command", script],
+                            capture_output=True, text=True, timeout=300, check=False)
+    word_pages = re.findall(r"^\s*(\d+)\s*$", result.stdout, flags=re.M)
+    if result.returncode != 0 or not word_pages or not config.DDR_PDF.exists():
+        LOGGER.warning("Word conversion failed -> %s", (result.stderr or result.stdout)[:300])
+        return None
+    pdf_pages = len(re.findall(rb"/Type\s*/Page[^s]", config.DDR_PDF.read_bytes()))
+    LOGGER.info("converted with Microsoft Word -> Word counts %s page(s), the PDF %d",
+                word_pages[-1], pdf_pages)
+    return max(int(word_pages[-1]), pdf_pages)
 
 
 def main() -> int:

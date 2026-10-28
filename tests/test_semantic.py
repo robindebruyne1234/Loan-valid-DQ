@@ -138,6 +138,38 @@ def test_validator_catches_join_grain_and_metadata_drift() -> None:
         assert expected in problems, f"validator missed: {expected}\n{problems}"
 
 
+def test_validator_refuses_metrics_built_on_columns_that_do_not_exist() -> None:
+    """A certified metric may only name a described entity and its real columns.
+
+    A metric once said ``entity: any entity with a gender column``, which the
+    validator skipped; ``ai.account_owner`` has ``owner_gender`` and no
+    ``gender``. Whatever the column, an unchecked name is advice the model
+    cannot verify, so the general rule is tested with several metrics.
+    """
+    import copy
+
+    layer = copy.deepcopy(semantic_context.load_semantic_layer())
+    metrics = {metric["name"]: metric for metric in layer["metrics"]}
+    metrics["gender_share"]["entity"] = "ai.account_owner"
+    metrics["loan_count"]["entity"] = "ai.loans"
+    metrics["incoming_transaction_amount"]["filter"] = "direction_code = 'credit'"
+    metrics["average_loan_amount"]["expression"] = "round(avg(loan_amount), 2)"
+
+    with db.connect() as conn:
+        problems = "\n".join(semantic_context.validate(layer, conn))
+    for expected in (
+        "metric gender_share: uses gender, which is not a column of ai.account_owner",
+        "metric loan_count: entity 'ai.loans' is not a described entity",
+        "metric incoming_transaction_amount: uses direction_code",
+        "metric average_loan_amount: uses loan_amount",
+    ):
+        assert expected in problems, f"validator missed: {expected}\n{problems}"
+
+    # And the delivered layer passes: every metric resolves.
+    with db.connect() as conn:
+        assert semantic_context.validate(semantic_context.load_semantic_layer(), conn) == []
+
+
 def test_context_pack_defines_quarters_and_time_anchors() -> None:
     """'Q1-Q3 of 1995 and 1998' must be answerable from the pack alone.
 

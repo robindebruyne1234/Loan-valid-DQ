@@ -1,5 +1,7 @@
 # Security review and code review
 
+> **Historical record** -- the security and code review, kept for traceability. Its figures, file paths and open items are as of when it was written and are **not** maintained. The current state, with evidence, is [`docs/DELIVERY_AUDIT.md`](../DELIVERY_AUDIT.md); current decisions are [`DECISIONS.md`](../../DECISIONS.md).
+
 Run at the end of the build. Both were done by reading the code and **testing
 it against the running database**, not by reasoning about it.
 

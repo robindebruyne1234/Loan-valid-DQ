@@ -812,6 +812,24 @@ SQL** (§14.2) and matched exactly **[RUN]**. The reference SQL is in
 
 ---
 
+### Two bugs worth owning, because they make the better argument
+
+Carried over from the former `WALKTHROUGH_NOTES.md` (merged here and removed).
+
+- **The rule self-test nearly deleted real data.** `dq.v_blocked` was not scoped
+  by schema, so running the rule tests made the *injected* defects exclude *real*
+  rows from the product: 76 districts instead of 77, 11,024 transactions
+  orphaned. The foreign key and grain checks in `build_model` failed before any
+  deliverable was written. The argument: verify a model rather than trust a green
+  build. Fixed; `dq.v_blocked` is now scoped to `target_schema = 'stg'`.
+- **The entitlement filter leaked through a view.** The `ai` views were
+  `security_invoker`; the three curated `core` views they read were not, so
+  `ai.loan` returned all 682 loans to a user entitled to none while
+  `core.fact_loan` returned 0 in the same session. The design was right and the
+  DDL was one setting short. The argument: test security by connecting as a
+  restricted user and counting rows. Guarded by
+  `test_every_view_between_the_consumer_and_the_policy_is_security_invoker`.
+
 ## 9. Test and verification evidence
 
 | Item | Evidence | Status |
@@ -829,8 +847,8 @@ SQL** (§14.2) and matched exactly **[RUN]**. The reference SQL is in
 | Count claimed | Where |
 |---:|---|
 | 114 | `README.md:9`, `README.md:161` |
-| 137 | `scripts/make_pitch_deck.py:946,1237`, `docs/SECURITY_AND_CODE_REVIEW.md:185` |
-| 202 | `docs/GETTING_STARTED.md:148,193,213,441`, `docs/DEPLOYMENT.md:114`, `docs/BUILD_REVIEW_2.md:21` |
+| 137 | `scripts/make_pitch_deck.py:946,1237`, `docs/history/SECURITY_AND_CODE_REVIEW.md` (formerly line 185) |
+| 202 | `docs/GETTING_STARTED.md:148,193,213,441`, `docs/DEPLOYMENT.md:114`, `docs/history/BUILD_REVIEW_2.md` (formerly line 21) |
 | **241** | Actual: collected **[RUN]** |
 
 **Coverage gaps worth naming:**
@@ -1664,8 +1682,8 @@ Demo prerequisites:
   - `docs/GOLD_LAYER.md:199-200`
   - `docs/DEPLOYMENT.md:69,114,221-245`
   - `docs/GETTING_STARTED.md:148,193,213,441`
-  - `docs/BUILD_REVIEW_2.md:21`
-  - `docs/SECURITY_AND_CODE_REVIEW.md:185`
+  - `docs/history/BUILD_REVIEW_2.md` (formerly line 21)
+  - `docs/history/SECURITY_AND_CODE_REVIEW.md` (formerly line 185)
 - **Scripts and deployment**
   - `scripts/make_pitch_deck.py:946,1237,1601-1602`
   - `scripts/db_up.sh`

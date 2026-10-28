@@ -230,6 +230,29 @@ def test_guarded_execution_is_read_only_and_entitlement_filtered() -> None:
     assert 0 < north < config.REFERENCE_ROW_COUNTS["client"]
 
 
+@pytest.mark.parametrize("sql,missing", [
+    ("SELECT o.no_such_column, count(*) FROM ai.account_owner o GROUP BY 1", "no_such_column"),
+    ("SELECT count(*) FROM ai.no_such_view", "no_such_view"),
+    ("SELECT l.loan_id FROM ai.loan l JOIN ai.client c ON c.no_such_key = l.account_id",
+     "no_such_key"),
+])
+def test_a_name_the_schema_does_not_have_fails_safely(sql: str, missing: str) -> None:
+    """The guard judges shape and schema names; the database resolves columns.
+
+    A statement naming a column or view that does not exist passes the guard
+    and must come back as the database's error with no rows -- never as an
+    empty answer -- and the connection must stay usable afterwards.
+    """
+    assert sql_guard.guard(sql).allowed
+    with support.consumer("rm_north") as conn:
+        verdict, rows, error = sql_guard.execute_guarded(conn, sql)
+        assert verdict.allowed
+        assert rows is None
+        assert error and "does not exist" in error and missing in error, error
+        _, rows, error = sql_guard.execute_guarded(conn, "SELECT count(*) AS n FROM ai.calendar")
+        assert error is None and rows[0]["n"] > 0
+
+
 def test_guarded_execution_refuses_to_run_a_rejected_statement() -> None:
     """A rejected statement is never sent to the database."""
     with support.consumer("rm_north") as conn:

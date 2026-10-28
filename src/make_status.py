@@ -112,6 +112,7 @@ def main() -> int:
         lines += [
             f"- provider: `{llm.get('provider')}`",
             f"- model: `{llm.get('model')}`",
+            f"- recorded: {llm.get('generated_at_utc')} at commit `{llm.get('git_commit')}`",
             f"- isolation: no tools, no MCP servers, no filesystem, no database access; "
             f"the model received the rendered semantic layer "
             f"({llm.get('context_pack_chars', 0):,} characters) and the question, and nothing else",
@@ -122,6 +123,24 @@ def main() -> int:
             f"- SQL hand-corrected: **none**. The Questions tab shows what the model produced.",
             f"- call logs: `llm_logs/` ({len(list(config.LLM_LOG_DIR.glob('*.json')))} files, "
             f"each with the full prompt, parameters, raw response, timing and cost)",
+            "",
+        ]
+        pack_now = len((config.SEMANTIC_DIR / "context_pack.md").read_text(encoding="utf-8"))
+        if pack_now != llm.get("context_pack_chars"):
+            lines += [
+                f"The semantic pack has changed since this run ({pack_now:,} characters "
+                "now). The recorded answers are evidence for the pack they were given, "
+                "not for the current one, until `make questions` is run again.",
+                "",
+            ]
+    local = (json.loads(config.LOCAL_EVALUATION_JSON.read_text(encoding="utf-8"))
+             if config.LOCAL_EVALUATION_JSON.exists() else None)
+    if local:
+        tally = ", ".join(f"{k} {v}" for k, v in sorted(local.get("tally", {}).items()))
+        lines += [
+            f"A separate local run, never merged with the one above: "
+            f"`{local.get('llm_provider')}` / `{local.get('llm_model')}` at commit "
+            f"`{local.get('git_commit')}`, {tally} (`dq/results/local/`).",
             "",
         ]
         unanswered = [r for r in results.values() if r.get("status") != "answered"]
@@ -180,12 +199,18 @@ def main() -> int:
         "  against a deliberately corrupted copy instead (20 seeded defects, schema",
         "  `inject`), and running them on the bank's copy needs no change: drop the",
         "  files in `data/raw/provided/` and re-run `make all`.",
-        "- **Ollama was the documented default LLM** and is not reachable from the",
-        "  build environment (not installed, and the model download hosts are not on",
-        "  the egress allow-list). The provider abstraction keeps it, untested.",
-        "- **Docker was not available** (CLI present, no daemon), so PostgreSQL 16",
-        "  runs from a native cluster. The DDL, the policies and the tests are",
-        "  identical; `docker-compose.yml` is shipped and `make up` prefers it.",
+        "- **The SQL guard proves a query is safe, not that it answers the question.**",
+        "  The intent checker (`scripts/ir_check_prototype.py`) is a prototype that",
+        "  neither the runner nor the web app calls.",
+        "- **The month-end balance breaks same-day ties by the highest `trans_id`**,",
+        "  which is not chronological (A14, caveat C2): per-account balances can be",
+        "  off even though the Q9 average barely moves.",
+        "- **A local Ollama model is an optional provider.** Its run is kept apart in",
+        "  `dq/results/local/` and is not the submission evidence.",
+        "- **Two build environments.** PostgreSQL 16 on Linux (docker compose or a",
+        "  native cluster) and PostgreSQL 18 on native Windows; the DDL, the policies",
+        "  and the tests are identical.",
+        "- Claims, evidence and the remaining open items: `docs/DELIVERY_AUDIT.md`.",
         "- **`core.v_*` views and `ai.*` views are rebuilt on every `make model`**,",
         "  which drops and recreates the consumer surface. The target restores it.",
         "",

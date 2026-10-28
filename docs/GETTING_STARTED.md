@@ -145,7 +145,7 @@ Five libraries, and what each is for:
 | `sqlglot` | parses the SQL an AI writes, to check it before it runs |
 | `openpyxl` | writes the Excel deliverable |
 | `python-docx` | writes the Word deliverable |
-| `pytest` (dev) | runs the 202 tests |
+| `pytest` (dev) | runs the test suite |
 
 There is no lock file. The project pins minimum versions only, and has no
 transitive pins to conflict — `make deps` on a fresh machine resolves cleanly.
@@ -190,7 +190,7 @@ running and read the next section while it works.
 **Expected final lines:**
 
 ```
-202 passed in ...
+N passed, M skipped in ...   (counts depend on the platform: Windows-only and opt-in live-model tests skip elsewhere; the delivery run is in docs/DELIVERY_AUDIT.md)
 build | done. The data product is built and the privacy model is live.
 build | try:  make demo-login
 ```
@@ -210,7 +210,7 @@ Each of these is also a command you can run on its own:
 | 7 | `make semantic` | Renders the semantic layer into the text the AI will be given | `11 entities, 106 columns` |
 | 8 | `make entitlements` | Creates the 8 logins, their second factors, the access grants and the 7 security policies | the `visible to ...` table |
 | 9 | `make demo` | The worked example on one client → `docs/WORKED_EXAMPLE.md` | `attempts=13 blocked=13 leaked=0` |
-| 10 | `make test` | 202 tests | `202 passed` |
+| 10 | `make test` | the test suite | `... passed, 1 skipped` (the live-model test is opt-in) |
 
 If a step fails, run just that step again to see its output on its own.
 
@@ -386,14 +386,18 @@ Ten questions, ten calls. Costs a few cents.
 
 ```bash
 curl -fsSL https://ollama.com/install.sh | sh
-ollama pull qwen2.5-coder:7b
+ollama pull qwen2.5-coder:3b
 export LLM_PROVIDER=ollama
-export LLM_MODEL=qwen2.5-coder:7b
-make questions
+make questions-local    # writes dq/results/local/ and llm_logs/local/
+make evaluate-local
 ```
 
-Needs ~8 GB of RAM. A smaller model will get fewer of the ten right — which
-is itself informative, and the evaluation will tell you exactly which.
+Use `questions-local`, not `questions`: the latter would replace the recorded
+Claude run that the workbook is built from. `qwen2.5-coder:3b` is the default
+for Ollama (about 2 GB, runs on a laptop CPU); set `LLM_MODEL` for another. A
+smaller model gets fewer of the ten right (the recorded 3b run: 6 match,
+2 partial, 2 mismatch), and the evaluation tells you exactly which. A model
+that answers is not evidence that it answers correctly.
 
 ### Option C — skip it
 
@@ -438,7 +442,7 @@ Loan-valid-DQ/
 │   └── worked_example.py    make demo
 ├── dq/dq_rules.yaml     the 89 hand-written quality rules
 ├── semantic/            what the AI is told about the data
-├── tests/               202 tests
+├── tests/               the test suite
 ├── docs/                all the explanation, including this file
 └── deliverables/        the Excel, the decision record, the deck, the ZIP
 ```

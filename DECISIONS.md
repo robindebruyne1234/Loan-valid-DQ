@@ -145,6 +145,13 @@ read the tables.
 prompt, model id, parameters, raw response and timing. Nothing in the Questions
 tab is hand-written: where a call fails, the cell says `NOT EXECUTED`.
 
+**Later (2026-10-27, native Windows build).** Ollama became available on the
+laptop, and `qwen2.5-coder:3b` was added as an optional, free local provider
+for the walkthrough page and for a second measurement. Its run is written to
+`dq/results/local/` and `llm_logs/local/` and never replaces the Claude run,
+which remains the submission evidence (6 match, 2 partial, 2 mismatch against
+Claude's 10 of 10).
+
 ---
 
 ## D006 - Code-to-label mapping lives in one place, and the redundancy is checked
@@ -350,7 +357,9 @@ measures, a reversed ranking, truncated rows, an empty result and a missing
 answer all fail, and `True` is not allowed to match a count of 1.
 
 **Result.** 10 of 10 questions answered on the first attempt, 10 of 10 matching
-the hand-written reference answers, no retries used and no SQL hand-corrected.
+the hand-written reference answers, no retries used and no SQL hand-corrected
+(Claude Sonnet 5.5, run of 2026-10-25, on the semantic pack as it was before the
+semantic audit changed it).
 
 ---
 

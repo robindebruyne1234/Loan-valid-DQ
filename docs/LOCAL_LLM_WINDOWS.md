@@ -65,7 +65,7 @@ All settings are environment variables, read by `src/config.py`.
 | `LLM_PROVIDER` | `ollama` on Windows (`claude_cli` elsewhere) | `ollama`, `claude_cli`, `anthropic_api` or `none` |
 | `LLM_MODEL` | the provider's own: `qwen2.5-coder:3b` for Ollama | model tag |
 | `OLLAMA_HOST` | `http://127.0.0.1:11434` | also accepts Ollama's own `host:port` form |
-| `OLLAMA_NUM_CTX` | `12288` | context window in tokens; the prompt is ~8,000 |
+| `OLLAMA_NUM_CTX` | `16384` | context window in tokens; the prompt is ~9,400 (about 36,000 characters) |
 | `OLLAMA_NUM_PREDICT` | `1024` | longest answer, in tokens |
 | `OLLAMA_KEEP_ALIVE` | `30m` | how long the model and its cached semantic layer stay loaded |
 | `OLLAMA_NUM_GPU` | `0` on Windows (unset elsewhere) | model layers on the GPU: `0` is CPU only, `-1` lets Ollama decide |
@@ -195,9 +195,18 @@ controls, not a source of figures.
 
 Total for the ten: 17 minutes 46 seconds, almost all of it generation.
 
+This run used the semantic pack of commit `5b13f2b` (29,500 characters). The
+semantic audit has since grown the pack to about 33,700 characters, and the
+default `OLLAMA_NUM_CTX` was raised from 12,288 to 16,384 so it fits: at the old
+value every question was refused as `context_overflow`. On the grown pack the
+opt-in live test (`BERKA_LIVE_LLM=1`, one question) passed on 2026-10-28 in
+9.5 minutes on the CPU: the model answered in contract and its SQL ran as the
+persona. The ten were not re-run on the grown pack, so the table above is the
+older pack's result.
+
 ## Limitations
 
-* **Quality.** A 3-billion-parameter model reading an 8,000-token semantic
+* **Quality.** A 3-billion-parameter model reading an 8,400-token semantic
   layer is the weakest part of this pipeline. Its answers are measured against
   the hand-written reference answers, not trusted.
 * **Speed.** About a minute and a half per warm answer on this laptop's CPU,

@@ -7,7 +7,9 @@ The brief requires full disclosure of AI tooling. This is it.
 | Tool | Model | What it did |
 |---|---|---|
 | Claude Code (CLI), interactive | Claude Opus 5 (`claude-opus-5`) | Wrote this repository: the pipeline, the SQL, the rule set, the semantic layer, the tests and the documents, under direction, with every step executed and verified against the database rather than asserted. |
-| Claude CLI, non-interactive (`claude -p`) | Claude Sonnet 5.5 (`claude-sonnet-5-5`) | **The LLM under test.** Generated the SQL for the 10 questions from the semantic layer. |
+| Claude Code, later interactive sessions | Claude Opus 5.5 and Claude Sonnet 5.5 | The Windows/Ollama work, the semantic model audit (`docs/SEMANTIC_MODEL_AUDIT.md`) and the delivery review (`docs/DELIVERY_AUDIT.md`), under the same rule: executed and checked, never typed from memory. The `Co-Authored-By` line of each commit names the model. |
+| Claude CLI, non-interactive (`claude -p`) | Claude Sonnet 5.5 (`claude-sonnet-5-5`) | **The LLM under test, and the submission evidence.** Generated the SQL for the 10 questions from the semantic layer (run of 2026-10-25, `dq/results/llm_results.json`). |
+| Ollama, local | qwen2.5-coder:3b | **A second LLM under test, optional and free.** Answers the same questions on a laptop CPU through the same guard and login (`dq/results/local/`). Kept separate from the submission evidence; never merged into it. |
 
 A secondary model (`claude-haiku-5-5`) appears in the usage accounting of the
 non-interactive calls. That is the CLI's own internal housekeeping, not part of
@@ -26,8 +28,10 @@ Every call in `llm_logs/` was made with:
   source file could be picked up.
 
 The model therefore had no database connection, no filesystem and no search. It
-received the rendered semantic layer (`semantic/context_pack.md`, about 6,900
-tokens) and one question, and returned one JSON object. The recorded
+received the rendered semantic layer (`semantic/context_pack.md`: 29,500
+characters for the recorded run; the semantic audit has since grown it to about
+33,500, and the recorded run was not repeated on that version) and one
+question, and returned one JSON object. The recorded
 transcripts show `num_turns: 1` and `permission_denials: []` on every call,
 which is what a pure text completion looks like.
 
@@ -68,9 +72,14 @@ make evaluate     # compare against the hand-written reference answers
 
 The provider is swappable with one environment variable:
 `LLM_PROVIDER=anthropic_api LLM_MODEL=... LLM_API_KEY=... make questions`, or
-`LLM_PROVIDER=ollama LLM_MODEL=qwen2.5-coder:7b make questions` for a local
-open-weight model, or `LLM_PROVIDER=none` to export the prompt pack without
-calling anything.
+`LLM_PROVIDER=none` to export the prompt pack without calling anything. A
+different model's run belongs in its own files, so it can never replace the
+recorded one: on Windows `scripts\windows.ps1 questions-local` and
+`evaluate-local` (Ollama), elsewhere
+`python -m src.run_questions --provider ollama --output dq/results/local/llm_results.json --log-subdir local`
+then `python -m src.evaluate --llm-results dq/results/local/llm_results.json --output dq/results/local/evaluation.json`.
+A model that answers is not evidence that it answers correctly; only the
+evaluation against the reference is.
 
 ## Cost and timing of the measured run
 

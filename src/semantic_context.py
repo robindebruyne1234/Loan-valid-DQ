@@ -21,7 +21,9 @@ import argparse
 from typing import Any
 
 import psycopg
+import sqlglot
 import yaml
+from sqlglot import exp
 
 from src import config, db
 
@@ -129,12 +131,24 @@ def validate(layer: dict[str, Any], conn: psycopg.Connection) -> list[str]:
         for entity in layer["entities"]
     }
     for metric in layer["metrics"]:
-        time_column = metric.get("time_column")
         columns = entity_columns.get(metric["entity"])
-        if time_column and columns is not None and time_column not in columns:
+        if columns is None:
+            # An entity nobody described is an entity nothing checks: the
+            # columns the metric relies on could be invented.
+            problems.append(
+                f"metric {metric['name']}: entity '{metric['entity']}' is not a described entity"
+            )
+            continue
+        time_column = metric.get("time_column")
+        if time_column and time_column not in columns:
             problems.append(
                 f"metric {metric['name']}: time_column {time_column} is not a column "
                 f"of {metric['entity']}"
+            )
+        for missing in sorted(_metric_columns(metric) - columns - {time_column}):
+            problems.append(
+                f"metric {metric['name']}: uses {missing}, which is not a column of "
+                f"{metric['entity']}"
             )
 
     for view in sorted(set(live_columns) - described):
@@ -171,6 +185,23 @@ def validate(layer: dict[str, Any], conn: psycopg.Connection) -> list[str]:
             len(layer["caveats"]),
         )
     return problems
+
+
+def _metric_columns(metric: dict[str, Any]) -> set[str]:
+    """Columns a metric's expression, filter and grouping refer to.
+
+    Parsed, not pattern-matched, so a function name or a string literal is
+    never mistaken for a column.
+
+    :param metric: One entry of the ``metrics:`` block.
+    :returns: Column names, unqualified.
+    """
+    referenced = {metric["group_by"]} if metric.get("group_by") else set()
+    for key in ("expression", "filter"):
+        if metric.get(key):
+            tree = sqlglot.parse_one(str(metric[key]), dialect="postgres")
+            referenced |= {column.name for column in tree.find_all(exp.Column)}
+    return referenced
 
 
 #: Join cardinalities the semantic layer may declare, and what each promises:
@@ -284,6 +315,8 @@ def render_context_pack(layer: dict[str, Any]) -> str:
             out.append(f"  - filter: `{metric['filter']}`")
         if metric.get("time_column"):
             out.append(f"  - time_column: `{metric['time_column']}` (filter and group periods on this date)")
+        if metric.get("group_by"):
+            out.append(f"  - group by: `{metric['group_by']}`")
         if metric.get("grain_note"):
             out.append(f"  - grain: {metric['grain_note'].strip()}")
         if metric.get("careful"):

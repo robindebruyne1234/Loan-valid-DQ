@@ -90,11 +90,19 @@ function Invoke-Setup {
 function Find-Psql {
     $cmd = Get-Command psql -ErrorAction SilentlyContinue
     if ($cmd) { return $cmd.Source }
-    $found = Get-ChildItem "D:\Programmas\PostGres\bin\psql.exe" -ErrorAction SilentlyContinue |
+    if ($env:PSQL -and (Test-Path $env:PSQL)) { return $env:PSQL }
+    # The PostgreSQL service knows where it was installed, default folder or not.
+    $service = Get-CimInstance Win32_Service -Filter "Name LIKE 'postgresql%'" -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    if ($service -and $service.PathName -match '^"?(.+?\\bin)\\pg_ctl\.exe') {
+        $candidate = Join-Path $Matches[1] "psql.exe"
+        if (Test-Path $candidate) { return $candidate }
+    }
+    $found = Get-ChildItem "C:\Program Files\PostgreSQL\*\bin\psql.exe" -ErrorAction SilentlyContinue |
         Sort-Object { [int]($_.Directory.Parent.Name -replace '\D', '') } -Descending |
         Select-Object -First 1
     if ($found) { return $found.FullName }
-    throw "psql.exe not found. Add your PostgreSQL bin folder (e.g. C:\Program Files\PostgreSQL\16\bin) to PATH."
+    throw "psql.exe not found. Add your PostgreSQL bin folder (e.g. C:\Program Files\PostgreSQL\18\bin) to PATH, or set PSQL to psql.exe's full path."
 }
 
 function Invoke-InitDb {
