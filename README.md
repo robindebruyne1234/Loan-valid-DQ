@@ -92,7 +92,9 @@ each to its source.
 proves a query is safe, not that it answers the question, and the intent
 checker is a prototype only; the month-end balance breaks same-day ties by the
 highest `trans_id`, which is not chronological (A14, caveat C2); the recorded
-Claude run predates the current semantic pack.
+Claude run predates the current semantic pack; and the second-factor lockout
+counts only failures the client commits, so someone connecting directly with
+a stolen password can roll failed guesses back.
 
 ## Layout
 

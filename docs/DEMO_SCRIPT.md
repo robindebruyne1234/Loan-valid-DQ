@@ -166,7 +166,10 @@ Real RFC 6238 — the same algorithm as any authenticator app — checked agains
 the standard's own published test vectors. Codes are single use, locked out
 after five failures, and a session is bound to one connection. The only
 pretend part is that the console prints the code instead of a phone showing
-it, and that is the first thing a deployment removes.
+it, and that is the first thing a deployment removes. Be ready for the
+follow-up: the lockout counts failures this application commits; someone
+connecting directly with a stolen password can roll failures back, so that
+gap is named in `docs/ACCESS_AND_AUTH.md` rather than hidden.
 
 **"How long to add a new customer?"**
 One insert, plus a credential, plus their authenticator enrolment. No

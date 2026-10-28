@@ -161,6 +161,80 @@ def test_a_code_cannot_be_used_twice() -> None:
         assert int(db.fetch_value(second, "SELECT count(*) FROM ai.client") or 0) == 0
 
 
+#: The principal the lockout tests lock. It holds no portfolio, so nothing else
+#: depends on it being able to log in while it is locked.
+LOCKOUT_ROLE = "rm_unassigned"
+
+
+def _wrong_code(role: str) -> str:
+    """A six-digit code that is wrong in every step the verifier accepts.
+
+    :param role: The principal.
+    :returns: A code that cannot match by chance.
+    """
+    with db.connect() as owner:
+        secret = db.fetch_value(
+            owner, "SELECT secret FROM sec.auth_factor WHERE db_role = %s AND factor_type = 'totp'",
+            (role,))
+    step = auth.current_step()
+    valid = {_reference_totp(secret, s, config.TOTP_DIGITS) for s in range(step - 2, step + 3)}
+    return next(f"{n:06d}" for n in range(10 ** 6) if f"{n:06d}" not in valid)
+
+
+def _unlock(role: str) -> None:
+    """Reset the attempt counter as the owner, as an administrator would."""
+    with db.connect() as owner:
+        db.execute(owner, "UPDATE sec.auth_factor SET failed_count = 0, locked_until = NULL "
+                          "WHERE db_role = %s", (role,))
+        owner.commit()
+
+
+def test_five_committed_failures_lock_the_factor_even_against_the_right_code() -> None:
+    """Guessing is stopped after five failures, for fifteen minutes.
+
+    Each attempt is committed, as ``auth.verify_second_factor`` does. While
+    locked, the correct code is refused too: otherwise the lock would only
+    slow an attacker down until they guessed right.
+    """
+    _unlock(LOCKOUT_ROLE)
+    try:
+        wrong = _wrong_code(LOCKOUT_ROLE)
+        with db.connect(user=LOCKOUT_ROLE, password=config.DEMO_USER_PASSWORD) as conn:
+            for _ in range(5):
+                row = db.fetch_all(conn, "SELECT * FROM sec.verify_second_factor(%s)", (wrong,))[0]
+                conn.commit()
+                assert row["ok"] is False
+            right = auth.demo_fresh_code(LOCKOUT_ROLE)
+            row = db.fetch_all(conn, "SELECT * FROM sec.verify_second_factor(%s)", (right,))[0]
+            conn.commit()
+            assert row["ok"] is False and row["detail"].startswith("locked until"), row["detail"]
+            assert int(db.fetch_value(conn, "SELECT count(*) FROM ai.client") or 0) == 0
+    finally:
+        _unlock(LOCKOUT_ROLE)
+
+
+@pytest.mark.xfail(strict=True, reason=(
+    "Known gap: the attempt counter is written in the caller's transaction, so a client "
+    "connecting directly with the password can roll its failures back and guess without "
+    "being locked out. auth.py commits every attempt; the database cannot make a direct "
+    "client do so. See docs/ACCESS_AND_AUTH.md section 3 and docs/DELIVERY_AUDIT.md."))
+def test_a_rolled_back_failure_still_counts_towards_the_lockout() -> None:
+    """The control as it should be: rolling back must not erase a failed guess."""
+    _unlock(LOCKOUT_ROLE)
+    try:
+        wrong = _wrong_code(LOCKOUT_ROLE)
+        with db.connect(user=LOCKOUT_ROLE, password=config.DEMO_USER_PASSWORD) as conn:
+            db.fetch_all(conn, "SELECT * FROM sec.verify_second_factor(%s)", (wrong,))
+            conn.rollback()
+        with db.connect() as owner:
+            failed = db.fetch_value(
+                owner, "SELECT failed_count FROM sec.auth_factor WHERE db_role = %s",
+                (LOCKOUT_ROLE,))
+        assert failed == 1, f"a rolled-back failure left failed_count at {failed}"
+    finally:
+        _unlock(LOCKOUT_ROLE)
+
+
 def test_a_session_does_not_leak_to_another_connection() -> None:
     """A verified session belongs to one backend, not to the role.
 

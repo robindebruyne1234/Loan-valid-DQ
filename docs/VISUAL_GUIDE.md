@@ -242,7 +242,9 @@ principals across seven consumer views.
 
 The lower panel maps four attacks to the specific mechanism that stops each:
 a leaked password (factor 2), an observed code (single use), a stolen session
-(bound to one connection), a guessed code (lockout).
+(bound to one connection), a guessed code (lockout -- for failures the
+client commits; a direct client can roll them back, see
+`docs/ACCESS_AND_AUTH.md` section 3).
 
 The amber band is deliberate. The TOTP secrets are stored recoverable because
 verification requires them, the demo console prints the code so a walkthrough

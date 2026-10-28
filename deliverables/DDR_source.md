@@ -131,7 +131,7 @@ Reasoned, not benchmarked: 100 billion postings, 450 million accounts, about
    refusals, query cost, rule trends and entitlement changes.
 
 What does not break is the place the filter sits and the semantic layer's
-size: a few thousand tokens at any volume, though many more entities would need
+size: about 8,400 tokens at any volume, though many more entities would need
 retrieval instead of one pack. A single PostgreSQL node is the wrong host for
 10 TB; PostgreSQL with Citus, or a columnar MPP engine such as ClickHouse or
 StarRocks, carrying the same schemas, rules and policy model, is the port to
@@ -141,4 +141,5 @@ evaluate.
 interest postings count as incoming money (A7), every amount is CZK (A19), calendar not
 fiscal. Residual: the recorded Claude run predates the current semantic pack;
 the intent verifier and the month-end tie-break fix are not built; there is no
-read audit.
+read audit; and the second-factor lockout counts only failures the client
+commits, so a direct connection holding a stolen password can keep guessing.

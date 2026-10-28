@@ -156,14 +156,25 @@ later cannot quietly skip the second factor.
   valid only there, so a copied session id is useless on another connection —
   and one user completing a login does not authorise every other connection
   open as the same role.
-- **Lockout.** Five failures locks the factor for fifteen minutes.
+- **Lockout.** Five committed failures lock the factor for fifteen minutes, and
+  while it is locked even the right code is refused
+  (`test_five_committed_failures_lock_the_factor_even_against_the_right_code`).
+  **Known gap:** the counter is written in the caller's transaction. The
+  project's client commits every attempt, but someone holding a principal's
+  password can connect directly, roll each failed guess back, and is never
+  locked out (`test_a_rolled_back_failure_still_counts_towards_the_lockout` is a
+  strict expected failure that records this). The fix is to count attempts
+  outside the caller's transaction, or to accept consumer logins only through
+  a gateway **[REC]**.
 - **The function takes a code, never a principal.** Whose factor is checked
   comes from `session_user` alone, so there is no parameter that lets a caller
   verify a second factor on somebody else's behalf. A test pins the signature.
-- **Verification writes durably.** Both outcomes write — a session on success,
-  an attempt counter on failure — and both are committed before the result is
-  returned. An earlier version left them in the caller's transaction, where a
-  rollback silently revoked the login and discarded the spent-code marker.
+- **Verification writes durably -- through the project's client.** Both
+  outcomes write — a session on success, an attempt counter on failure — and
+  `src/auth.py` commits both before it returns. An earlier version left them in
+  the caller's transaction, where a rollback silently revoked the login and
+  discarded the spent-code marker. The database cannot force a direct client
+  to commit; see the lockout gap above.
 
 ---
 
