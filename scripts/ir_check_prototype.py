@@ -1,5 +1,9 @@
 """PROTOTYPE for docs/SEMANTIC_MODEL_AUDIT.md -- not used by the pipeline or the web app.
 
+SUPERSEDED by src/sql_ir.py (DECISIONS.md D029), which the question runner and
+the web app now call on every answer. Kept unchanged as the evidence behind
+§2.5 of the audit; do not extend it.
+
 Shows that a small intermediate representation (IR) of a question lets the
 application check generated SQL *before* trusting it, in two layers:
 

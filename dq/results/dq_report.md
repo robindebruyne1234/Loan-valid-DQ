@@ -1,8 +1,8 @@
 # Data quality report
 
-- run_id: `08db5c80-bb78-4ac9-9ba0-336249b231e1`
+- run_id: `dbcf6848-4d1f-461e-b339-fc26fe0d71be`
 - dataset: `stg`
-- executed at: 2026-10-25T21:14:40+00:00 (git a9c9f38)
+- executed at: 2026-10-28T10:31:41+00:00 (git c855be4)
 - command: `make dq`
 - rules executed: **124** (19 fired, 105 clean, 0 errored)
 
@@ -11,7 +11,7 @@
 | severity | defect types firing | rows affected | what it means |
 |---|---:|---:|---|
 | **block** | 1 | 1 | rows quarantined, excluded from core and from the ai views |
-| **warn** | 6 | 440 | rows kept and flagged, metrics carry a caveat |
+| **warn** | 6 | 388 | rows kept and flagged, metrics carry a caveat |
 | **info** | 12 | 2,556,194 | standardised and logged, no answer changes |
 
 Rows quarantined this run: **1** (trans: 1)
@@ -34,18 +34,18 @@ Rows quarantined this run: **1** (trans: 1)
 
 | rule | table | rows | rate | questions | defect |
 |---|---|---:|---:|---|---|
-| `CON_INTRADAY_ORDER_AMBIGUOUS` | trans | 183 | 4.0667% | Q9 | Closing balance of the account's last day is not uniquely determined |
+| `CON_INTRADAY_ORDER_AMBIGUOUS` | trans | 183 | 4.0667% | Q9 | Account has several postings on its latest date (closing posting must be derived) |
 | `VAL_OWNER_AGE_AT_ACCOUNT_OPEN` | client | 114 | 2.5333% | Q7, Q8 | Account owner was younger than 15 at account opening |
-| `CON_BALANCE_RECONCILIATION_ROUNDING` | trans | 81 | 1.8000% | Q9 | Per-account balance chain off by more than 1 CZK but at most 100 CZK |
-| `CON_BALANCE_RECONCILIATION_MATERIAL` | trans | 55 | 1.2222% | Q9 | Per-account balance chain off by more than 100 CZK |
+| `CON_BALANCE_RECONCILIATION_ROUNDING` | trans | 70 | 1.5556% | Q9 | Per-account balance chain off by more than 1 CZK but at most 100 CZK |
+| `CON_BALANCE_RECONCILIATION_MATERIAL` | trans | 14 | 0.3111% | Q9 | Per-account balance chain off by more than 100 CZK |
 | `VAL_OWNER_AGE_AT_LOAN_START` | loan | 6 | 0.8798% | Q7 | Account owner was younger than 15 at loan start |
 | `COMP_TRANS_PARTNER_ON_TRANSFER` | trans | 1 | 0.0004% | - | Counterparty missing on a transfer posting |
 
-**`CON_INTRADAY_ORDER_AMBIGUOUS`** -- Closing balance of the account's last day is not uniquely determined
+**`CON_INTRADAY_ORDER_AMBIGUOUS`** -- Account has several postings on its latest date (closing posting must be derived)
 
-- severity rationale: trans_id is not chronological within a date, so when an account has several postings on one day there is no way to tell which one closed the day. For 183 accounts that ambiguity falls on their most recent date, which is precisely the balance Q9 reports. The answer is therefore a documented choice (highest trans_id on the latest date) rather than a fact, and the count of affected accounts belongs next to the answer. Warn: the data is not wrong, the determinism is missing.
-- handling: Tie-break documented in the semantic layer and applied identically in the reference SQL and in core.fact_account_month_end_balance; affected accounts flagged so the caveat can be quantified.
-- example: key `19` -- account has 2 postings on its latest date 1998-12-31; the closing balance depends on the tie-break
+- severity rationale: trans_id is not chronological within a date and the source has no time of day, so when an account has several postings on one day the closing one has to be derived. 183 accounts have this on their most recent date, which is the balance Q9 reports. The running balance resolves it (D028): each posting starts at balance_after - signed_amount, and the closing posting is the end of that chain. That settles 141 of the 183; for the other 42 the chain does not order the postings, the documented fallback is used and the month-end row is marked closing_basis = 'ambiguous'. Warn: the data is not wrong, the order has to be inferred.
+- handling: Closing posting taken from the running-balance chain in core.fact_account_month_end_balance (closing_basis records how); accounts flagged so the caveat can be quantified.
+- example: key `19` -- account has 2 postings on its latest date 1998-12-31; the closing posting is derived from the running-balance chain
 
 **`VAL_OWNER_AGE_AT_ACCOUNT_OPEN`** -- Account owner was younger than 15 at account opening
 
@@ -55,15 +55,15 @@ Rows quarantined this run: **1** (trans: 1)
 
 **`CON_BALANCE_RECONCILIATION_ROUNDING`** -- Per-account balance chain off by more than 1 CZK but at most 100 CZK
 
-- severity rationale: Tested order independently: the sum of all signed amounts on an account should equal its last reported balance, whatever order the postings are read in. 136 accounts breach a 1 CZK tolerance; 81 of those are within 100 CZK and sit in the rounding band (every amount in the source carries a single decimal, so residuals accumulate). Warn, because the account is still usable and the Q9 average moves by cents; the band is reported so nobody confuses it with the material tier below.
+- severity rationale: Tested order independently: the sum of all signed amounts on an account should equal its last reported balance, whatever order the postings are read in. The last reported balance is the end of the last day's running-balance chain (D028). 84 accounts breach a 1 CZK tolerance; 70 of those are within 100 CZK and sit in the rounding band (every amount in the source carries a single decimal, so residuals accumulate). The earlier highest-trans_id choice of "last balance" made 136 accounts appear to breach, 52 of them only because it read a mid-day balance. Warn, because the account is still usable and the Q9 average moves by cents; the band is reported so nobody confuses it with the material tier below.
 - handling: Account flagged; the month-end balance fact carries the residual so a user can see the size of the discrepancy next to the balance.
-- example: key `31` -- sum(signed_amount) = 13298.70 but last reported balance = 13312.90 (difference -14.20)
+- example: key `1811` -- sum(signed_amount) = 59941.10 but last reported balance = 59939.30 (difference 1.80)
 
 **`CON_BALANCE_RECONCILIATION_MATERIAL`** -- Per-account balance chain off by more than 100 CZK
 
-- severity rationale: 55 accounts are off by more than 100 CZK and one by exactly 1,200.00 CZK with only 55 postings, which is a missing or extra posting rather than rounding. This is the single most material finding for Q9, because the answer is an average balance and these accounts' balances cannot be derived from their own flows. It stays warn rather than block on purpose: the balance column is what Q9 reads, and it is internally plausible -- it is the *flows* that disagree with it. Quarantining the accounts would remove real balances from an average; blocking the postings would break the chain further. The defensible treatment is to publish the answer with the affected population and the residual attached, which is what the semantic layer makes the LLM do.
+- severity rationale: 14 accounts are off by more than 100 CZK (largest 488.30 CZK, account 8856), which is a missing or extra posting rather than rounding. Before D028 the rule read a mid-day balance as the last one and reported 55, including an apparent 1,200 CZK break that was not real. This is the single most material finding for Q9, because the answer is an average balance and these accounts' balances cannot be derived from their own flows. It stays warn rather than block on purpose: the balance column is what Q9 reads, and it is internally plausible -- it is the *flows* that disagree with it. Quarantining the accounts would remove real balances from an average; blocking the postings would break the chain further. The defensible treatment is to publish the answer with the affected population and the residual attached, which is what the semantic layer makes the LLM do.
 - handling: Account flagged as balance_unreconciled; Q9 reports the average together with the number of affected accounts and the total residual, so the reader can size the uncertainty instead of guessing at it.
-- example: key `1012` -- sum(signed_amount) = 43350.40 but last reported balance = 43192.30 (difference 158.10)
+- example: key `8321` -- sum(signed_amount) = 64923.00 but last reported balance = 64777.80 (difference 145.20)
 
 **`VAL_OWNER_AGE_AT_LOAN_START`** -- Account owner was younger than 15 at loan start
 
@@ -98,7 +98,7 @@ Rows quarantined this run: **1** (trans: 1)
 
 - severity rationale: 760,931 postings have neither partner bank nor partner account. These are cash operations and bank-generated postings, which have no counterparty by construction. No question reads the counterparty. Reported as info with the cross-check that it never happens on a transfer operation, which is the version of this that *would* be a defect.
 - handling: Left as NULL by design; documented as structural in the semantic layer.
-- example: key `695247` -- partner_bank and partner_account are both NULL; operation = VKLAD
+- example: key `3643693` -- partner_bank and partner_account are both NULL; operation = NULL
 
 **`COMP_RAW_MISSING_ENCODING_INCONSISTENT`** -- The same column encodes 'missing' three different ways in the source
 
@@ -110,25 +110,25 @@ Rows quarantined this run: **1** (trans: 1)
 
 - severity rationale: No answer to the 10 questions reads this column, so a null here cannot change a reported number. It is logged with its null rate so that the next metric built on this column starts from a known baseline, and it is promoted to warn or block the moment a metric does read it.
 - handling: Normalised to a real NULL in stg (placeholders '?', '', 'NA' and a bare space all collapse), original text preserved in the matching *_raw audit column, null rate published in dq/results/profile.md.
-- example: key `2956494` -- k_symbol_code is NULL
+- example: key `808671` -- k_symbol_code is NULL
 
 **`COMP_NULL__trans__k_symbol_label`** -- Missing value in trans.k_symbol_label
 
 - severity rationale: No answer to the 10 questions reads this column, so a null here cannot change a reported number. It is logged with its null rate so that the next metric built on this column starts from a known baseline, and it is promoted to warn or block the moment a metric does read it.
 - handling: Normalised to a real NULL in stg (placeholders '?', '', 'NA' and a bare space all collapse), original text preserved in the matching *_raw audit column, null rate published in dq/results/profile.md.
-- example: key `2956494` -- k_symbol_label is NULL
+- example: key `808671` -- k_symbol_label is NULL
 
 **`COMP_TRANS_OPERATION_STRUCTURAL`** -- Transaction operation absent (structurally, for interest postings)
 
 - severity rationale: 183,114 postings have no operation. Every one of them is an interest credit (k_symbol = UROK): the bank's own interest run has no customer operation behind it, so the NULL means "not applicable" rather than "unknown". None of the 10 questions groups by operation. It is reported as info precisely so that nobody later imputes a value into it, which would invent an operation that never happened.
 - handling: Left as NULL by design, labelled 'not applicable (bank-generated posting)' in the semantic layer so an LLM does not treat it as missing.
-- example: key `3591421` -- operation_code is NULL; k_symbol = UROK
+- example: key `3643693` -- operation_code is NULL; k_symbol = UROK
 
 **`VAL_TRANS_BALANCE_NEGATIVE`** -- Balance after the transaction is negative (overdraft)
 
 - severity rationale: 2,999 postings leave a negative balance. This is overdraft, which is normal banking, not a defect -- and it matters that the rule says so, because the tempting "fix" (clipping balances at zero) would bias the Q9 average upwards. Reported as info so the number is known and explicitly not acted on.
 - handling: Logged only; balances are never clipped.
-- example: key `1681922` -- balance_after = -1142.60
+- example: key `3452127` -- balance_after = -13466.40
 
 ## Rules that did not fire
 

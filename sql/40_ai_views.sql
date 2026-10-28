@@ -219,6 +219,7 @@ SELECT
     b.closing_balance,
     b.is_carried_forward,
     b.balance_as_of_month_end,
+    b.closing_basis,
     a._dq_flags                           AS account_data_quality_flags
 FROM core.fact_account_month_end_balance b
 JOIN core.dim_account a ON a.account_id = b.account_id;
@@ -226,9 +227,11 @@ JOIN core.dim_account a ON a.account_id = b.account_id;
 COMMENT ON VIEW ai.account_month_end_balance IS
     'Account balance at each month end. Grain: one row per account per month '
     'end. This is the right source for "the balance at the end of <month>" '
-    '(Q9): the intra-day tie-break and the carry-forward for months without '
-    'postings are already applied. is_carried_forward = true means the account '
-    'had no posting that month and the balance is inherited.';
+    '(Q9): the closing posting (end of the last day''s running-balance chain) '
+    'and the carry-forward for months without postings are already applied. '
+    'is_carried_forward = true means the account had no posting that month and '
+    'the balance is inherited; closing_basis = ''ambiguous'' means the source '
+    'could not order that day''s postings.';
 
 -- ----------------------------------------------------------------------------
 -- ai.calendar -- so "all twelve months" can be answered without inventing rows

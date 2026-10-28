@@ -461,9 +461,10 @@ MODEL_OBJECTS: tuple[tuple[str, str, str, str, str], ...] = (
     ("fact_account_month_end_balance", "fact (derived)",
      "one account per month end", "account_id + month_end_date",
      "'The balance at the end of December 1998' (Q9) is a modelling decision, "
-     "not a column: it needs a tie-break for intra-day order and a "
-     "carry-forward for months with no posting. Both are decided here, once, "
-     "and marked with is_carried_forward."),
+     "not a column: it needs the closing posting of a day with several (the "
+     "end of the running-balance chain, D028) and a carry-forward for months "
+     "with no posting. Both are decided here, once, and marked with "
+     "closing_basis and is_carried_forward."),
     ("v_account_owner", "curated view", "one account", "account_id",
      "The only place that decides what 'the account owner' means. Four "
      "questions say the phrase; without this view each generated query would "
@@ -608,7 +609,7 @@ def write_model_explanation(conn: psycopg.Connection) -> None:
         "The district the account is registered in. Q5 uses this. The two differ for 9.1 percent of owners. |",
         "| loan | owner, card, frequency | `core.v_loan_enriched` | One row per loan, no fan-out. |",
         "| account | month-end balance | `core.fact_account_month_end_balance` | "
-        "Pre-computed; carrying forward and tie-breaks are already decided. |",
+        "Pre-computed; carry-forward and the closing posting are already decided. |",
         "",
         "## Which object answers which question",
         "",

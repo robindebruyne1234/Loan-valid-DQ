@@ -408,91 +408,118 @@ def load_questions() -> list[dict[str, str]]:
     return _load()
 
 
+#: How the walkthrough names the step that refused, by verification stage.
+_WEB_STAGE = {"ir": "ir", "columns": "sql", "consistency": "sql", "guard": "guard",
+              "plan": "plan", "execute": "execute", "recompute": "recompute",
+              "verified": "done"}
+
+
 def ask(role: str, question: str) -> dict[str, Any]:
     """Put a question to the model and run its SQL as the chosen persona.
 
-    The whole point of this function is the last clause. The model writes SQL
-    with no knowledge of who is asking; the guard checks its shape; and it
-    then executes on a connection that has passed two factors as this
-    persona, so the row level security policies narrow the result to whatever
-    that persona may see. A customer and their relationship manager get
+    The model writes SQL with no knowledge of who is asking, and states its
+    intent as an IR next to it. The guard checks the statement's shape; the
+    verifier (:mod:`src.sql_ir`, D029) checks the SQL against the IR and the
+    semantic layer before anything runs; and only then does it execute on a
+    connection that has passed two factors as this persona, so the row level
+    security policies narrow the result to whatever that persona may see. The
+    metric is recomputed from the IR on that same connection and both must
+    agree before a row is shown. A customer and their relationship manager get
     different, correct answers to the same words.
+
+    The same checks as the question runner, through the same function
+    (:func:`src.run_questions.verify_and_execute`), with the same single retry
+    carrying the reason for a refusal.
 
     :param role: A validated role from :data:`PERSONA_ROLES`.
     :param question: The visitor's question, in English.
-    :returns: The prompt metadata, the generated SQL, the guard verdict and
-        the rows, or an explanation of which step refused.
+    :returns: The prompt metadata, the generated SQL and IR, the guard verdict,
+        the verification and the rows, or an explanation of which step refused.
     """
-    from src.run_questions import build_prompt, parse_model_output  # noqa: PLC0415
+    from src.run_questions import (  # noqa: PLC0415
+        MAX_ATTEMPTS,
+        build_prompt,
+        parse_model_output,
+        retry_prompt,
+        verify_and_execute,
+    )
 
     started = time.time()
-    prompt = build_prompt(context_pack(), "WEB", question)
-    with _ASK_LOCK:
-        response = llm_client.complete(prompt)
-    # Audited exactly like a pipeline call: prompt, model, parameters and raw
-    # response to disk. A question asked through a web page is no less a
-    # model call than one asked by the question runner.
-    #
-    # Written under llm_logs/web/ rather than beside the pipeline's own logs:
-    # those ten files are the evidence behind the Questions tab, and visitors
-    # idly asking things should not be filed among them or overwrite them.
-    # The ZIP's glob is not recursive, so this directory stays out of the
-    # submission.
+    base_prompt = build_prompt(context_pack(), "WEB", question)
+    stamp = time.strftime("%Y%m%dT%H%M%S", time.gmtime())
+    feedback: str | None = None
+    result: dict[str, Any] = {}
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        with _ASK_LOCK:
+            response = llm_client.complete(retry_prompt(base_prompt, feedback))
+        result = {
+            "question": question,
+            "as_role": role,
+            "provider": response.provider,
+            "model": response.model,
+            "executed": response.executed,
+            "attempt": attempt,
+            "feedback_given": feedback,
+            "raw_response": (response.text or "")[:4000],
+        }
+        if not response.executed:
+            result["error"] = response.error or config.NOT_EXECUTED
+            result["stage"] = "llm"
+            _log_web_call(stamp, role, attempt, response, result)
+            break
+
+        parsed, parse_error = parse_model_output(response.text or "")
+        if parsed is None:
+            result["error"] = parse_error or "the model did not return the expected JSON"
+            result["stage"] = "parse"
+            _log_web_call(stamp, role, attempt, response, result)
+            feedback = result["error"]
+            continue
+
+        sql = str(parsed.get("sql", "")).strip()
+        result["sql"] = sql
+        result["ir"] = parsed.get("ir")
+        result["model_explanation"] = parsed.get("reasoning") or parsed.get("explanation")
+        verdict, verification = verify_and_execute(sql, result["ir"], question, role)
+        result["guard"] = {
+            "allowed": verdict.allowed,
+            "violations": list(verdict.violations),
+            "rewritten_sql": verdict.rewritten_sql,
+        }
+        result["verification"] = verification.as_dict()
+        result["stage"] = _WEB_STAGE[verification.stage]
+        if verification.ok:
+            rows = verification.rows or []
+            result["rows"] = [{k: _jsonable(v) for k, v in row.items()} for row in rows[:50]]
+            result["row_count"] = len(rows)
+            _log_web_call(stamp, role, attempt, response, result)
+            break
+        result["error"] = verification.reason
+        _log_web_call(stamp, role, attempt, response, result)
+        feedback = f"it was refused at the {verification.stage} check: {verification.reason}"
+    result["elapsed_sec"] = round(time.time() - started, 1)
+    return result
+
+
+def _log_web_call(stamp: str, role: str, attempt: int, response: Any, result: dict[str, Any]) -> None:
+    """Audit a walkthrough call exactly like a pipeline call.
+
+    Prompt, model, parameters and raw response go to disk: a question asked
+    through a web page is no less a model call than one asked by the question
+    runner. Written under llm_logs/web/ rather than beside the pipeline's own
+    logs: those files are the evidence behind the Questions tab, and visitors
+    idly asking things should not be filed among them or overwrite them. The
+    ZIP's glob is not recursive, so this directory stays out of the submission.
+    """
     try:
         (config.LLM_LOG_DIR / "web").mkdir(parents=True, exist_ok=True)
-        stamp = time.strftime("%Y%m%dT%H%M%S", time.gmtime())
         llm_client.write_call_log(
-            f"web/{stamp}-{role}", response,
-            {"question": question, "as_role": role, "surface": "walkthrough"})
+            f"web/{stamp}-{role}-attempt{attempt}", response,
+            {"question": result.get("question"), "as_role": role, "surface": "walkthrough",
+             "stage": result.get("stage"), "ir": result.get("ir"),
+             "verification": result.get("verification")})
     except Exception:  # noqa: BLE001 - logging must never fail the request
         LOGGER.exception("could not write the call log")
-
-    result: dict[str, Any] = {
-        "question": question,
-        "as_role": role,
-        "provider": response.provider,
-        "model": response.model,
-        "executed": response.executed,
-        "elapsed_sec": round(time.time() - started, 1),
-        "raw_response": (response.text or "")[:4000],
-    }
-    if not response.executed:
-        result["error"] = response.error or config.NOT_EXECUTED
-        result["stage"] = "llm"
-        return result
-
-    parsed, parse_error = parse_model_output(response.text or "")
-    if parsed is None:
-        result["error"] = parse_error or "the model did not return the expected JSON"
-        result["stage"] = "parse"
-        return result
-
-    sql = str(parsed.get("sql", "")).strip()
-    result["sql"] = sql
-    result["model_explanation"] = parsed.get("explanation")
-
-    with auth.login(role, demo_autocode=True) as conn:
-        verdict, rows, error = sql_guard.execute_guarded(conn, sql)
-    result["guard"] = {
-        "allowed": verdict.allowed,
-        "violations": list(verdict.violations),
-        "rewritten_sql": verdict.rewritten_sql,
-    }
-    if not verdict.allowed:
-        result["stage"] = "guard"
-        result["error"] = "; ".join(verdict.violations)
-        return result
-    if error:
-        result["stage"] = "execute"
-        result["error"] = error
-        return result
-
-    result["stage"] = "done"
-    result["rows"] = [
-        {k: _jsonable(v) for k, v in row.items()} for row in (rows or [])[:50]
-    ]
-    result["row_count"] = len(rows or [])
-    return result
 
 
 def _jsonable(value: Any) -> Any:

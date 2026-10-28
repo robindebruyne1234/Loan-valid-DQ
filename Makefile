@@ -12,7 +12,7 @@ PYTHONPATH := $(CURDIR)
 export PYTHONPATH
 
 .DEFAULT_GOAL := help
-.PHONY: help up down deps deps-check ingest profile dq model ledger reference \
+.PHONY: help up down deps deps-check ingest profile dq model ledger reference extra \
         semantic questions entitlements evaluate workbook ddr zip deliverables \
         test build all clean status diagrams simulate demo demo-login \
         demo-interactive web web-open
@@ -80,6 +80,11 @@ questions:  ## Ask the LLM the 10 questions through the semantic layer
 
 evaluate:  ## Compare LLM answers against the reference answers
 	$(PY) -m src.evaluate
+
+extra:  ## The additional questions (gender, quarters): reference, questions, evaluation
+	$(PY) -m src.run_reference --suite extra
+	$(PY) -m src.run_questions --suite extra
+	$(PY) -m src.evaluate --suite extra
 
 workbook:  ## Build the Excel submission workbook
 	$(PY) -m src.make_workbook

@@ -106,13 +106,16 @@ giving 14 defect types; 1 row is quarantined and 440 are flagged.
 The three findings worth reading first are not in the dataset documentation:
 
 - the per-account balance chain does not reconcile. Tested order-independently,
-  3,869 of 4,500 accounts differ between the sum of their postings and their
+  3,863 of 4,500 accounts differ between the sum of their postings and their
   last reported balance. Most of that is rounding (every amount carries one
-  decimal), but **55 accounts are off by more than 100 CZK** and one by exactly
-  1,200.00 with only 55 postings -- a missing or extra posting;
+  decimal), but **14 accounts are off by more than 100 CZK** (the largest by
+  488.30) -- a missing or extra posting. Forty-one more, including an apparent
+  1,200.00 break, were artefacts of taking the highest `trans_id` as the day's
+  last posting, and disappeared when that was corrected (D028);
 - **`trans_id` is not chronological within a day**, so for 183 accounts the
-  closing balance of their last active day is a documented choice rather than a
-  fact. That is precisely what Q9 asks for;
+  closing balance of their last active day has to be derived. The running
+  balance settles 141 of them; for 42 it cannot, and those rows say
+  `closing_basis = 'ambiguous'`. That is precisely what Q9 asks for;
 - **one duplicate transaction by business key** -- same account, date, type,
   amount and resulting balance, different id -- which no primary key can catch.
 

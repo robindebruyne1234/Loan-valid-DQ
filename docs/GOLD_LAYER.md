@@ -196,8 +196,9 @@ Stated so the list above is not read as a claim that everything is possible.
 - **No history on any dimension** (A31). Districts, clients and accounts each
   appear once. A slowly changing dimension cannot be built from a snapshot --
   it can only be started from today.
-- **No intra-day ordering** (A33). 183 accounts have an ambiguous last posting
-  of the day, and no derived table can resolve what the source did not record.
+- **No intra-day ordering** (A33). 183 accounts have several postings on their
+  last day. The running balance orders 141 of them (D028); for 42 no derived
+  table can resolve what the source did not record.
 - **No balance before an account's first posting.** The opening balance is
   unknown, which is why `fact_account_month_end_balance` starts at the first
   active month rather than at the account open date.

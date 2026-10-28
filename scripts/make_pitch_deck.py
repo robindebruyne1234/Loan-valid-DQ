@@ -494,14 +494,14 @@ That is a real risk - it is the obvious thing a well-meaning person does.
     heading(s, "Three things we found that the documentation does not mention", "data quality")
     finds = [
         ("The balance chain does not add up",
-         "Testing order-independently: 3,869 of 4,500 accounts differ between the sum of their "
+         "Testing order-independently: 3,863 of 4,500 accounts differ between the sum of their "
          "payments and their last stated balance. Most is rounding — every amount carries one "
-         "decimal. But 55 accounts are out by more than 100, and one by exactly 1,200 with only "
-         "55 payments. That is a missing or duplicated posting, not rounding.", AMBER),
+         "decimal. But 14 accounts are out by more than 100, the largest by 488.30. That is a "
+         "missing or duplicated posting, not rounding.", AMBER),
         ("Same-day order is simply not recorded",
-         "Payment IDs are not in time order within a day. For 183 accounts that uncertainty lands "
-         "on their very last active day — so \"the closing balance\" is a documented choice we "
-         "made, not a fact the data contains. That is exactly what Q9 asks for.", AMBER),
+         "Payment IDs are not in time order within a day. For 183 accounts that lands on their "
+         "very last active day. The running balance orders 141 of them; 42 stay ambiguous and "
+         "are marked as such. That is exactly what Q9 asks for.", AMBER),
         ("One duplicate no primary key could catch",
          "Same account, same date, same type, same amount, same resulting balance — different ID. "
          "A genuinely separate payment would have moved the balance. This is the single row that "
@@ -519,8 +519,10 @@ That is a real risk - it is the obvious thing a well-meaning person does.
 These are the slides that show we actually looked, rather than running the
 rules the dataset documentation suggests.
 
-The 1,200 one is worth naming specifically: 55 payments on that account, and a
-gap of exactly 1,200.00. That is not rounding, that is a posting.
+Worth telling against ourselves: this slide used to say 55 accounts, one of
+them out by exactly 1,200.00. Forty-one of those, the 1,200 included, were our
+own tie-break picking the wrong closing posting on a day with several. The
+running balance says which posting closed the day; using it (D028) left 14.
 """)
 
     # ----------------------------------------------------- defect lifecycle
@@ -554,7 +556,7 @@ Saying so is better than pretending a cleanup will fix it.
         ("Q6  new accounts per month 1996", "all twelve months present — Jan 106, Feb 104, Mar 124 …"),
         ("Q7  owner age at loan start", "paid 37.1 · unpaid 39.6 · running 38.7 · in debt 37.0"),
         ("Q8  gender split, gold cards", "53 men (60.2%) · 35 women (39.8%)"),
-        ("Q9  average balance Dec 1998", "43,808.94 over 4,500 accounts  (+ 2 caveats attached)"),
+        ("Q9  average balance Dec 1998", "43,810.47 over 4,500 accounts  (+ 2 caveats attached)"),
         ("Q10 frequency with worst share", "after each transaction 18.75% — but only 6 of 32 loans"),
     ]
     top = Inches(2.25)
@@ -1059,7 +1061,7 @@ authenticating as four roles and counting rows, and not by quoting SQL.
              "block quarantines and the exclusion is counted and reversible; warn flags the row "
              "and the flag travels into the answer; info changes no number."),
             ("Three findings not in the dataset's own documentation",
-             "55 accounts whose balance chain does not reconcile; intra-day order undefined for "
+             "14 accounts whose balance chain does not reconcile; intra-day order unrecorded for "
              "183 accounts; one duplicate payment no primary key can catch."),
             ("The entitlement claim is tested by logging in",
              "Four roles, 5,369 / 1,481 / 1,386 / 0 clients. That is what caught bug 2."),
@@ -1351,7 +1353,7 @@ checkable statement; "exactly one step removes rows, it removed one, and here
 is the reconciliation" is.
 
 If pushed on the cost: yes, the product carries known-bad rows, and a consumer
-has to be willing to read a caveat. The 55 accounts whose balance chain does
+has to be willing to read a caveat. The 14 accounts whose balance chain does
 not reconcile are still there, still answerable, still marked. That is the
 honest result and it asks more of the reader than a quietly corrected number
 would.
@@ -1598,8 +1600,8 @@ guessing at them is how you get a confidently wrong table.
          "Clients, accounts and districts each appear exactly once. A slowly changing "
          "dimension cannot be built from a snapshot — it can only be started from today."),
         ("No intra-day ordering",
-         "183 accounts have an ambiguous last posting of the day. No derived table can "
-         "resolve what the source did not record; it can only state the tie-break."),
+         "183 accounts have several postings on their last day. The running balance orders "
+         "141; for 42 no derived table can resolve what the source did not record."),
         ("No opening balance",
          "The balance before an account's first posting is unknown, which is why the "
          "month-end table starts at the first active month, not at the account open date."),

@@ -33,6 +33,8 @@ QR11. **Filter time on the metric's own date column (its `time_column` below) wi
    _Why:_ A date filter that drops the quarter bound, drops one of the years, or uses another date column (an account's open_date for a loan question) still runs and returns a plausible number. The guard cannot see that; only the query author can.
 QR12. **Count and sum at the grain of the entity the question is about. Never aggregate a measure after joining that entity to a table on the "many" side of a join (see the cardinality on each join below): joining ai.loan to ai.transaction repeats every loan once per posting. Aggregate the many side first in a subquery, or use count(DISTINCT key) for counts.**  
    _Why:_ A fan-out join multiplies sums and counts silently. On this data, joining loans to transactions inflates a loan total more than a hundredfold, and the query is still valid SQL.
+QR13. **Return one row per group with GROUP BY, never one column per value (no CASE or FILTER pivots such as male_loans / female_loans), and write period filters as DATE literals on the time_column. Gender is ai.client.gender, ai.account_owner.owner_gender or ai.loan.owner_gender: no other entity has a gender column.**  
+   _Why:_ The application verifies the SQL against the intent you declare before it runs (D029). Row-per-group results and literal date ranges are what it can verify; anything it cannot verify is refused rather than shown.
 
 ## Business glossary
 
@@ -61,8 +63,8 @@ QR12. **Count and sum at the grain of the entity the question is about. Never ag
 **statement frequency** -- How often the bank issues a statement for the account: monthly, weekly or after transaction. Already in English.
   - Where: `ai.account.statement_frequency, ai.loan.statement_frequency`
 
-**month-end balance** -- The account balance after the last posting on or before the last day of that month, with ties on a date broken by the highest transaction id, and carried forward from the last known balance for months with no posting.
-  - Careful: Use this entity rather than computing a balance from ai.transaction: the tie-break and the carry-forward are already applied here, consistently with every other balance figure the bank reports (assumption A14).
+**month-end balance** -- The account balance after the last posting on or before the last day of that month, and carried forward from the last known balance for months with no posting. When several postings share the last date, the closing one is the end of that day's running-balance chain (each posting starts at balance_after - signed_amount); closing_basis says how it was decided.
+  - Careful: Use this entity rather than computing a balance from ai.transaction: the closing-posting rule and the carry-forward are already applied here, consistently with every other balance figure the bank reports (assumption A14).
   - Where: `ai.account_month_end_balance`
 
 **quarter** -- A calendar quarter: Q1 = January-March, Q2 = April-June, Q3 = July-September, Q4 = October-December. "Q1-Q3 of a year" is 1 January to 30 September of that year.
@@ -77,58 +79,89 @@ QR12. **Count and sum at the grain of the entity the question is about. Never ag
 
 **client_count** on `ai.client`: Number of clients.
   - expression: `count(*)`
+  - counting_grain: `client_id` (one row of `ai.client` per value)
+  - permitted joins: `ai.district` -- any other join is rejected
+  - caveats: C4
   - grain: ai.client is one row per client, so no DISTINCT is needed.
 
 **account_count** on `ai.account`: Number of accounts.
   - expression: `count(*)`
   - time_column: `open_date` (filter and group periods on this date)
+  - counting_grain: `account_id` (one row of `ai.account` per value)
+  - permitted joins: `ai.district`, `ai.account_owner`, `ai.calendar` -- any other join is rejected
+  - caveats: C4
 
 **loan_count** on `ai.loan`: Number of loans.
   - expression: `count(*)`
   - time_column: `loan_date` (filter and group periods on this date)
+  - counting_grain: `loan_id` (one row of `ai.loan` per value)
+  - permitted joins: `ai.account_owner`, `ai.account`, `ai.calendar` -- any other join is rejected
   - grain: ai.loan is one row per loan, not per account. In this book every account has at most one loan, but the model does not rely on that.
 
 **total_loan_amount** on `ai.loan`: Total principal granted.
   - expression: `sum(amount)`
   - time_column: `loan_date` (filter and group periods on this date)
+  - counting_grain: `loan_id` (one row of `ai.loan` per value)
+  - permitted joins: `ai.account_owner`, `ai.account`, `ai.calendar` -- any other join is rejected
   - careful: The principal, not `monthly_payment * duration_months`, which is the gross repayment including interest (assumption A3).
 
 **average_loan_amount** on `ai.loan`: Average principal per loan.
   - expression: `round(avg(amount), 2)`
   - time_column: `loan_date` (filter and group periods on this date)
+  - counting_grain: `loan_id` (one row of `ai.loan` per value)
+  - permitted joins: `ai.account_owner`, `ai.account`, `ai.calendar` -- any other join is rejected
 
 **problematic_loan_share** on `ai.loan`: Share of loans that are problematic, as a percentage.
   - expression: `round(100.0 * count(*) FILTER (WHERE is_problematic) / count(*), 2)`
   - time_column: `loan_date` (filter and group periods on this date)
+  - counting_grain: `loan_id` (one row of `ai.loan` per value)
+  - permitted joins: `ai.account_owner`, `ai.account`, `ai.calendar` -- any other join is rejected
   - careful: Always report `count(*)` and `count(*) FILTER (WHERE is_problematic)` beside it, so the denominator is visible.
 
 **incoming_transaction_amount** on `ai.transaction`: Total amount arriving in accounts.
   - expression: `sum(amount)`
   - filter: `direction = 'credit'`
   - time_column: `trans_date` (filter and group periods on this date)
+  - counting_grain: `trans_id` (one row of `ai.transaction` per value)
+  - permitted joins: `ai.account`, `ai.calendar` -- any other join is rejected
+  - caveats: C5, C6, C7
 
 **outgoing_transaction_amount** on `ai.transaction`: Total amount leaving accounts.
   - expression: `sum(amount)`
   - filter: `direction = 'debit'`
   - time_column: `trans_date` (filter and group periods on this date)
+  - counting_grain: `trans_id` (one row of `ai.transaction` per value)
+  - permitted joins: `ai.account`, `ai.calendar` -- any other join is rejected
+  - caveats: C5, C7
 
 **net_flow** on `ai.transaction`: Net movement, credits minus debits.
   - expression: `sum(signed_amount)`
   - time_column: `trans_date` (filter and group periods on this date)
+  - counting_grain: `trans_id` (one row of `ai.transaction` per value)
+  - permitted joins: `ai.account`, `ai.calendar` -- any other join is rejected
+  - caveats: C5, C7
 
 **average_month_end_balance** on `ai.account_month_end_balance`: Average closing balance across accounts at a given month end.
   - expression: `round(avg(closing_balance), 2)`
   - filter: `month_end_date = DATE 'YYYY-MM-DD'`
   - time_column: `month_end_date` (filter and group periods on this date)
+  - counting_grain: `account_id, month_end_date` (one row of `ai.account_month_end_balance` per value)
+  - permitted joins: `ai.account`, `ai.account_owner` -- any other join is rejected
+  - caveats: C1, C2
   - careful: Average over accounts that have a known balance on that date. An account with no posting has no balance and must not be counted as zero (assumption A15). Report `count(*)` and `count(*) FILTER (WHERE is_carried_forward)` beside the average.
 
 **average_age_at_loan_start** on `ai.loan`: Average exact age of the account owner when the loan started.
   - expression: `round(avg(owner_age_at_loan_start), 2)`
   - time_column: `loan_date` (filter and group periods on this date)
+  - counting_grain: `loan_id` (one row of `ai.loan` per value)
+  - permitted joins: `ai.account_owner`, `ai.account`, `ai.calendar` -- any other join is rejected
+  - caveats: C3
 
-**gender_share** on `any entity with a gender column`: Share of a population by gender, as a percentage.
+**gender_share** on `ai.account_owner`: Share of account owners by gender, as a percentage. Group by owner_gender.
   - expression: `round(100.0 * count(*) / sum(count(*)) OVER (), 2)`
-  - careful: Percentages must sum to 100; report the counts as well.
+  - counting_grain: `account_id` (one row of `ai.account_owner` per value)
+  - permitted joins: `ai.client` -- any other join is rejected
+  - careful: Percentages must sum to 100; report the counts as well. The gender column is named differently per entity: ai.client.gender, ai.account_owner.owner_gender, ai.loan.owner_gender. There is no column called gender on ai.account_owner or ai.loan. For loans by gender use loan_count grouped by ai.loan.owner_gender (the account owner's gender).
 
 ## Entities
 
@@ -301,7 +334,7 @@ Joins:
 
 ### `ai.account_month_end_balance` -- Account balance at month end
 
-The closing balance of each account at each month end, with the intra-day tie-break and the carry-forward already applied. The right source for any question about the balance at the end of a period. Rows start at the account's first posting month: before it the balance is unknown and there is no row, so an average at an early month end covers only the accounts active by then.
+The closing balance of each account at each month end, with the closing posting (end of the last day's running-balance chain) and the carry-forward already applied. The right source for any question about the balance at the end of a period. Rows start at the account's first posting month: before it the balance is unknown and there is no row, so an average at an early month end covers only the accounts active by then.
 
 - **Grain: one row per account per month end** (key: account_id, month_end_date)
 - Rows when unfiltered: 185,615
@@ -314,7 +347,8 @@ The closing balance of each account at each month end, with the intra-day tie-br
 | `closing_balance` | numeric | Balance after the last posting on or before month_end_date, in CZK. Can be negative. |  |
 | `is_carried_forward` | boolean | True when the account had no posting in that month and the balance is inherited from an earlier month. Report how many rows this applies to. |  |
 | `balance_as_of_month_end` | date | The month end the balance was actually observed at. Equals month_end_date when is_carried_forward is false. |  |
-| `account_data_quality_flags` | text[] | Warn-level flags on the account, including 'con_balance_reconciliation_material' for the 55 accounts whose flows disagree with their reported balance by more than 100 CZK. |  |
+| `closing_basis` | text | How the closing posting of the observed month was identified. 'single posting': one posting that day. 'balance chain': several postings, ordered by their running balances. 'ambiguous': the running balances do not order that day's postings, so the documented fallback (lowest transaction id among the chain ends) was used. Report how many balances are 'ambiguous' when they matter. | `single posting`, `balance chain`, `ambiguous` |
+| `account_data_quality_flags` | text[] | Warn-level flags on the account, including 'con_balance_reconciliation_material' for the 14 accounts whose flows disagree with their reported balance by more than 100 CZK. |  |
 
 Joins:
 - to `ai.account` on `account_id` (many-to-one)
@@ -390,9 +424,9 @@ One row describing the calling user's own entitlement. Query it to tell "there a
 
 ## Data quality caveats to repeat in your answer
 
-**C1** [warn, 55 rows, rule `CON_BALANCE_RECONCILIATION_MATERIAL`] (affects metric `average_month_end_balance`): For 55 of 4,500 accounts the sum of all postings disagrees with the last reported balance by more than 100 CZK (one by 1,200 CZK). The balance column is used as reported, because it is what the bank's own statements showed; the discrepancy means the flows cannot reproduce it. Flagged as 'con_balance_reconciliation_material' in account_data_quality_flags.
+**C1** [warn, 14 rows, rule `CON_BALANCE_RECONCILIATION_MATERIAL`] (affects metric `average_month_end_balance`): For 14 of 4,500 accounts the sum of all postings disagrees with the last reported balance by more than 100 CZK (at most 488.30 CZK). The balance column is used as reported, because it is what the bank's own statements showed; the discrepancy means the flows cannot reproduce it. Flagged as 'con_balance_reconciliation_material' in account_data_quality_flags.
 
-**C2** [warn, 183 rows, rule `CON_INTRADAY_ORDER_AMBIGUOUS`] (affects metric `average_month_end_balance`): Transaction ids are not chronological within a day, so when an account has several postings on its last active day the closing balance is a documented choice (highest transaction id) rather than a fact. This affects 183 accounts. Known limitation under review: the running balance on each posting can usually order same-day postings, and that order disagrees with the highest-id choice for some accounts, so an individual account's month-end balance can be off by a fee or an interest posting.
+**C2** [warn, 183 rows, rule `CON_INTRADAY_ORDER_AMBIGUOUS`] (affects metric `average_month_end_balance`): Transaction ids are not chronological and the source has no time of day. When an account has several postings on its last active day, the closing posting is derived from the running-balance chain. On the last day of the book this applies to 183 accounts: 141 are resolved by the chain, and for 42 the chain cannot order the postings, so a documented fallback is used and the row says closing_basis = 'ambiguous'. Report that count when a balance figure depends on it.
 
 **C3** [warn, 6 rows, rule `VAL_OWNER_AGE_AT_LOAN_START`] (affects metric `average_age_at_loan_start`): 6 loans were granted to account owners recorded as under 15 years old (minimum 10.3 years), which is not legally possible. The loans are kept because their amount and status are sound, and they are flagged as 'val_owner_age_at_loan_start'. Report the average age with and without them when asked about age.
 

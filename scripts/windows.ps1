@@ -12,7 +12,7 @@
 
   Targets: setup, init-db, check, build, test, web, web-open, demo, demo-login,
            demo-interactive, ingest, profile, dq, model, ledger, reference,
-           semantic, entitlements, questions, evaluate, workbook, ddr, zip,
+           semantic, entitlements, questions, evaluate, extra, workbook, ddr, zip,
            deliverables, status, simulate, simulate-faults, all, clean, help
 
   Connection settings come from the same environment variables as
@@ -135,6 +135,11 @@ function Invoke-Target([string]$name) {
         "entitlements"     { Invoke-Py -m src.build_security }
         "questions"        { Invoke-Py -m src.run_questions }
         "evaluate"         { Invoke-Py -m src.evaluate }
+        "extra"            {
+            Invoke-Py -m src.run_reference --suite extra
+            Invoke-Py -m src.run_questions --suite extra
+            Invoke-Py -m src.evaluate --suite extra
+        }
         "workbook"         { Invoke-Py -m src.make_workbook }
         "ddr"              { Invoke-Py -m src.make_ddr }
         "zip"              { Invoke-Py -m src.make_zip }

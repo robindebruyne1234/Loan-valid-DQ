@@ -116,14 +116,24 @@ CANDIDATE_CHECKS: tuple[dict[str, str], ...] = (
     {
         "label": "trans: running balance does not reconcile per account (tolerance 1.00 CZK)",
         "sql": """
-            WITH final AS (
-                SELECT account_id, balance_after
-                FROM (
-                    SELECT account_id, balance_after,
-                           row_number() OVER (PARTITION BY account_id
-                                              ORDER BY trans_date DESC, trans_id DESC) AS rn
-                    FROM stg.trans
-                ) x WHERE rn = 1
+            WITH last_day AS (
+                SELECT account_id, max(trans_date) AS d FROM stg.trans GROUP BY account_id
+            ), day_postings AS (
+                SELECT t.account_id, t.trans_id, t.balance_after,
+                       t.balance_after - t.signed_amount AS balance_before
+                FROM stg.trans t
+                JOIN last_day l ON l.account_id = t.account_id AND l.d = t.trans_date
+            ), final AS (
+                -- The last reported balance is the END of the last day's running-balance
+                -- chain, the same rule as core.fact_account_month_end_balance (D028).
+                -- trans_id is not chronological, so "highest id" picked a mid-day balance.
+                SELECT DISTINCT ON (p.account_id) p.account_id, p.balance_after
+                FROM day_postings p
+                ORDER BY p.account_id,
+                         NOT EXISTS (SELECT 1 FROM day_postings q
+                                     WHERE q.account_id = p.account_id AND q.trans_id <> p.trans_id
+                                       AND q.balance_before = p.balance_after) DESC,
+                         p.trans_id ASC
             ), summed AS (
                 SELECT account_id, sum(signed_amount) AS total FROM stg.trans GROUP BY 1
             )
@@ -137,14 +147,24 @@ CANDIDATE_CHECKS: tuple[dict[str, str], ...] = (
     {
         "label": "trans: running balance off by more than 100 CZK per account",
         "sql": """
-            WITH final AS (
-                SELECT account_id, balance_after
-                FROM (
-                    SELECT account_id, balance_after,
-                           row_number() OVER (PARTITION BY account_id
-                                              ORDER BY trans_date DESC, trans_id DESC) AS rn
-                    FROM stg.trans
-                ) x WHERE rn = 1
+            WITH last_day AS (
+                SELECT account_id, max(trans_date) AS d FROM stg.trans GROUP BY account_id
+            ), day_postings AS (
+                SELECT t.account_id, t.trans_id, t.balance_after,
+                       t.balance_after - t.signed_amount AS balance_before
+                FROM stg.trans t
+                JOIN last_day l ON l.account_id = t.account_id AND l.d = t.trans_date
+            ), final AS (
+                -- The last reported balance is the END of the last day's running-balance
+                -- chain, the same rule as core.fact_account_month_end_balance (D028).
+                -- trans_id is not chronological, so "highest id" picked a mid-day balance.
+                SELECT DISTINCT ON (p.account_id) p.account_id, p.balance_after
+                FROM day_postings p
+                ORDER BY p.account_id,
+                         NOT EXISTS (SELECT 1 FROM day_postings q
+                                     WHERE q.account_id = p.account_id AND q.trans_id <> p.trans_id
+                                       AND q.balance_before = p.balance_after) DESC,
+                         p.trans_id ASC
             ), summed AS (
                 SELECT account_id, sum(signed_amount) AS total FROM stg.trans GROUP BY 1
             )

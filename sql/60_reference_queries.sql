@@ -206,6 +206,11 @@ ORDER BY gold_card_owners DESC;
 -- Interpretation (A14): the balance of an account at 1998-12-31 is the balance
 -- after the last posting on or before that date, taken from
 -- core.fact_account_month_end_balance (month-end grain, carry-forward applied).
+-- When several postings share that date, the closing one is the end of the
+-- day's running-balance chain (D028); accounts_closing_ambiguous counts the
+-- balances where the chain could not order the postings and the documented
+-- fallback decided. tests/test_month_end.py re-derives these balances
+-- independently of the fact table.
 -- Interpretation (A15): the average is over accounts that have a known balance
 -- on that date -- that is, accounts with at least one posting on or before it.
 -- An account with no posting has no balance and is not counted as zero, which
@@ -225,7 +230,8 @@ SELECT
     count(*) FILTER (WHERE b.is_carried_forward)          AS accounts_carried_forward,
     count(*) FILTER (WHERE 'con_balance_reconciliation_material' = ANY (a._dq_flags))
                                                           AS accounts_balance_unreconciled,
-    count(*) FILTER (WHERE b.closing_balance < 0)         AS accounts_overdrawn
+    count(*) FILTER (WHERE b.closing_balance < 0)         AS accounts_overdrawn,
+    count(*) FILTER (WHERE b.closing_basis = 'ambiguous') AS accounts_closing_ambiguous
 FROM core.fact_account_month_end_balance b
 JOIN core.dim_account a ON a.account_id = b.account_id
 WHERE b.month_end_date = DATE '1998-12-31';

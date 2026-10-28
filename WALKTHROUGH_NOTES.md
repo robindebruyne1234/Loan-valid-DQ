@@ -23,19 +23,23 @@ honest answer is.
 
 **The balance chain does not reconcile, and the reason is interesting.**
 Testing order-independently -- the sum of all signed amounts on an account
-should equal its last reported balance -- 3,869 of 4,500 accounts disagree. Most
+should equal its last reported balance -- 3,863 of 4,500 accounts disagree. Most
 are rounding: every amount in the source carries exactly one decimal place, and
-the residuals cluster at 0.1 to 0.5 CZK. But 55 accounts are off by more than
-100 CZK and one by exactly 1,200.00 CZK with only 55 postings, which is a
-missing or extra transaction, not rounding. That is why the rule has two tiers
+the residuals cluster at 0.1 to 0.5 CZK. But 14 accounts are off by more than
+100 CZK (the largest by 488.30), which is a missing or extra transaction, not
+rounding. There used to be 55, including one at exactly 1,200.00: 41 of them
+were our own artefact, from reading the day's last posting by highest
+`trans_id` (D028). That is why the rule has two tiers
 and a tolerance in `config.py`, and why Q9 reports the affected population next
 to the average instead of a clean-looking number.
 
 **Intra-day order is undefined, and Q9 depends on it.** `trans_id` is not
 chronological within a date. For 183 accounts the ambiguity falls on their last
-active day, so "the closing balance" is a documented choice (highest
-`trans_id`), not a fact. The number is right; what matters is that the
-submission says which choice it made and how many accounts it affects.
+active day, so "the closing balance" has to be derived. The running balance
+does it for 141 (each posting starts where the previous one ended, so the
+chain's end is the closing posting); 42 stay ambiguous, use a documented
+fallback and are marked `closing_basis = 'ambiguous'` (D028). What matters is
+that the submission says how it decided and how many accounts it affects.
 
 **One duplicate transaction no primary key could catch.** Same account, same
 date, same type, same amount, same resulting balance, different `trans_id`. A
@@ -118,7 +122,7 @@ rows, rather than by reading the policies.
 | Rules | 123 executed (88 hand written + 35 generated), 19 fire, 14 defect types |
 | Quarantined / flagged | 1 row / 440 rows |
 | Q3 | 76 of 682 problematic = 11.14% (matches the published figure) |
-| Q9 | 4,500 accounts, average 43,808.94 CZK, 76 carried forward, 55 unreconciled |
+| Q9 | 4,500 accounts, average 43,810.47 CZK, 76 carried forward, 14 unreconciled, 42 ambiguous closing |
 | LLM | 10 of 10 answered first attempt, 10 of 10 match, ~2 minutes, ~USD 0.40 |
 | Entitlements | 1,481 / 1,386 / 5,369 / 0 clients visible to the four demo users |
 | Tests | 114 passing, including 9 bypass attempts and 20 seeded defects |

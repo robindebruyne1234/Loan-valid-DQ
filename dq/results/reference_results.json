@@ -1,6 +1,6 @@
 {
-  "generated_at_utc": "2026-10-25T21:15:02+00:00",
-  "git_commit": "a9c9f38",
+  "generated_at_utc": "2026-10-28T10:31:42+00:00",
+  "git_commit": "c855be4",
   "source": "sql/60_reference_queries.sql",
   "label": "REFERENCE (hand-written, never shown to the LLM)",
   "command": "make reference",
@@ -58,7 +58,7 @@
           "pct_of_clients": 8.36
         }
       ],
-      "executed_at_utc": "2026-10-25T21:15:02+00:00"
+      "executed_at_utc": "2026-10-28T10:31:41+00:00"
     },
     "Q2": {
       "question": "What is the total amount of loans granted per year?",
@@ -110,7 +110,7 @@
           "average_amount": 157399.67
         }
       ],
-      "executed_at_utc": "2026-10-25T21:15:02+00:00"
+      "executed_at_utc": "2026-10-28T10:31:41+00:00"
     },
     "Q3": {
       "question": "What percentage of our loans are problematic?",
@@ -134,7 +134,7 @@
           "status_d_running_in_debt": 45
         }
       ],
-      "executed_at_utc": "2026-10-25T21:15:02+00:00"
+      "executed_at_utc": "2026-10-28T10:31:41+00:00"
     },
     "Q4": {
       "question": "What is the average loan amount per card type of the account owner?",
@@ -174,7 +174,7 @@
           "total_loan_amount": 19791540.0
         }
       ],
-      "executed_at_utc": "2026-10-25T21:15:02+00:00"
+      "executed_at_utc": "2026-10-28T10:31:41+00:00"
     },
     "Q5": {
       "question": "Which 10 districts had the highest total incoming transaction amount in 1997?",
@@ -283,7 +283,7 @@
           "accounts": 55
         }
       ],
-      "executed_at_utc": "2026-10-25T21:15:02+00:00"
+      "executed_at_utc": "2026-10-28T10:31:42+00:00"
     },
     "Q6": {
       "question": "How many new accounts were opened per month in 1996?",
@@ -371,7 +371,7 @@
           "accounts_opened": 125
         }
       ],
-      "executed_at_utc": "2026-10-25T21:15:02+00:00"
+      "executed_at_utc": "2026-10-28T10:31:42+00:00"
     },
     "Q7": {
       "question": "What was the average age of the account owner at loan start, per loan status?",
@@ -426,7 +426,7 @@
           "loans_flagged_implausible_age": 0
         }
       ],
-      "executed_at_utc": "2026-10-25T21:15:02+00:00"
+      "executed_at_utc": "2026-10-28T10:31:42+00:00"
     },
     "Q8": {
       "question": "What is the gender split of account owners holding a gold card?",
@@ -454,13 +454,13 @@
           "pct_of_gold_card_owners": 39.77
         }
       ],
-      "executed_at_utc": "2026-10-25T21:15:02+00:00"
+      "executed_at_utc": "2026-10-28T10:31:42+00:00"
     },
     "Q9": {
       "question": "What was the average account balance at the end of December 1998?",
       "label": "REFERENCE (hand-written)",
-      "sql": "SELECT\n    count(*)                                              AS accounts_with_known_balance,\n    round(avg(b.closing_balance), 2)                      AS average_balance,\n    round(percentile_cont(0.5) WITHIN GROUP (ORDER BY b.closing_balance)::numeric, 2)\n                                                          AS median_balance,\n    min(b.closing_balance)                                AS min_balance,\n    max(b.closing_balance)                                AS max_balance,\n    count(*) FILTER (WHERE b.is_carried_forward)          AS accounts_carried_forward,\n    count(*) FILTER (WHERE 'con_balance_reconciliation_material' = ANY (a._dq_flags))\n                                                          AS accounts_balance_unreconciled,\n    count(*) FILTER (WHERE b.closing_balance < 0)         AS accounts_overdrawn\nFROM core.fact_account_month_end_balance b\nJOIN core.dim_account a ON a.account_id = b.account_id\nWHERE b.month_end_date = DATE '1998-12-31'",
-      "interpretation": "Q9: What was the average account balance at the end of December 1998?\nInterpretation (A14): the balance of an account at 1998-12-31 is the balance\nafter the last posting on or before that date, taken from\ncore.fact_account_month_end_balance (month-end grain, carry-forward applied).\nInterpretation (A15): the average is over accounts that have a known balance\non that date -- that is, accounts with at least one posting on or before it.\nAn account with no posting has no balance and is not counted as zero, which\nwould bias the average downwards.\nData quality caveats, both reported next to the number rather than in a\nfootnote: accounts_carried_forward had no posting in December 1998 and\ninherit their last known balance; accounts_balance_unreconciled are the\naccounts whose flows disagree with their reported balance by more than\n100 CZK (dq rule CON_BALANCE_RECONCILIATION_MATERIAL).",
+      "sql": "SELECT\n    count(*)                                              AS accounts_with_known_balance,\n    round(avg(b.closing_balance), 2)                      AS average_balance,\n    round(percentile_cont(0.5) WITHIN GROUP (ORDER BY b.closing_balance)::numeric, 2)\n                                                          AS median_balance,\n    min(b.closing_balance)                                AS min_balance,\n    max(b.closing_balance)                                AS max_balance,\n    count(*) FILTER (WHERE b.is_carried_forward)          AS accounts_carried_forward,\n    count(*) FILTER (WHERE 'con_balance_reconciliation_material' = ANY (a._dq_flags))\n                                                          AS accounts_balance_unreconciled,\n    count(*) FILTER (WHERE b.closing_balance < 0)         AS accounts_overdrawn,\n    count(*) FILTER (WHERE b.closing_basis = 'ambiguous') AS accounts_closing_ambiguous\nFROM core.fact_account_month_end_balance b\nJOIN core.dim_account a ON a.account_id = b.account_id\nWHERE b.month_end_date = DATE '1998-12-31'",
+      "interpretation": "Q9: What was the average account balance at the end of December 1998?\nInterpretation (A14): the balance of an account at 1998-12-31 is the balance\nafter the last posting on or before that date, taken from\ncore.fact_account_month_end_balance (month-end grain, carry-forward applied).\nWhen several postings share that date, the closing one is the end of the\nday's running-balance chain (D028); accounts_closing_ambiguous counts the\nbalances where the chain could not order the postings and the documented\nfallback decided. tests/test_month_end.py re-derives these balances\nindependently of the fact table.\nInterpretation (A15): the average is over accounts that have a known balance\non that date -- that is, accounts with at least one posting on or before it.\nAn account with no posting has no balance and is not counted as zero, which\nwould bias the average downwards.\nData quality caveats, both reported next to the number rather than in a\nfootnote: accounts_carried_forward had no posting in December 1998 and\ninherit their last known balance; accounts_balance_unreconciled are the\naccounts whose flows disagree with their reported balance by more than\n100 CZK (dq rule CON_BALANCE_RECONCILIATION_MATERIAL).",
       "columns": [
         "accounts_with_known_balance",
         "average_balance",
@@ -469,22 +469,24 @@
         "max_balance",
         "accounts_carried_forward",
         "accounts_balance_unreconciled",
-        "accounts_overdrawn"
+        "accounts_overdrawn",
+        "accounts_closing_ambiguous"
       ],
       "row_count": 1,
       "rows": [
         {
           "accounts_with_known_balance": 4500,
-          "average_balance": 43808.94,
+          "average_balance": 43810.47,
           "median_balance": 38494.55,
           "min_balance": -25821.2,
-          "max_balance": 138317.2,
+          "max_balance": 137829.5,
           "accounts_carried_forward": 76,
-          "accounts_balance_unreconciled": 55,
-          "accounts_overdrawn": 39
+          "accounts_balance_unreconciled": 14,
+          "accounts_overdrawn": 39,
+          "accounts_closing_ambiguous": 42
         }
       ],
-      "executed_at_utc": "2026-10-25T21:15:02+00:00"
+      "executed_at_utc": "2026-10-28T10:31:42+00:00"
     },
     "Q10": {
       "question": "Which statement frequency has the highest share of problematic loans?",
@@ -522,7 +524,7 @@
           "rank_by_problematic_share": 3
         }
       ],
-      "executed_at_utc": "2026-10-25T21:15:02+00:00"
+      "executed_at_utc": "2026-10-28T10:31:42+00:00"
     }
   }
 }

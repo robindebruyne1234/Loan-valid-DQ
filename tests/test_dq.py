@@ -231,8 +231,21 @@ def test_warn_flags_are_visible_on_the_core_rows() -> None:
                 """,
             )
         }
-    assert counts.get("con_balance_reconciliation_material") == 55, counts
+    # 14, not the 55 of earlier builds: the rule used to read a mid-day balance
+    # as the account's last one (highest trans_id), which manufactured 41
+    # material breaks. D028; tests/test_month_end.py pins the closing rule.
+    assert counts.get("con_balance_reconciliation_material") == 14, counts
     assert counts.get("con_intraday_order_ambiguous") == 183, counts
+    with db.connect() as conn:
+        fired = {
+            row["rule_id"].lower(): int(row["violation_count"])
+            for row in db.fetch_all(conn, """
+                SELECT rule_id, violation_count FROM dq.results
+                WHERE run_id = (SELECT run_id FROM dq.run WHERE dataset = 'stg'
+                                ORDER BY started_at DESC LIMIT 1)""")
+        }
+    for flag in ("con_balance_reconciliation_material", "con_balance_reconciliation_rounding"):
+        assert counts.get(flag, 0) == fired[flag], (flag, counts.get(flag), fired[flag])
     assert counts.get("val_owner_age_at_loan_start") == 6, counts
     assert counts.get("val_owner_age_at_account_open") == 114, counts
 

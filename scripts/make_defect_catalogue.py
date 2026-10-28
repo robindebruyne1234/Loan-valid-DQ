@@ -28,7 +28,7 @@ TARGET = PROJECT_ROOT / "docs" / "diagrams" / "08_defect_catalogue.svg"
 REMEDIES: dict[str, str] = {
     "Duplicate transaction": "Delete the twin in the source system. Quarantine names both ids, the account and the date.",
     "Closing balance": "Have the source record posting order within a day (a sequence or a timestamp).",
-    "Running balance": "Find the missing or extra posting. 55 accounts are material, not rounding; one is out by 1,200.",
+    "Running balance": "Find the missing or extra posting. 14 accounts are material, not rounding; the largest is out by 488.30.",
     "Implausible age": "Correct the birth number, or the owner flag, in the customer system.",
     "Counterparty missing on a transfer": "A transfer has two sides. Fix the feed that dropped one.",
     "Missing values in columns": "Nothing today. The rule stays so the grade can be promoted the day a metric reads the column.",

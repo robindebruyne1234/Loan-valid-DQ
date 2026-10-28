@@ -1,0 +1,114 @@
+{
+  "generated_at_utc": "2026-10-28T11:02:48+00:00",
+  "git_commit": "c855be4",
+  "source": "sql/61_reference_extra.sql",
+  "suite": "extra",
+  "label": "REFERENCE (hand-written, never shown to the LLM)",
+  "command": "make reference",
+  "results": {
+    "E1": {
+      "question": "Find male or female loans in Q1 1995.",
+      "label": "REFERENCE (hand-written)",
+      "sql": "SELECT\n    c.gender                                              AS gender,\n    count(*)                                              AS loans,\n    count(DISTINCT l.loan_id)                             AS distinct_loans,\n    sum(l.amount)                                         AS total_amount\nFROM core.fact_loan l\nJOIN core.bridge_disposition d ON d.account_id = l.account_id AND d.is_owner\nJOIN core.dim_client c         ON c.client_id = d.client_id\nWHERE l.loan_date >= DATE '1995-01-01'\n  AND l.loan_date <  DATE '1995-04-01'\nGROUP BY c.gender\nORDER BY c.gender",
+      "interpretation": "E1: Find male or female loans in Q1 1995.\nInterpretation (A47): loans are counted once each and grouped by the gender\nof the ACCOUNT OWNER (the client whose disposition on the loan's account is\nOWNER), the convention of A5/A11 for every loan-by-client-attribute\nquestion. Gender is an attribute of the client (core.dim_client.gender); a\nloan reaches it only through the account's owner disposition. Disponents\nare not borrowers in the source and are not counted -- counting every\nclient on the account would give loan-client pairs, not loans (A47 records\nthe alternative and its size). Interpretation (A48): Q1 1995 is the\ncalendar quarter, loan_date >= 1995-01-01 AND < 1995-04-01.\ndistinct_loans = loans proves the owner join does not repeat a loan.",
+      "columns": [
+        "gender",
+        "loans",
+        "distinct_loans",
+        "total_amount"
+      ],
+      "row_count": 2,
+      "rows": [
+        {
+          "gender": "female",
+          "loans": 10,
+          "distinct_loans": 10,
+          "total_amount": 1199448.0
+        },
+        {
+          "gender": "male",
+          "loans": 18,
+          "distinct_loans": 18,
+          "total_amount": 3034104.0
+        }
+      ],
+      "executed_at_utc": "2026-10-28T11:02:48+00:00"
+    },
+    "E2": {
+      "question": "Compare the total amount of loans granted in Q1-Q3 of 1995 with Q1-Q3 of 1998.",
+      "label": "REFERENCE (hand-written)",
+      "sql": "SELECT\n    extract(year FROM loan_date)::int                     AS year,\n    count(*)                                              AS loans,\n    sum(amount)                                           AS total_amount\nFROM core.fact_loan\nWHERE (loan_date >= DATE '1995-01-01' AND loan_date < DATE '1995-10-01')\n   OR (loan_date >= DATE '1998-01-01' AND loan_date < DATE '1998-10-01')\nGROUP BY 1\nORDER BY 1",
+      "interpretation": "E2: Compare the total amount of loans granted in Q1-Q3 of 1995 with Q1-Q3 of 1998.\nInterpretation (A3, A48): granted = loan_date; Q1-Q3 = calendar quarters 1\nto 3, i.e. January to September of each named year, one row per year.",
+      "columns": [
+        "year",
+        "loans",
+        "total_amount"
+      ],
+      "row_count": 2,
+      "rows": [
+        {
+          "year": 1995,
+          "loans": 63,
+          "total_amount": 9033564.0
+        },
+        {
+          "year": 1998,
+          "loans": 132,
+          "total_amount": 21046932.0
+        }
+      ],
+      "executed_at_utc": "2026-10-28T11:02:48+00:00"
+    },
+    "E3": {
+      "question": "How many new accounts were opened in Q1 1996?",
+      "label": "REFERENCE (hand-written)",
+      "sql": "SELECT count(*)                                           AS new_accounts\nFROM core.dim_account\nWHERE open_date >= DATE '1996-01-01'\n  AND open_date <  DATE '1996-04-01'",
+      "interpretation": "E3: How many new accounts were opened in Q1 1996?\nInterpretation (A10, A48): an account is new on its open_date; Q1 1996 is\nthe calendar quarter 1996-01-01 to 1996-03-31 inclusive.",
+      "columns": [
+        "new_accounts"
+      ],
+      "row_count": 1,
+      "rows": [
+        {
+          "new_accounts": 334
+        }
+      ],
+      "executed_at_utc": "2026-10-28T11:02:48+00:00"
+    },
+    "E4": {
+      "question": "How many loans were granted per quarter in 1996?",
+      "label": "REFERENCE (hand-written)",
+      "sql": "SELECT\n    extract(quarter FROM loan_date)::int                  AS quarter,\n    count(*)                                              AS loans,\n    sum(amount)                                           AS total_amount\nFROM core.fact_loan\nWHERE loan_date >= DATE '1996-01-01'\n  AND loan_date <  DATE '1997-01-01'\nGROUP BY 1\nORDER BY 1",
+      "interpretation": "E4: How many loans were granted per quarter in 1996?\nInterpretation (A3, A48): granted = loan_date; quarters are calendar\nquarters; one row per quarter of 1996.",
+      "columns": [
+        "quarter",
+        "loans",
+        "total_amount"
+      ],
+      "row_count": 4,
+      "rows": [
+        {
+          "quarter": 1,
+          "loans": 20,
+          "total_amount": 2907960.0
+        },
+        {
+          "quarter": 2,
+          "loans": 23,
+          "total_amount": 4103220.0
+        },
+        {
+          "quarter": 3,
+          "loans": 39,
+          "total_amount": 5196876.0
+        },
+        {
+          "quarter": 4,
+          "loans": 35,
+          "total_amount": 6109620.0
+        }
+      ],
+      "executed_at_utc": "2026-10-28T11:02:48+00:00"
+    }
+  }
+}

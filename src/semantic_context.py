@@ -128,14 +128,38 @@ def validate(layer: dict[str, Any], conn: psycopg.Connection) -> list[str]:
         entity["name"]: {column["name"] for column in entity["columns"]}
         for entity in layer["entities"]
     }
+    entity_keys = {entity["name"]: list(entity.get("primary_key") or []) for entity in layer["entities"]}
+    joins = {(entity["name"], join["to"]): join["cardinality"]
+             for entity in layer["entities"] for join in entity.get("joins") or []}
+    caveat_ids = {caveat["id"] for caveat in layer["caveats"]}
+    for entity in layer["entities"]:
+        for grain, column in (entity.get("period_columns") or {}).items():
+            if column not in entity_columns[entity["name"]]:
+                problems.append(f"{entity['name']}: period column {grain} -> {column} does not exist")
     for metric in layer["metrics"]:
+        name, entity = metric["name"], metric["entity"]
+        columns = entity_columns.get(entity)
+        if columns is None:
+            problems.append(f"metric {name}: entity {entity} is not an entity of the semantic layer")
+            continue
         time_column = metric.get("time_column")
-        columns = entity_columns.get(metric["entity"])
-        if time_column and columns is not None and time_column not in columns:
-            problems.append(
-                f"metric {metric['name']}: time_column {time_column} is not a column "
-                f"of {metric['entity']}"
-            )
+        if time_column and time_column not in columns:
+            problems.append(f"metric {name}: time_column {time_column} is not a column of {entity}")
+        grain = metric.get("counting_grain")
+        grain = [grain] if isinstance(grain, str) else list(grain or [])
+        if grain != entity_keys[entity]:
+            problems.append(f"metric {name}: counting_grain {grain} is not the key of {entity} "
+                            f"{entity_keys[entity]}")
+        for other in metric.get("permitted_joins") or []:
+            cardinality = joins.get((entity, other))
+            if cardinality is None:
+                problems.append(f"metric {name}: permitted join {entity} -> {other} is not a declared join")
+            elif cardinality.endswith("to-many"):
+                problems.append(f"metric {name}: permitted join {entity} -> {other} is {cardinality}, "
+                                f"which would repeat the counted rows")
+        for caveat in metric.get("caveats") or []:
+            if caveat not in caveat_ids:
+                problems.append(f"metric {name}: caveat {caveat} does not exist")
 
     for view in sorted(set(live_columns) - described):
         problems.append(
@@ -284,6 +308,15 @@ def render_context_pack(layer: dict[str, Any]) -> str:
             out.append(f"  - filter: `{metric['filter']}`")
         if metric.get("time_column"):
             out.append(f"  - time_column: `{metric['time_column']}` (filter and group periods on this date)")
+        if metric.get("counting_grain"):
+            grain = metric["counting_grain"]
+            grain = ", ".join(grain) if isinstance(grain, list) else grain
+            out.append(f"  - counting_grain: `{grain}` (one row of `{metric['entity']}` per value)")
+        if metric.get("permitted_joins") is not None:
+            joined = ", ".join(f"`{j}`" for j in metric["permitted_joins"]) or "none"
+            out.append(f"  - permitted joins: {joined} -- any other join is rejected")
+        if metric.get("caveats"):
+            out.append(f"  - caveats: {', '.join(metric['caveats'])}")
         if metric.get("grain_note"):
             out.append(f"  - grain: {metric['grain_note'].strip()}")
         if metric.get("careful"):

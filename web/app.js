@@ -248,8 +248,10 @@ loan.asc     line ${esc(l._source_row)}   loan_id=${esc(l.loan_id)}   amount=${e
     return `
     <div class="card"><h3>Ask the data a question</h3>
       <p class="muted">The model is given the semantic layer and your question. It never sees the
-      database. Its SQL is parsed before it runs, then executed on a connection authenticated as
-      the persona you chose — so the answer is narrowed to what <em>they</em> may see.</p>
+      database. It returns SQL and a statement of what that SQL computes; both are checked against
+      the semantic layer before anything runs, then the SQL is executed on a connection
+      authenticated as the persona you chose — so the answer is narrowed to what <em>they</em> may
+      see.</p>
       <div id="asker"></div>
     </div>
     ${why('treat the model as an untrusted query author', `
@@ -259,7 +261,12 @@ loan.asc     line ${esc(l._source_row)}   loan_id=${esc(l.loan_id)}   amount=${e
       <code>SELECT</code> against the published schema. The <b>policies</b> decide which rows come
       back, and they would do that even if the first two failed.</p>
       <p>Only the third is a security control. The guard is a shape filter; the low-privilege,
-      policy-bound role is the actual boundary. <span class="ref">D011 · DDR 7</span></p>`)}
+      policy-bound role is the actual boundary. <span class="ref">D011 · DDR 7</span></p>
+      <p>Neither the guard nor the policies say whether the SQL answers the question. That is the
+      job of the <b>intent check</b>: the model declares metric, periods, grouping and filters; the
+      SQL must implement exactly that with the certified definitions, and its result must equal
+      the metric recomputed from the declaration. A mismatch is refused, not shown.
+      <span class="ref">D029</span></p>`)}
     ${assume(`<p><b>That a small model will sometimes be wrong.</b> It is not a defect of the
       governance that it is: the point is that a wrong query returns a wrong answer <em>about data
       this persona is allowed to see</em>, and never somebody else's. Every call is logged with its
@@ -383,7 +390,7 @@ async function sendQuestion() {
   const out = $('#answer');
   if (question.length < 3) { out.innerHTML = '<p class="err">Ask something longer.</p>'; return; }
   out.innerHTML = `<div class="card"><p class="muted"><span class="spin"></span>
-    Asking the model, then guarding and running its SQL as <code>${esc(state.role)}</code>…
+    Asking the model, then guarding, verifying and running its SQL as <code>${esc(state.role)}</code>…
     <br>A small model on a small box can take a while.</p></div>`;
   const res = await api('/api/ask', { session: state.session, question });
   const d = res.data;
@@ -393,9 +400,14 @@ async function sendQuestion() {
     llm: 'The model could not be reached. The page says so rather than inventing an answer.',
     parse: 'The model replied, but not in the shape asked for. Common with very small models.',
     guard: 'The guard refused the SQL before it touched the database.',
+    ir: 'The model did not state a valid intent (IR) for its SQL, so nothing was run.',
+    sql: 'The SQL does not compute what the model said it computes, or uses a column that does not exist. Nothing was run.',
+    plan: 'PostgreSQL could not plan the SQL. Nothing was executed.',
     execute: 'The SQL was allowed but failed when it ran.',
+    recompute: 'The SQL ran, but its result differs from the certified metric recomputed from the stated intent, so no number is shown.',
     done: '',
   }[d.stage] || '';
+  const v = d.verification;
 
   out.innerHTML = `
     <div class="card"><h3>What the model wrote</h3>
@@ -409,6 +421,19 @@ async function sendQuestion() {
             ? `<p><span class="tag info">ALLOWED</span> single read-only SELECT against the published schema, with a row cap applied.</p>`
             : `<p><span class="tag block">REFUSED</span> ${esc((d.guard.violations || []).join('; '))}</p>`)
         : '<p class="muted">Not reached.</p>'}
+    </div>
+    <div class="card"><h3>The intent check</h3>
+      ${v
+        ? (v.ok
+            ? `<p><span class="tag info">VERIFIED</span> the SQL implements the intent below with the
+               certified metric, and the result equals the metric recomputed from that intent.
+               This shows the SQL does what it declares — read the intent to judge whether that is
+               what you asked.</p>`
+            : `<p><span class="tag block">REFUSED</span> at the ${esc(v.stage)} check:</p>
+               <ul>${(v.findings || []).map((f) => `<li>${esc(f)}</li>`).join('')}</ul>`)
+        : '<p class="muted">Not reached.</p>'}
+      ${d.ir ? `<pre>${esc(JSON.stringify(d.ir, null, 2))}</pre>` : ''}
+      ${d.attempt > 1 ? `<p class="muted">Answer from attempt ${esc(d.attempt)}; the first was refused and its reason fed back.</p>` : ''}
     </div>
     ${d.stage === 'done'
       ? `<div class="card"><h3>The answer, as ${esc(state.role)}</h3>

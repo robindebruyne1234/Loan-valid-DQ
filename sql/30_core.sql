@@ -418,35 +418,88 @@ COMMENT ON TABLE core.fact_transaction IS
 -- ----------------------------------------------------------------------------
 -- core.fact_account_month_end_balance
 -- Grain: one row per account per month end, from the account's first posting
--- month to the end of the dataset.
+-- month to the end of the dataset. Before the first posting the balance is
+-- unknown, so there is no row (not a zero).
 --
--- Built in three steps, because "the balance at the end of a month" is a
--- modelling decision and not a column that exists:
---   1. per account and month, take the posting that closes the month --
---      the latest trans_date in that month, ties broken by the highest
---      trans_id (the documented tie-break; trans_id is not chronological
---      within a day, which dq rule CON_INTRADAY_ORDER_AMBIGUOUS reports);
---   2. build the full account x month grid so months with no activity exist;
---   3. carry the last known balance forward into those months and mark them
---      with is_carried_forward, so a consumer can tell a real month-end
---      balance from an inherited one.
+-- "The balance at the end of a month" is the balance after the LAST posting on
+-- or before the month end (assumption A14). The source has no time of day and
+-- no posting sequence: trans_date is a date, trans_id is not chronological, and
+-- file order agrees with the true order only about half the time (D028). What
+-- the source does record is the running balance: each posting starts at
+-- balance_after - signed_amount and ends at balance_after. So within one day
+-- the postings form a chain, and the closing posting is the chain's end -- the
+-- posting whose closing balance is not the opening balance of another posting
+-- on the same day. Built in four steps:
+-- 1. per account and month, take the postings of the last posting date;
+-- 2. find the chain end(s) among them. closing_basis records how the closing
+--    balance was decided:
+--      'single posting' -- one posting that day, nothing to order;
+--      'balance chain'  -- several postings, and every chain end carries the
+--                          same closing balance;
+--      'ambiguous'      -- the chain does not resolve (several ends with
+--                          different balances, or a cycle). The lowest trans_id
+--                          among the chain ends is used as a documented,
+--                          deterministic fallback: where the chain does resolve,
+--                          the lowest id matches it 96.9% of the time and the
+--                          highest id 0.4% (D028). The row stays marked;
+-- 3. build the full account x month grid so months with no activity exist;
+-- 4. carry the last known balance forward into those months and mark them
+--    with is_carried_forward (closing_basis is inherited from the observed
+--    month, balance_as_of_month_end says which one).
+--
+-- tests/test_month_end.py runs the block between the two markers verbatim
+-- against synthetic postings, so keep every reference in it qualified as core.
+-- @@month_end_balance:begin
 -- ----------------------------------------------------------------------------
 CREATE TABLE core.fact_account_month_end_balance AS
 WITH month_ends AS (
     SELECT DISTINCT month_end FROM core.dim_date
 ),
-closing AS (
-    -- step 1: the posting that closes each month the account was active in
-    SELECT DISTINCT ON (t.account_id, date_trunc('month', t.trans_date))
-           t.account_id,
-           (date_trunc('month', t.trans_date) + INTERVAL '1 month - 1 day')::date AS month_end,
-           t.balance_after,
-           t.trans_id
+closing_day AS (
+    -- step 1: the last posting date of each account and month
+    SELECT account_id, date_trunc('month', trans_date)::date AS month_start,
+           max(trans_date) AS closing_date
+    FROM core.fact_transaction
+    GROUP BY account_id, date_trunc('month', trans_date)
+),
+day_postings AS (
+    SELECT t.account_id, d.month_start, t.trans_id, t.balance_after,
+           t.balance_after - t.signed_amount AS balance_before,
+           count(*) OVER (PARTITION BY t.account_id, d.month_start) AS postings_that_day
     FROM core.fact_transaction t
-    ORDER BY t.account_id,
-             date_trunc('month', t.trans_date),
-             t.trans_date DESC,
-             t.trans_id DESC
+    JOIN closing_day d ON d.account_id = t.account_id AND d.closing_date = t.trans_date
+),
+chain_end AS (
+    -- step 2: a posting no other same-day posting starts from
+    SELECT p.account_id, p.month_start, p.trans_id, p.balance_after
+    FROM day_postings p
+    WHERE NOT EXISTS (
+        SELECT 1 FROM day_postings q
+        WHERE q.account_id = p.account_id AND q.month_start = p.month_start
+          AND q.trans_id <> p.trans_id AND q.balance_before = p.balance_after
+    )
+),
+chain_summary AS (
+    SELECT account_id, month_start, count(DISTINCT balance_after) AS end_balances
+    FROM chain_end
+    GROUP BY account_id, month_start
+),
+closing AS (
+    SELECT DISTINCT ON (p.account_id, p.month_start)
+        p.account_id,
+        (p.month_start + INTERVAL '1 month - 1 day')::date AS month_end,
+        p.balance_after,
+        p.trans_id,
+        CASE WHEN p.postings_that_day = 1 THEN 'single posting'
+             WHEN s.end_balances = 1     THEN 'balance chain'
+             ELSE 'ambiguous'
+        END AS closing_basis
+    FROM day_postings p
+    LEFT JOIN chain_end e ON e.trans_id = p.trans_id
+    LEFT JOIN chain_summary s ON s.account_id = p.account_id AND s.month_start = p.month_start
+    ORDER BY p.account_id, p.month_start,
+             (e.trans_id IS NOT NULL) DESC,   -- a chain end before any other posting
+             p.trans_id ASC                   -- then the documented fallback
 ),
 first_month AS (
     SELECT account_id,
@@ -455,7 +508,7 @@ first_month AS (
     GROUP BY account_id
 ),
 grid AS (
-    -- step 2: every month end from the first posting month onwards
+    -- step 3: every month end from the first posting month onwards
     SELECT fm.account_id, m.month_end
     FROM first_month fm
     JOIN month_ends m ON m.month_end >= fm.first_month_end
@@ -465,30 +518,35 @@ joined AS (
            g.month_end,
            c.balance_after,
            c.trans_id,
+           c.closing_basis,
            count(c.balance_after) OVER (PARTITION BY g.account_id ORDER BY g.month_end) AS carry_group
     FROM grid g
     LEFT JOIN closing c ON c.account_id = g.account_id AND c.month_end = g.month_end
 )
--- step 3: carry forward within each group of months that share a last posting
+-- step 4: carry forward within each group of months that share a last posting
 SELECT
     j.account_id,
-    j.month_end                                                    AS month_end_date,
-    first_value(j.balance_after) OVER w                            AS closing_balance,
-    first_value(j.trans_id) OVER w                                 AS last_trans_id,
-    (j.balance_after IS NULL)                                      AS is_carried_forward,
-    first_value(j.month_end) OVER w                                AS balance_as_of_month_end
+    j.month_end                                 AS month_end_date,
+    first_value(j.balance_after) OVER w         AS closing_balance,
+    first_value(j.trans_id) OVER w              AS last_trans_id,
+    (j.balance_after IS NULL)                   AS is_carried_forward,
+    first_value(j.month_end) OVER w             AS balance_as_of_month_end,
+    first_value(j.closing_basis) OVER w         AS closing_basis
 FROM joined j
 WINDOW w AS (PARTITION BY j.account_id, j.carry_group ORDER BY j.month_end);
 
 ALTER TABLE core.fact_account_month_end_balance
     ADD PRIMARY KEY (account_id, month_end_date);
 CREATE INDEX ix_core_meb_month ON core.fact_account_month_end_balance (month_end_date);
+-- @@month_end_balance:end
 
 COMMENT ON TABLE core.fact_account_month_end_balance IS
-    'Month-end balance per account. Grain: account x month end. '
-    'is_carried_forward = true means the account had no posting in that month '
-    'and the balance is inherited from balance_as_of_month_end. Built with the '
-    'documented tie-break (latest date in the month, then highest trans_id).';
+    'Month-end balance per account. Grain: account x month end, from the first '
+    'posting month. closing_balance is the balance after the last posting on or '
+    'before the month end, the closing posting being the end of that day''s '
+    'running-balance chain (closing_basis: single posting, balance chain, or '
+    'ambiguous). is_carried_forward = true means no posting that month; the '
+    'balance is inherited from balance_as_of_month_end.';
 
 -- ----------------------------------------------------------------------------
 -- Curated views: the join paths a business question needs, written once.

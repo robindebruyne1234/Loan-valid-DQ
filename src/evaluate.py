@@ -24,13 +24,21 @@ Verdicts:
 ``not_executed``
     no LLM answer exists for the question.
 
-Run with ``make evaluate``.
+Only a question the runner recorded as ``answered`` -- every check of
+:mod:`src.sql_ir` passed -- is compared; a refused answer is ``not_executed``
+with the refusal as its note.
+
+Run with ``make evaluate``; ``--suite extra`` evaluates the additional
+questions, and ``--llm``/``--out`` evaluate another provider's results file
+into its own evaluation file.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import math
+from pathlib import Path
 from typing import Any
 
 from src import config, db
@@ -73,6 +81,19 @@ EXPECTATIONS: dict[str, dict[str, Any]] = {
     "Q8":  {"dimensions": ["gender"],                         "measures": ["gold_card_owners"],          "ordered": False},
     "Q9":  {"dimensions": [],                                 "measures": ["average_balance"],           "ordered": False},
     "Q10": {"dimensions": ["statement_frequency"],            "measures": ["problematic_pct"],           "ordered": True},
+}
+
+#: The additional suite (sql/61_reference_extra.sql), same structure.
+EXTRA_EXPECTATIONS: dict[str, dict[str, Any]] = {
+    "E1": {"dimensions": ["gender"],   "measures": ["loans"],        "ordered": False},
+    "E2": {"dimensions": ["year"],     "measures": ["total_amount"], "ordered": False},
+    "E3": {"dimensions": [],           "measures": ["new_accounts"], "ordered": False},
+    "E4": {"dimensions": ["quarter"],  "measures": ["loans"],        "ordered": False},
+}
+
+EXPECTATIONS_BY_SUITE: dict[str, dict[str, dict[str, Any]]] = {
+    "core": EXPECTATIONS,
+    "extra": EXTRA_EXPECTATIONS,
 }
 
 
@@ -144,16 +165,18 @@ def row_matches(row: dict[str, Any], keys: tuple[Any, ...], measure: float) -> b
 
 
 def evaluate_question(
-    question_id: str, reference: dict[str, Any], llm: dict[str, Any] | None
+    question_id: str, reference: dict[str, Any], llm: dict[str, Any] | None,
+    expectations: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Evaluate one question's LLM answer against the reference answer.
 
     :param question_id: Question identifier.
     :param reference: The reference result entry.
     :param llm: The LLM result entry, or ``None`` when absent.
+    :param expectations: The suite's expectations (default: the brief's ten).
     :returns: A verdict dictionary with the matched and missing values.
     """
-    spec = EXPECTATIONS[question_id]
+    spec = (expectations or EXPECTATIONS)[question_id]
     reference_rows = reference["rows"]
 
     expected: list[tuple[tuple[Any, ...], str, float]] = []
@@ -243,26 +266,41 @@ def evaluate_question(
 
 
 def main() -> int:
-    """Evaluate every question and write ``dq/results/evaluation.json``.
+    """Evaluate every question of a suite and write its evaluation file.
 
     :returns: Process exit code: ``0`` when every question matches, ``1``
         otherwise. A non-zero exit is information, not a build failure: the
         point of the evaluation is to report honestly on the model.
     """
-    if not config.REFERENCE_RESULTS_JSON.exists():
-        LOGGER.error("no reference results; run 'make reference' first")
+    parser = argparse.ArgumentParser(description="Evaluate LLM answers against the reference.")
+    parser.add_argument("--suite", choices=sorted(config.SUITES), default="core")
+    parser.add_argument("--llm", type=Path, help="LLM results file (default: the suite's own)")
+    parser.add_argument("--out", type=Path, help="evaluation file (default: the suite's own)")
+    args = parser.parse_args()
+    suite = config.SUITES[args.suite]
+    expectations = EXPECTATIONS_BY_SUITE[args.suite]
+    llm_path: Path = args.llm or suite["llm_json"]
+    out_path: Path = args.out or suite["evaluation_json"]
+    if args.llm and not args.out and llm_path.resolve() != suite["llm_json"].resolve():
+        LOGGER.error("--llm names another results file: give --out too, so the "
+                     "official evaluation is not overwritten")
         return 1
-    reference = json.loads(config.REFERENCE_RESULTS_JSON.read_text(encoding="utf-8"))["results"]
+
+    if not suite["reference_json"].exists():
+        LOGGER.error("no reference results; run 'make reference' (--suite %s) first", args.suite)
+        return 1
+    reference = json.loads(suite["reference_json"].read_text(encoding="utf-8"))["results"]
     llm_payload = (
-        json.loads(config.LLM_RESULTS_JSON.read_text(encoding="utf-8"))
-        if config.LLM_RESULTS_JSON.exists()
+        json.loads(llm_path.read_text(encoding="utf-8"))
+        if llm_path.exists()
         else {"results": {}}
     )
     llm_results = llm_payload.get("results", {})
 
     verdicts = [
-        evaluate_question(question_id, reference[question_id], llm_results.get(question_id))
-        for question_id in config.QUESTION_IDS
+        evaluate_question(question_id, reference[question_id], llm_results.get(question_id),
+                          expectations)
+        for question_id in expectations
     ]
 
     tally: dict[str, int] = {}
@@ -272,8 +310,10 @@ def main() -> int:
     payload = {
         "generated_at_utc": db.utc_now_iso(),
         "git_commit": db.git_commit(),
-        "command": "make evaluate",
-        "reference_source": "sql/60_reference_queries.sql (hand written)",
+        "command": f"make evaluate (suite={args.suite})",
+        "suite": args.suite,
+        "reference_source": f"{suite['reference_sql'].relative_to(config.PROJECT_ROOT)} (hand written)",
+        "llm_results_file": str(llm_path),
         "llm_provider": llm_payload.get("provider"),
         "llm_model": llm_payload.get("model"),
         "llm_run_as_role": llm_payload.get("run_as_role"),
@@ -282,12 +322,13 @@ def main() -> int:
             "must appear on some row of the LLM answer, within an absolute "
             f"tolerance of {ABSOLUTE_TOLERANCE} (enough to absorb two-decimal "
             "rounding, not enough to absorb a wrong number); row order is "
-            "additionally checked for the three questions that ask for a ranking"
+            "additionally checked for the questions that ask for a ranking"
         ),
         "tally": tally,
         "verdicts": verdicts,
     }
-    config.EVALUATION_JSON.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
 
     LOGGER.info("___ evaluation ___")
     for verdict in verdicts:
@@ -305,10 +346,11 @@ def main() -> int:
                 "       missing: %s %s = %s", item["key"], item["measure"], item["value"]
             )
     LOGGER.info("  tally: %s", ", ".join(f"{k}={v}" for k, v in sorted(tally.items())))
-    LOGGER.info("wrote %s", config.EVALUATION_JSON.relative_to(config.PROJECT_ROOT))
+    LOGGER.info("wrote %s", out_path)
 
-    db.record_run("evaluate", "make evaluate", {"tally": tally})
-    return 0 if tally.get("match", 0) == len(config.QUESTION_IDS) else 1
+    db.record_run("evaluate", f"make evaluate (suite={args.suite})",
+                  {"suite": args.suite, "llm_results_file": str(llm_path), "tally": tally})
+    return 0 if tally.get("match", 0) == len(expectations) else 1
 
 
 if __name__ == "__main__":

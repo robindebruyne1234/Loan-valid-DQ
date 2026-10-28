@@ -1,0 +1,528 @@
+{
+  "generated_at_utc": "2026-10-25T21:15:02+00:00",
+  "git_commit": "a9c9f38",
+  "source": "sql/60_reference_queries.sql",
+  "label": "REFERENCE (hand-written, never shown to the LLM)",
+  "command": "make reference",
+  "results": {
+    "Q1": {
+      "question": "How many clients do we have per region?",
+      "label": "REFERENCE (hand-written)",
+      "sql": "SELECT\n    region,\n    count(*)                                              AS clients,\n    round(100.0 * count(*) / sum(count(*)) OVER (), 2)    AS pct_of_clients\nFROM core.v_client_region\nGROUP BY region\nORDER BY clients DESC, region",
+      "interpretation": "Q1: How many clients do we have per region?\nInterpretation (A1): \"region\" is the region of the CLIENT'S OWN district\n(district.A3 reached through client.district_id), not the region of the\ndistrict their account is registered in. The two differ for 409 of 4,500\naccount owners (9.1 percent), so the choice is material -- see dq rule\nCON_CLIENT_ACCOUNT_DISTRICT_MISMATCH. The alternative reading (account\ndistrict) is reported in ASSUMPTIONS.md A1.\nAll clients are counted (A2), including the ones holding no account, because\nthe question says \"clients\" and not \"clients with an account\". Clients whose\ndistrict cannot be resolved would appear as 'unknown region' rather than\nbeing dropped; there are none in this copy.",
+      "columns": [
+        "region",
+        "clients",
+        "pct_of_clients"
+      ],
+      "row_count": 8,
+      "rows": [
+        {
+          "region": "south Moravia",
+          "clients": 937,
+          "pct_of_clients": 17.45
+        },
+        {
+          "region": "north Moravia",
+          "clients": 920,
+          "pct_of_clients": 17.14
+        },
+        {
+          "region": "central Bohemia",
+          "clients": 664,
+          "pct_of_clients": 12.37
+        },
+        {
+          "region": "Prague",
+          "clients": 663,
+          "pct_of_clients": 12.35
+        },
+        {
+          "region": "east Bohemia",
+          "clients": 660,
+          "pct_of_clients": 12.29
+        },
+        {
+          "region": "north Bohemia",
+          "clients": 561,
+          "pct_of_clients": 10.45
+        },
+        {
+          "region": "west Bohemia",
+          "clients": 515,
+          "pct_of_clients": 9.59
+        },
+        {
+          "region": "south Bohemia",
+          "clients": 449,
+          "pct_of_clients": 8.36
+        }
+      ],
+      "executed_at_utc": "2026-10-25T21:15:02+00:00"
+    },
+    "Q2": {
+      "question": "What is the total amount of loans granted per year?",
+      "label": "REFERENCE (hand-written)",
+      "sql": "SELECT\n    loan_year                                             AS year,\n    count(*)                                              AS loans,\n    sum(amount)                                           AS total_amount,\n    round(avg(amount), 2)                                 AS average_amount\nFROM core.fact_loan\nGROUP BY loan_year\nORDER BY loan_year",
+      "interpretation": "Q2: What is the total amount of loans granted per year?\nInterpretation (A3): \"granted\" is dated by loan.date (the loan start date),\nthe only date the loan table carries, and \"total amount\" is the sum of the\nprincipal amount, not of amount * duration or of the outstanding balance.\nYears with no loans would be absent; every year 1993-1998 has loans here.",
+      "columns": [
+        "year",
+        "loans",
+        "total_amount",
+        "average_amount"
+      ],
+      "row_count": 6,
+      "rows": [
+        {
+          "year": 1993,
+          "loans": 20,
+          "total_amount": 2619276.0,
+          "average_amount": 130963.8
+        },
+        {
+          "year": 1994,
+          "loans": 101,
+          "total_amount": 13379904.0,
+          "average_amount": 132474.3
+        },
+        {
+          "year": 1995,
+          "loans": 90,
+          "total_amount": 13344372.0,
+          "average_amount": 148270.8
+        },
+        {
+          "year": 1996,
+          "loans": 117,
+          "total_amount": 18317676.0,
+          "average_amount": 156561.33
+        },
+        {
+          "year": 1997,
+          "loans": 196,
+          "total_amount": 30731364.0,
+          "average_amount": 156792.67
+        },
+        {
+          "year": 1998,
+          "loans": 158,
+          "total_amount": 24869148.0,
+          "average_amount": 157399.67
+        }
+      ],
+      "executed_at_utc": "2026-10-25T21:15:02+00:00"
+    },
+    "Q3": {
+      "question": "What percentage of our loans are problematic?",
+      "label": "REFERENCE (hand-written)",
+      "sql": "SELECT\n    count(*)                                                        AS total_loans,\n    count(*) FILTER (WHERE is_problematic)                          AS problematic_loans,\n    round(100.0 * count(*) FILTER (WHERE is_problematic) / count(*), 2)\n                                                                    AS problematic_pct,\n    count(*) FILTER (WHERE status_code = 'B')                       AS status_b_finished_unpaid,\n    count(*) FILTER (WHERE status_code = 'D')                       AS status_d_running_in_debt\nFROM core.fact_loan",
+      "interpretation": "Q3: What percentage of our loans are problematic?\nInterpretation (A4): \"problematic\" = loan status B (finished, not repaid) or\nD (running, client in debt). A and C are healthy. This is the single\ncertified definition, materialised as core.fact_loan.is_problematic, so no\nconsumer can redefine it silently.\nCross-check: the public copy is documented as 76 of 682 = 11.14 percent.",
+      "columns": [
+        "total_loans",
+        "problematic_loans",
+        "problematic_pct",
+        "status_b_finished_unpaid",
+        "status_d_running_in_debt"
+      ],
+      "row_count": 1,
+      "rows": [
+        {
+          "total_loans": 682,
+          "problematic_loans": 76,
+          "problematic_pct": 11.14,
+          "status_b_finished_unpaid": 31,
+          "status_d_running_in_debt": 45
+        }
+      ],
+      "executed_at_utc": "2026-10-25T21:15:02+00:00"
+    },
+    "Q4": {
+      "question": "What is the average loan amount per card type of the account owner?",
+      "label": "REFERENCE (hand-written)",
+      "sql": "SELECT\n    coalesce(owner_card_type, 'no card')                  AS owner_card_type,\n    count(*)                                              AS loans,\n    round(avg(amount), 2)                                 AS average_loan_amount,\n    sum(amount)                                           AS total_loan_amount\nFROM core.v_loan_enriched\nGROUP BY coalesce(owner_card_type, 'no card')\nORDER BY average_loan_amount DESC",
+      "interpretation": "Q4: What is the average loan amount per card type of the account owner?\nInterpretation (A5): the card is the card held by the account's OWNER\ndisposition. A card held by a disponent on the same account is deliberately\nnot attributed to the owner, which is why the join runs through\nv_account_owner and not through disp directly.\nLoans whose owner holds no card are reported as the explicit category\n'no card' (A6) rather than dropped, so the loan counts add up to the 682\nloans reported by Q2 and Q3.",
+      "columns": [
+        "owner_card_type",
+        "loans",
+        "average_loan_amount",
+        "total_loan_amount"
+      ],
+      "row_count": 4,
+      "rows": [
+        {
+          "owner_card_type": "junior",
+          "loans": 21,
+          "average_loan_amount": 221970.29,
+          "total_loan_amount": 4661376.0
+        },
+        {
+          "owner_card_type": "gold",
+          "loans": 16,
+          "average_loan_amount": 161880.75,
+          "total_loan_amount": 2590092.0
+        },
+        {
+          "owner_card_type": "no card",
+          "loans": 512,
+          "average_loan_amount": 148864.71,
+          "total_loan_amount": 76218732.0
+        },
+        {
+          "owner_card_type": "classic",
+          "loans": 133,
+          "average_loan_amount": 148808.57,
+          "total_loan_amount": 19791540.0
+        }
+      ],
+      "executed_at_utc": "2026-10-25T21:15:02+00:00"
+    },
+    "Q5": {
+      "question": "Which 10 districts had the highest total incoming transaction amount in 1997?",
+      "label": "REFERENCE (hand-written)",
+      "sql": "WITH district_totals AS (\n    SELECT\n        d.district_id,\n        d.district_name,\n        d.region,\n        sum(t.amount)                                     AS total_incoming_amount,\n        count(*)                                          AS incoming_transactions,\n        count(DISTINCT t.account_id)                      AS accounts\n    FROM core.fact_transaction t\n    JOIN core.dim_account  a ON a.account_id = t.account_id\n    JOIN core.dim_district d ON d.district_id = a.district_id\n    WHERE t.direction = 'credit'\n      AND t.trans_date BETWEEN DATE '1997-01-01' AND DATE '1997-12-31'\n    GROUP BY d.district_id, d.district_name, d.region\n)\nSELECT\n    rank() OVER (ORDER BY total_incoming_amount DESC)     AS rank,\n    district_id,\n    district_name,\n    region,\n    total_incoming_amount,\n    incoming_transactions,\n    accounts\nFROM district_totals\nORDER BY total_incoming_amount DESC\nLIMIT 10",
+      "interpretation": "Q5: Which 10 districts had the highest total incoming transaction amount in 1997?\nInterpretation (A7): \"incoming\" = transaction type PRIJEM, that is\ndirection = 'credit'. The unsigned amount is summed, because the question\nasks for incoming volume and not for a net flow.\nInterpretation (A8): the district is the district the ACCOUNT is registered\nin, because the money arrives at an account and not at a person. (Q1 uses\nthe client's own district; the two differ for 9.1 percent of owners.)\nTies: rank() is reported alongside the row number so that a tie at the\nboundary is visible rather than silently truncated.",
+      "columns": [
+        "rank",
+        "district_id",
+        "district_name",
+        "region",
+        "total_incoming_amount",
+        "incoming_transactions",
+        "accounts"
+      ],
+      "row_count": 10,
+      "rows": [
+        {
+          "rank": 1,
+          "district_id": 1,
+          "district_name": "Hl.m. Praha",
+          "region": "Prague",
+          "total_incoming_amount": 115130200.1,
+          "incoming_transactions": 13611,
+          "accounts": 554
+        },
+        {
+          "rank": 2,
+          "district_id": 70,
+          "district_name": "Karvina",
+          "region": "north Moravia",
+          "total_incoming_amount": 28506437.1,
+          "incoming_transactions": 3802,
+          "accounts": 152
+        },
+        {
+          "rank": 3,
+          "district_id": 74,
+          "district_name": "Ostrava - mesto",
+          "region": "north Moravia",
+          "total_incoming_amount": 27689271.9,
+          "incoming_transactions": 3378,
+          "accounts": 135
+        },
+        {
+          "rank": 4,
+          "district_id": 54,
+          "district_name": "Brno - mesto",
+          "region": "south Moravia",
+          "total_incoming_amount": 23095083.4,
+          "incoming_transactions": 3041,
+          "accounts": 128
+        },
+        {
+          "rank": 5,
+          "district_id": 64,
+          "district_name": "Zlin",
+          "region": "south Moravia",
+          "total_incoming_amount": 19723168.5,
+          "incoming_transactions": 2299,
+          "accounts": 92
+        },
+        {
+          "rank": 6,
+          "district_id": 68,
+          "district_name": "Frydek - Mistek",
+          "region": "north Moravia",
+          "total_incoming_amount": 19087598.8,
+          "incoming_transactions": 2006,
+          "accounts": 83
+        },
+        {
+          "rank": 7,
+          "district_id": 72,
+          "district_name": "Olomouc",
+          "region": "north Moravia",
+          "total_incoming_amount": 15916397.0,
+          "incoming_transactions": 2129,
+          "accounts": 88
+        },
+        {
+          "rank": 8,
+          "district_id": 5,
+          "district_name": "Kolin",
+          "region": "central Bohemia",
+          "total_incoming_amount": 14471603.6,
+          "incoming_transactions": 1542,
+          "accounts": 65
+        },
+        {
+          "rank": 9,
+          "district_id": 52,
+          "district_name": "Usti nad Orlici",
+          "region": "east Bohemia",
+          "total_incoming_amount": 14085167.4,
+          "incoming_transactions": 1431,
+          "accounts": 57
+        },
+        {
+          "rank": 10,
+          "district_id": 19,
+          "district_name": "Prachatice",
+          "region": "south Bohemia",
+          "total_incoming_amount": 12163147.0,
+          "incoming_transactions": 1359,
+          "accounts": 55
+        }
+      ],
+      "executed_at_utc": "2026-10-25T21:15:02+00:00"
+    },
+    "Q6": {
+      "question": "How many new accounts were opened per month in 1996?",
+      "label": "REFERENCE (hand-written)",
+      "sql": "SELECT\n    m.year_month,\n    m.month                                               AS month_number,\n    m.month_name,\n    count(a.account_id)                                   AS accounts_opened\nFROM (\n    SELECT DISTINCT year_month, month, month_name, month_start\n    FROM core.dim_date\n    WHERE year = 1996\n) m\nLEFT JOIN core.dim_account a\n       ON date_trunc('month', a.open_date) = m.month_start\nGROUP BY m.year_month, m.month, m.month_name\nORDER BY m.month",
+      "interpretation": "Q6: How many new accounts were opened per month in 1996?\nInterpretation (A9): \"new account\" is dated by account.date (the opening\ndate). All twelve months are reported, with zero where no account was\nopened, by driving the query from the date dimension -- a query that groups\nonly the accounts would silently omit an empty month, and an omitted month\nreads as \"no data\" rather than \"no accounts\".",
+      "columns": [
+        "year_month",
+        "month_number",
+        "month_name",
+        "accounts_opened"
+      ],
+      "row_count": 12,
+      "rows": [
+        {
+          "year_month": "1996-01",
+          "month_number": 1,
+          "month_name": "January",
+          "accounts_opened": 106
+        },
+        {
+          "year_month": "1996-02",
+          "month_number": 2,
+          "month_name": "February",
+          "accounts_opened": 104
+        },
+        {
+          "year_month": "1996-03",
+          "month_number": 3,
+          "month_name": "March",
+          "accounts_opened": 124
+        },
+        {
+          "year_month": "1996-04",
+          "month_number": 4,
+          "month_name": "April",
+          "accounts_opened": 101
+        },
+        {
+          "year_month": "1996-05",
+          "month_number": 5,
+          "month_name": "May",
+          "accounts_opened": 91
+        },
+        {
+          "year_month": "1996-06",
+          "month_number": 6,
+          "month_name": "June",
+          "accounts_opened": 113
+        },
+        {
+          "year_month": "1996-07",
+          "month_number": 7,
+          "month_name": "July",
+          "accounts_opened": 137
+        },
+        {
+          "year_month": "1996-08",
+          "month_number": 8,
+          "month_name": "August",
+          "accounts_opened": 133
+        },
+        {
+          "year_month": "1996-09",
+          "month_number": 9,
+          "month_name": "September",
+          "accounts_opened": 108
+        },
+        {
+          "year_month": "1996-10",
+          "month_number": 10,
+          "month_name": "October",
+          "accounts_opened": 115
+        },
+        {
+          "year_month": "1996-11",
+          "month_number": 11,
+          "month_name": "November",
+          "accounts_opened": 106
+        },
+        {
+          "year_month": "1996-12",
+          "month_number": 12,
+          "month_name": "December",
+          "accounts_opened": 125
+        }
+      ],
+      "executed_at_utc": "2026-10-25T21:15:02+00:00"
+    },
+    "Q7": {
+      "question": "What was the average age of the account owner at loan start, per loan status?",
+      "label": "REFERENCE (hand-written)",
+      "sql": "SELECT\n    status_code,\n    loan_status,\n    count(*)                                              AS loans,\n    count(owner_age_at_loan_start)                        AS owners_with_known_age,\n    round(avg(owner_age_at_loan_start), 2)                AS average_age_at_loan_start,\n    round(avg(owner_age_at_loan_start) FILTER (\n        WHERE NOT ('val_owner_age_at_loan_start' = ANY (_dq_flags))\n    ), 2)                                                 AS average_age_excluding_flagged,\n    count(*) FILTER (\n        WHERE 'val_owner_age_at_loan_start' = ANY (_dq_flags)\n    )                                                     AS loans_flagged_implausible_age\nFROM core.v_loan_enriched\nGROUP BY status_code, loan_status\nORDER BY status_code",
+      "interpretation": "Q7: What was the average age of the account owner at loan start, per loan status?\nInterpretation (A10): age is exact, computed from the owner's date of birth\nto the loan start date in years including the fractional part, not as a\ndifference of calendar years.\nInterpretation (A11): the owner is the OWNER disposition of the loan's\naccount. Owners whose birth number does not decode would be excluded and\nreported in owners_with_known_age; there are none in this copy.\nData quality caveat: 6 loans were granted to owners recorded as under 15\n(dq rule VAL_OWNER_AGE_AT_LOAN_START, severity warn). The average is\nreported both with and without those flagged loans, so the sensitivity is\nvisible instead of buried.",
+      "columns": [
+        "status_code",
+        "loan_status",
+        "loans",
+        "owners_with_known_age",
+        "average_age_at_loan_start",
+        "average_age_excluding_flagged",
+        "loans_flagged_implausible_age"
+      ],
+      "row_count": 4,
+      "rows": [
+        {
+          "status_code": "A",
+          "loan_status": "finished, paid in full",
+          "loans": 203,
+          "owners_with_known_age": 203,
+          "average_age_at_loan_start": 37.07,
+          "average_age_excluding_flagged": 37.53,
+          "loans_flagged_implausible_age": 4
+        },
+        {
+          "status_code": "B",
+          "loan_status": "finished, unpaid (default)",
+          "loans": 31,
+          "owners_with_known_age": 31,
+          "average_age_at_loan_start": 39.6,
+          "average_age_excluding_flagged": 39.6,
+          "loans_flagged_implausible_age": 0
+        },
+        {
+          "status_code": "C",
+          "loan_status": "running, no problem",
+          "loans": 403,
+          "owners_with_known_age": 403,
+          "average_age_at_loan_start": 38.7,
+          "average_age_excluding_flagged": 38.82,
+          "loans_flagged_implausible_age": 2
+        },
+        {
+          "status_code": "D",
+          "loan_status": "running, client in debt",
+          "loans": 45,
+          "owners_with_known_age": 45,
+          "average_age_at_loan_start": 37.0,
+          "average_age_excluding_flagged": 37.0,
+          "loans_flagged_implausible_age": 0
+        }
+      ],
+      "executed_at_utc": "2026-10-25T21:15:02+00:00"
+    },
+    "Q8": {
+      "question": "What is the gender split of account owners holding a gold card?",
+      "label": "REFERENCE (hand-written)",
+      "sql": "SELECT\n    owner_gender                                          AS gender,\n    count(*)                                              AS gold_card_owners,\n    count(DISTINCT owner_client_id)                       AS distinct_clients,\n    round(100.0 * count(*) / sum(count(*)) OVER (), 2)    AS pct_of_gold_card_owners\nFROM core.v_account_owner\nWHERE owner_card_type = 'gold'\nGROUP BY owner_gender\nORDER BY gold_card_owners DESC",
+      "interpretation": "Q8: What is the gender split of account owners holding a gold card?\nInterpretation (A12): the population is account OWNERS whose own disposition\nholds a gold card. A gold card held by a disponent does not make the owner a\ngold card holder.\nInterpretation (A13): the unit counted is the owner (one row per account in\nv_account_owner). A client who owns two accounts each with a gold card would\nbe counted twice as a card holder; count(distinct owner_client_id) is\nreported alongside so both readings are available.",
+      "columns": [
+        "gender",
+        "gold_card_owners",
+        "distinct_clients",
+        "pct_of_gold_card_owners"
+      ],
+      "row_count": 2,
+      "rows": [
+        {
+          "gender": "male",
+          "gold_card_owners": 53,
+          "distinct_clients": 53,
+          "pct_of_gold_card_owners": 60.23
+        },
+        {
+          "gender": "female",
+          "gold_card_owners": 35,
+          "distinct_clients": 35,
+          "pct_of_gold_card_owners": 39.77
+        }
+      ],
+      "executed_at_utc": "2026-10-25T21:15:02+00:00"
+    },
+    "Q9": {
+      "question": "What was the average account balance at the end of December 1998?",
+      "label": "REFERENCE (hand-written)",
+      "sql": "SELECT\n    count(*)                                              AS accounts_with_known_balance,\n    round(avg(b.closing_balance), 2)                      AS average_balance,\n    round(percentile_cont(0.5) WITHIN GROUP (ORDER BY b.closing_balance)::numeric, 2)\n                                                          AS median_balance,\n    min(b.closing_balance)                                AS min_balance,\n    max(b.closing_balance)                                AS max_balance,\n    count(*) FILTER (WHERE b.is_carried_forward)          AS accounts_carried_forward,\n    count(*) FILTER (WHERE 'con_balance_reconciliation_material' = ANY (a._dq_flags))\n                                                          AS accounts_balance_unreconciled,\n    count(*) FILTER (WHERE b.closing_balance < 0)         AS accounts_overdrawn\nFROM core.fact_account_month_end_balance b\nJOIN core.dim_account a ON a.account_id = b.account_id\nWHERE b.month_end_date = DATE '1998-12-31'",
+      "interpretation": "Q9: What was the average account balance at the end of December 1998?\nInterpretation (A14): the balance of an account at 1998-12-31 is the balance\nafter the last posting on or before that date, taken from\ncore.fact_account_month_end_balance (month-end grain, carry-forward applied).\nInterpretation (A15): the average is over accounts that have a known balance\non that date -- that is, accounts with at least one posting on or before it.\nAn account with no posting has no balance and is not counted as zero, which\nwould bias the average downwards.\nData quality caveats, both reported next to the number rather than in a\nfootnote: accounts_carried_forward had no posting in December 1998 and\ninherit their last known balance; accounts_balance_unreconciled are the\naccounts whose flows disagree with their reported balance by more than\n100 CZK (dq rule CON_BALANCE_RECONCILIATION_MATERIAL).",
+      "columns": [
+        "accounts_with_known_balance",
+        "average_balance",
+        "median_balance",
+        "min_balance",
+        "max_balance",
+        "accounts_carried_forward",
+        "accounts_balance_unreconciled",
+        "accounts_overdrawn"
+      ],
+      "row_count": 1,
+      "rows": [
+        {
+          "accounts_with_known_balance": 4500,
+          "average_balance": 43808.94,
+          "median_balance": 38494.55,
+          "min_balance": -25821.2,
+          "max_balance": 138317.2,
+          "accounts_carried_forward": 76,
+          "accounts_balance_unreconciled": 55,
+          "accounts_overdrawn": 39
+        }
+      ],
+      "executed_at_utc": "2026-10-25T21:15:02+00:00"
+    },
+    "Q10": {
+      "question": "Which statement frequency has the highest share of problematic loans?",
+      "label": "REFERENCE (hand-written)",
+      "sql": "SELECT\n    statement_frequency,\n    count(*)                                              AS loans,\n    count(*) FILTER (WHERE is_problematic)                AS problematic_loans,\n    round(100.0 * count(*) FILTER (WHERE is_problematic) / count(*), 2)\n                                                          AS problematic_pct,\n    rank() OVER (\n        ORDER BY 1.0 * count(*) FILTER (WHERE is_problematic) / count(*) DESC\n    )                                                     AS rank_by_problematic_share\nFROM core.v_loan_enriched\nGROUP BY statement_frequency\nORDER BY problematic_pct DESC",
+      "interpretation": "Q10: Which statement frequency has the highest share of problematic loans?\nInterpretation (A16): the share is problematic loans divided by all loans\ncarried by accounts with that statement frequency -- a within-frequency\nrate, not each frequency's share of all problematic loans.\nThe full ranking is returned, not only the winner, because with 682 loans\nspread over three frequencies the top group can rest on a small denominator;\nthe loan count next to the share is what makes that visible.",
+      "columns": [
+        "statement_frequency",
+        "loans",
+        "problematic_loans",
+        "problematic_pct",
+        "rank_by_problematic_share"
+      ],
+      "row_count": 3,
+      "rows": [
+        {
+          "statement_frequency": "after transaction",
+          "loans": 32,
+          "problematic_loans": 6,
+          "problematic_pct": 18.75,
+          "rank_by_problematic_share": 1
+        },
+        {
+          "statement_frequency": "weekly",
+          "loans": 91,
+          "problematic_loans": 11,
+          "problematic_pct": 12.09,
+          "rank_by_problematic_share": 2
+        },
+        {
+          "statement_frequency": "monthly",
+          "loans": 559,
+          "problematic_loans": 59,
+          "problematic_pct": 10.55,
+          "rank_by_problematic_share": 3
+        }
+      ],
+      "executed_at_utc": "2026-10-25T21:15:02+00:00"
+    }
+  }
+}

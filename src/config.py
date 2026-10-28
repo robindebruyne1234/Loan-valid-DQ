@@ -50,6 +50,28 @@ LLM_RESULTS_JSON: Path = DQ_RESULTS_DIR / "llm_results.json"
 EVALUATION_JSON: Path = DQ_RESULTS_DIR / "evaluation.json"
 RUN_LOG_JSONL: Path = DQ_RESULTS_DIR / "run_log.jsonl"
 
+#: Question suites. ``core`` is the brief's ten questions and the official
+#: evidence. ``extra`` holds regression questions added with D029 (the quarter
+#: and gender cases), kept in separate files so they can never alter the
+#: ten-question results. ``run_questions --out`` and ``evaluate --llm/--out``
+#: add a third layer of separation, e.g. for a local-model run.
+SUITES: dict[str, dict[str, Path]] = {
+    "core": {
+        "questions": QUESTIONS_CSV,
+        "reference_sql": SQL_DIR / "60_reference_queries.sql",
+        "reference_json": REFERENCE_RESULTS_JSON,
+        "llm_json": LLM_RESULTS_JSON,
+        "evaluation_json": EVALUATION_JSON,
+    },
+    "extra": {
+        "questions": DATA_DIR / "questions_extra.csv",
+        "reference_sql": SQL_DIR / "61_reference_extra.sql",
+        "reference_json": DQ_RESULTS_DIR / "reference_results_extra.json",
+        "llm_json": DQ_RESULTS_DIR / "llm_results_extra.json",
+        "evaluation_json": DQ_RESULTS_DIR / "evaluation_extra.json",
+    },
+}
+
 DEFECTS_CSV: Path = DELIVERABLES_DIR / "defects.csv"
 MODEL_EXPLANATION_MD: Path = DELIVERABLES_DIR / "model_explanation.md"
 WORKBOOK_XLSX: Path = DELIVERABLES_DIR / "Berka_TakeHome_Submission.xlsx"
