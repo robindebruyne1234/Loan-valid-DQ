@@ -1,12 +1,14 @@
 {
-  "generated_at_utc": "2026-10-25T21:00:47+00:00",
-  "git_commit": "97c2cde",
-  "command": "make evaluate",
+  "generated_at_utc": "2026-10-28T11:42:01+00:00",
+  "git_commit": "49059c0",
+  "command": "make evaluate (suite=core)",
+  "suite": "core",
   "reference_source": "sql/60_reference_queries.sql (hand written)",
+  "llm_results_file": "/home/user/Loan-valid-DQ/dq/results/llm_results.json",
   "llm_provider": "claude_cli",
   "llm_model": "claude-sonnet-5-5",
   "llm_run_as_role": "cro_global",
-  "comparison_method": "value based: every (dimension, measure) pair in the reference answer must appear on some row of the LLM answer, within an absolute tolerance of 0.011 (enough to absorb two-decimal rounding, not enough to absorb a wrong number); row order is additionally checked for the three questions that ask for a ranking",
+  "comparison_method": "value based: every (dimension, measure) pair in the reference answer must appear on some row of the LLM answer, within an absolute tolerance of 0.011 (enough to absorb two-decimal rounding, not enough to absorb a wrong number); row order is additionally checked for the questions that ask for a ranking",
   "tally": {
     "match": 10
   },

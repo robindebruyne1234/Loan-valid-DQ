@@ -1,0 +1,73 @@
+{
+  "generated_at_utc": "2026-10-28T11:42:01+00:00",
+  "git_commit": "49059c0",
+  "command": "make evaluate (suite=extra)",
+  "suite": "extra",
+  "reference_source": "sql/61_reference_extra.sql (hand written)",
+  "llm_results_file": "/home/user/Loan-valid-DQ/dq/results/llm_results_extra.json",
+  "llm_provider": "claude_cli",
+  "llm_model": "claude-sonnet-5-5",
+  "llm_run_as_role": "cro_global",
+  "comparison_method": "value based: every (dimension, measure) pair in the reference answer must appear on some row of the LLM answer, within an absolute tolerance of 0.011 (enough to absorb two-decimal rounding, not enough to absorb a wrong number); row order is additionally checked for the questions that ask for a ranking",
+  "tally": {
+    "match": 4
+  },
+  "verdicts": [
+    {
+      "question_id": "E1",
+      "verdict": "match",
+      "expected_values": 2,
+      "matched_values": 2,
+      "missing": [],
+      "order_checked": false,
+      "order_ok": true,
+      "note": "",
+      "llm_status": "answered",
+      "llm_row_count": 2,
+      "reference_row_count": 2,
+      "attempts_used": 1
+    },
+    {
+      "question_id": "E2",
+      "verdict": "match",
+      "expected_values": 2,
+      "matched_values": 2,
+      "missing": [],
+      "order_checked": false,
+      "order_ok": true,
+      "note": "",
+      "llm_status": "answered",
+      "llm_row_count": 2,
+      "reference_row_count": 2,
+      "attempts_used": 1
+    },
+    {
+      "question_id": "E3",
+      "verdict": "match",
+      "expected_values": 1,
+      "matched_values": 1,
+      "missing": [],
+      "order_checked": false,
+      "order_ok": true,
+      "note": "",
+      "llm_status": "answered",
+      "llm_row_count": 1,
+      "reference_row_count": 1,
+      "attempts_used": 1
+    },
+    {
+      "question_id": "E4",
+      "verdict": "match",
+      "expected_values": 4,
+      "matched_values": 4,
+      "missing": [],
+      "order_checked": false,
+      "order_ok": true,
+      "note": "",
+      "llm_status": "answered",
+      "llm_row_count": 4,
+      "reference_row_count": 4,
+      "attempts_used": 1
+    }
+  ]
+}

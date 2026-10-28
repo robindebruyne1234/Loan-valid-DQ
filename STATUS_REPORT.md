@@ -1,6 +1,6 @@
 # STATUS REPORT
 
-Generated at 2026-10-25T11:24:14+00:00 (git a7da25a).
+Generated at 2026-10-28T11:54:38+00:00 (git a308fc1).
 
 This report exists because of the honesty rules: a step that did not run
 is marked `NOT EXECUTED` here and its cells in the deliverables are left
@@ -10,33 +10,33 @@ empty, rather than being filled with something plausible.
 
 | step | command | status | last run (UTC) | evidence |
 |---|---|---|---|---|
-| ingest | `make ingest` | executed | 2026-10-25T11:13:40+00:00 | database only |
-| profile | `make profile` | executed | 2026-10-25T11:14:52+00:00 | dq/results/profile.json |
-| dq | `make dq` | executed | 2026-10-25T11:15:12+00:00 | deliverables/defects.csv |
-| model | `make model` | executed | 2026-10-25T11:15:25+00:00 | deliverables/model_explanation.md |
-| reference | `make reference` | executed | 2026-10-25T11:15:32+00:00 | dq/results/reference_results.json |
-| semantic | `make semantic` | executed | 2026-10-25T11:15:34+00:00 | semantic/context_pack.md |
-| entitlements | `make entitlements` | executed | 2026-10-25T11:15:38+00:00 | database only |
-| questions | `make questions` | executed | 2026-10-25T11:21:30+00:00 | dq/results/llm_results.json |
-| evaluate | `make evaluate` | executed | 2026-10-25T11:21:30+00:00 | dq/results/evaluation.json |
-| workbook | `make workbook` | executed | 2026-10-25T11:24:05+00:00 | deliverables/Berka_TakeHome_Submission.xlsx |
-| ddr | `make ddr` | executed | 2026-10-25T11:24:11+00:00 | deliverables/DDR.docx |
-| zip | `make zip` | executed | 2026-10-25T11:24:14+00:00 | deliverables/semantic_solution.zip |
+| ingest | `make ingest` | executed | 2026-10-25T21:12:55+00:00 | database only |
+| profile | `make profile` | executed | 2026-10-25T21:14:14+00:00 | dq/results/profile.json |
+| dq | `make dq` | executed | 2026-10-28T10:31:41+00:00 | deliverables/defects.csv |
+| model | `make model` | executed | 2026-10-28T10:29:19+00:00 | deliverables/model_explanation.md |
+| reference | `make reference` | executed | 2026-10-28T11:02:48+00:00 | dq/results/reference_results.json |
+| semantic | `make semantic` | executed | 2026-10-28T10:54:40+00:00 | semantic/context_pack.md |
+| entitlements | `make entitlements` | executed | 2026-10-28T10:29:25+00:00 | database only |
+| questions | `make questions` | executed | 2026-10-28T11:42:00+00:00 | dq/results/llm_results.json |
+| evaluate | `make evaluate` | executed | 2026-10-28T11:42:01+00:00 | dq/results/evaluation.json |
+| workbook | `make workbook` | executed | 2026-10-28T11:54:34+00:00 | deliverables/Berka_TakeHome_Submission.xlsx |
+| ddr | `make ddr` | executed | 2026-10-28T11:54:36+00:00 | deliverables/DDR.docx |
+| zip | `make zip` | executed | 2026-10-28T11:49:41+00:00 | deliverables/semantic_solution.zip |
 
 ## LLM execution
 
 - provider: `claude_cli`
 - model: `claude-sonnet-5-5`
-- isolation: no tools, no MCP servers, no filesystem, no database access; the model received the rendered semantic layer (29,500 characters) and the question, and nothing else
+- isolation: no tools, no MCP servers, no filesystem, no database access; the model received the rendered semantic layer (36,877 characters) and the question, and nothing else
 - executed as consumer role: `cro_global` (so every query passed through the row level security policies)
 - questions answered: **10 of 10**
 - answered on the first attempt: **10**
 - SQL hand-corrected: **none**. The Questions tab shows what the model produced.
-- call logs: `llm_logs/` (20 files, each with the full prompt, parameters, raw response, timing and cost)
+- call logs: `llm_logs/` (10 files, each with the full prompt, parameters, raw response, timing and cost)
 
 ## Evaluation against the hand-written reference answers
 
-- comparison: value based: every (dimension, measure) pair in the reference answer must appear on some row of the LLM answer, within an absolute tolerance of 0.011 (enough to absorb two-decimal rounding, not enough to absorb a wrong number); row order is additionally checked for the three questions that ask for a ranking
+- comparison: value based: every (dimension, measure) pair in the reference answer must appear on some row of the LLM answer, within an absolute tolerance of 0.011 (enough to absorb two-decimal rounding, not enough to absorb a wrong number); row order is additionally checked for the questions that ask for a ranking
 
 | verdict | questions |
 |---|---:|

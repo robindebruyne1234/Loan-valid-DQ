@@ -1,0 +1,645 @@
+{
+  "generated_at_utc": "2026-10-28T11:42:00+00:00",
+  "git_commit": "49059c0",
+  "label": "LLM-GENERATED (never hand-corrected)",
+  "provider": "claude_cli",
+  "model": "claude-sonnet-5-5",
+  "run_as_role": "cro_global",
+  "context_pack_chars": 36877,
+  "command": "make questions (provider=claude_cli, model=claude-sonnet-5-5)",
+  "suite": "extra",
+  "verification": "src/sql_ir.py (D029): answered = guard, IR, columns, consistency, plan, execution and recomputation all passed",
+  "llm_log_dir": "llm_logs/extra",
+  "answered": 4,
+  "total": 4,
+  "results": {
+    "E1": {
+      "question_id": "E1",
+      "question": "Find male or female loans in Q1 1995.",
+      "label": "LLM-GENERATED",
+      "provider": "claude_cli",
+      "model": "claude-sonnet-5-5",
+      "run_as_role": "cro_global",
+      "status": "answered",
+      "attempts": [
+        {
+          "attempt": 1,
+          "executed_call": true,
+          "call_error": null,
+          "duration_sec": 14.883,
+          "feedback_given": null,
+          "generated_sql": "SELECT owner_gender, count(*) AS loan_count FROM ai.loan WHERE loan_date >= DATE '1995-01-01' AND loan_date < DATE '1995-04-01' GROUP BY owner_gender ORDER BY owner_gender",
+          "ir": {
+            "metric": "loan_count",
+            "entity": "ai.loan",
+            "counting_grain": "loan_id",
+            "time": {
+              "column": "loan_date",
+              "periods": [
+                {
+                  "from": "1995-01-01",
+                  "to": "1995-04-01"
+                }
+              ]
+            },
+            "group_by": [
+              "owner_gender"
+            ],
+            "filters": [],
+            "order": null,
+            "limit": null
+          },
+          "model_reasoning": "The question asks for loans split by male/female in Q1 1995, so I used ai.loan with the certified loan_count metric grouped by owner_gender (the account owner's gender). Q1 is read as calendar January-March, filtered on loan_date with a half-open range, and no join to transactions or cards is used, so there is no fan-out.",
+          "model_assumptions": [
+            "'Find male or female loans' is read as the number of loans per gender of the account owner, returned as one row per gender.",
+            "Q1 1995 means the calendar quarter 1 January to 31 March 1995.",
+            "Results cover only the clients the caller is entitled to see."
+          ],
+          "model_caveats": [],
+          "guard_allowed": true,
+          "guard_reason": "allowed (row limit 10000 applied)",
+          "executed_sql": "SELECT\n  owner_gender,\n  COUNT(*) AS loan_count\nFROM ai.loan\nWHERE\n  loan_date >= CAST('1995-01-01' AS DATE)\n  AND loan_date < CAST('1995-04-01' AS DATE)\nGROUP BY\n  owner_gender\nORDER BY\n  owner_gender\nLIMIT 10000",
+          "verification": {
+            "ok": true,
+            "stage": "verified",
+            "findings": [],
+            "checks": [
+              "ir",
+              "columns",
+              "entity",
+              "joins",
+              "periods",
+              "measure",
+              "grouping",
+              "filters",
+              "limit",
+              "guard",
+              "plan",
+              "recompute"
+            ],
+            "canonical_sql": "SELECT e.owner_gender AS g0, COUNT(*) AS value FROM ai.loan e  WHERE ((e.loan_date >= DATE '1995-01-01' AND e.loan_date < DATE '1995-04-01')) GROUP BY e.owner_gender"
+          },
+          "status": "answered",
+          "row_count": 2,
+          "columns": [
+            "owner_gender",
+            "loan_count"
+          ],
+          "rows": [
+            {
+              "owner_gender": "female",
+              "loan_count": 10
+            },
+            {
+              "owner_gender": "male",
+              "loan_count": 18
+            }
+          ]
+        }
+      ],
+      "attempts_used": 1,
+      "generated_sql": "SELECT owner_gender, count(*) AS loan_count FROM ai.loan WHERE loan_date >= DATE '1995-01-01' AND loan_date < DATE '1995-04-01' GROUP BY owner_gender ORDER BY owner_gender",
+      "ir": {
+        "metric": "loan_count",
+        "entity": "ai.loan",
+        "counting_grain": "loan_id",
+        "time": {
+          "column": "loan_date",
+          "periods": [
+            {
+              "from": "1995-01-01",
+              "to": "1995-04-01"
+            }
+          ]
+        },
+        "group_by": [
+          "owner_gender"
+        ],
+        "filters": [],
+        "order": null,
+        "limit": null
+      },
+      "verification": {
+        "ok": true,
+        "stage": "verified",
+        "findings": [],
+        "checks": [
+          "ir",
+          "columns",
+          "entity",
+          "joins",
+          "periods",
+          "measure",
+          "grouping",
+          "filters",
+          "limit",
+          "guard",
+          "plan",
+          "recompute"
+        ],
+        "canonical_sql": "SELECT e.owner_gender AS g0, COUNT(*) AS value FROM ai.loan e  WHERE ((e.loan_date >= DATE '1995-01-01' AND e.loan_date < DATE '1995-04-01')) GROUP BY e.owner_gender"
+      },
+      "executed_sql": "SELECT\n  owner_gender,\n  COUNT(*) AS loan_count\nFROM ai.loan\nWHERE\n  loan_date >= CAST('1995-01-01' AS DATE)\n  AND loan_date < CAST('1995-04-01' AS DATE)\nGROUP BY\n  owner_gender\nORDER BY\n  owner_gender\nLIMIT 10000",
+      "rows": [
+        {
+          "owner_gender": "female",
+          "loan_count": 10
+        },
+        {
+          "owner_gender": "male",
+          "loan_count": 18
+        }
+      ],
+      "row_count": 2,
+      "columns": [
+        "owner_gender",
+        "loan_count"
+      ],
+      "model_reasoning": "The question asks for loans split by male/female in Q1 1995, so I used ai.loan with the certified loan_count metric grouped by owner_gender (the account owner's gender). Q1 is read as calendar January-March, filtered on loan_date with a half-open range, and no join to transactions or cards is used, so there is no fan-out.",
+      "model_assumptions": [
+        "'Find male or female loans' is read as the number of loans per gender of the account owner, returned as one row per gender.",
+        "Q1 1995 means the calendar quarter 1 January to 31 March 1995.",
+        "Results cover only the clients the caller is entitled to see."
+      ],
+      "model_caveats": [],
+      "guard_reason": "allowed (row limit 10000 applied)",
+      "error": null,
+      "executed_at_utc": "2026-10-28T11:40:30+00:00"
+    },
+    "E2": {
+      "question_id": "E2",
+      "question": "Compare the total amount of loans granted in Q1-Q3 of 1995 with Q1-Q3 of 1998.",
+      "label": "LLM-GENERATED",
+      "provider": "claude_cli",
+      "model": "claude-sonnet-5-5",
+      "run_as_role": "cro_global",
+      "status": "answered",
+      "attempts": [
+        {
+          "attempt": 1,
+          "executed_call": true,
+          "call_error": null,
+          "duration_sec": 9.364,
+          "feedback_given": null,
+          "generated_sql": "SELECT loan_year, sum(amount) AS total_loan_amount, count(*) AS loan_count FROM ai.loan WHERE (loan_date >= DATE '1995-01-01' AND loan_date < DATE '1995-10-01') OR (loan_date >= DATE '1998-01-01' AND loan_date < DATE '1998-10-01') GROUP BY loan_year ORDER BY loan_year",
+          "ir": {
+            "metric": "total_loan_amount",
+            "entity": "ai.loan",
+            "counting_grain": "loan_id",
+            "time": {
+              "column": "loan_date",
+              "periods": [
+                {
+                  "from": "1995-01-01",
+                  "to": "1995-10-01"
+                },
+                {
+                  "from": "1998-01-01",
+                  "to": "1998-10-01"
+                }
+              ]
+            },
+            "group_by": [
+              "loan_year"
+            ],
+            "filters": [],
+            "order": null,
+            "limit": null
+          },
+          "model_reasoning": "ai.loan is the entity for the certified total_loan_amount metric (sum of principal, grain loan_id), so no joins are needed and there is no fan-out. Each named year gets its own date range, Q1-Q3 meaning 1 January to 30 September as half-open ranges on loan_date, and the result is grouped by loan_year to give one row per year for comparison.",
+          "model_assumptions": [
+            "Q1-Q3 means calendar quarters, 1 January to 30 September of each year.",
+            "'Total amount of loans' means the principal granted (sum of amount), not monthly_payment * duration_months.",
+            "Loan counts are returned beside the totals so the comparison shows how many loans each total covers.",
+            "Results cover only the clients the caller is entitled to see, so the totals describe that portfolio."
+          ],
+          "model_caveats": [],
+          "guard_allowed": true,
+          "guard_reason": "allowed (row limit 10000 applied)",
+          "executed_sql": "SELECT\n  loan_year,\n  SUM(amount) AS total_loan_amount,\n  COUNT(*) AS loan_count\nFROM ai.loan\nWHERE\n  (\n    loan_date >= CAST('1995-01-01' AS DATE)\n    AND loan_date < CAST('1995-10-01' AS DATE)\n  )\n  OR (\n    loan_date >= CAST('1998-01-01' AS DATE)\n    AND loan_date < CAST('1998-10-01' AS DATE)\n  )\nGROUP BY\n  loan_year\nORDER BY\n  loan_year\nLIMIT 10000",
+          "verification": {
+            "ok": true,
+            "stage": "verified",
+            "findings": [],
+            "checks": [
+              "ir",
+              "columns",
+              "entity",
+              "joins",
+              "periods",
+              "measure",
+              "grouping",
+              "filters",
+              "limit",
+              "guard",
+              "plan",
+              "recompute"
+            ],
+            "canonical_sql": "SELECT e.loan_year AS g0, SUM(e.amount) AS value FROM ai.loan e  WHERE ((e.loan_date >= DATE '1995-01-01' AND e.loan_date < DATE '1995-10-01') OR (e.loan_date >= DATE '1998-01-01' AND e.loan_date < DATE '1998-10-01')) GROUP BY e.loan_year"
+          },
+          "status": "answered",
+          "row_count": 2,
+          "columns": [
+            "loan_year",
+            "total_loan_amount",
+            "loan_count"
+          ],
+          "rows": [
+            {
+              "loan_year": 1995,
+              "total_loan_amount": 9033564.0,
+              "loan_count": 63
+            },
+            {
+              "loan_year": 1998,
+              "total_loan_amount": 21046932.0,
+              "loan_count": 132
+            }
+          ]
+        }
+      ],
+      "attempts_used": 1,
+      "generated_sql": "SELECT loan_year, sum(amount) AS total_loan_amount, count(*) AS loan_count FROM ai.loan WHERE (loan_date >= DATE '1995-01-01' AND loan_date < DATE '1995-10-01') OR (loan_date >= DATE '1998-01-01' AND loan_date < DATE '1998-10-01') GROUP BY loan_year ORDER BY loan_year",
+      "ir": {
+        "metric": "total_loan_amount",
+        "entity": "ai.loan",
+        "counting_grain": "loan_id",
+        "time": {
+          "column": "loan_date",
+          "periods": [
+            {
+              "from": "1995-01-01",
+              "to": "1995-10-01"
+            },
+            {
+              "from": "1998-01-01",
+              "to": "1998-10-01"
+            }
+          ]
+        },
+        "group_by": [
+          "loan_year"
+        ],
+        "filters": [],
+        "order": null,
+        "limit": null
+      },
+      "verification": {
+        "ok": true,
+        "stage": "verified",
+        "findings": [],
+        "checks": [
+          "ir",
+          "columns",
+          "entity",
+          "joins",
+          "periods",
+          "measure",
+          "grouping",
+          "filters",
+          "limit",
+          "guard",
+          "plan",
+          "recompute"
+        ],
+        "canonical_sql": "SELECT e.loan_year AS g0, SUM(e.amount) AS value FROM ai.loan e  WHERE ((e.loan_date >= DATE '1995-01-01' AND e.loan_date < DATE '1995-10-01') OR (e.loan_date >= DATE '1998-01-01' AND e.loan_date < DATE '1998-10-01')) GROUP BY e.loan_year"
+      },
+      "executed_sql": "SELECT\n  loan_year,\n  SUM(amount) AS total_loan_amount,\n  COUNT(*) AS loan_count\nFROM ai.loan\nWHERE\n  (\n    loan_date >= CAST('1995-01-01' AS DATE)\n    AND loan_date < CAST('1995-10-01' AS DATE)\n  )\n  OR (\n    loan_date >= CAST('1998-01-01' AS DATE)\n    AND loan_date < CAST('1998-10-01' AS DATE)\n  )\nGROUP BY\n  loan_year\nORDER BY\n  loan_year\nLIMIT 10000",
+      "rows": [
+        {
+          "loan_year": 1995,
+          "total_loan_amount": 9033564.0,
+          "loan_count": 63
+        },
+        {
+          "loan_year": 1998,
+          "total_loan_amount": 21046932.0,
+          "loan_count": 132
+        }
+      ],
+      "row_count": 2,
+      "columns": [
+        "loan_year",
+        "total_loan_amount",
+        "loan_count"
+      ],
+      "model_reasoning": "ai.loan is the entity for the certified total_loan_amount metric (sum of principal, grain loan_id), so no joins are needed and there is no fan-out. Each named year gets its own date range, Q1-Q3 meaning 1 January to 30 September as half-open ranges on loan_date, and the result is grouped by loan_year to give one row per year for comparison.",
+      "model_assumptions": [
+        "Q1-Q3 means calendar quarters, 1 January to 30 September of each year.",
+        "'Total amount of loans' means the principal granted (sum of amount), not monthly_payment * duration_months.",
+        "Loan counts are returned beside the totals so the comparison shows how many loans each total covers.",
+        "Results cover only the clients the caller is entitled to see, so the totals describe that portfolio."
+      ],
+      "model_caveats": [],
+      "guard_reason": "allowed (row limit 10000 applied)",
+      "error": null,
+      "executed_at_utc": "2026-10-28T11:41:00+00:00"
+    },
+    "E3": {
+      "question_id": "E3",
+      "question": "How many new accounts were opened in Q1 1996?",
+      "label": "LLM-GENERATED",
+      "provider": "claude_cli",
+      "model": "claude-sonnet-5-5",
+      "run_as_role": "cro_global",
+      "status": "answered",
+      "attempts": [
+        {
+          "attempt": 1,
+          "executed_call": true,
+          "call_error": null,
+          "duration_sec": 8.379,
+          "feedback_given": null,
+          "generated_sql": "SELECT count(*) AS account_count FROM ai.account WHERE open_date >= DATE '1996-01-01' AND open_date < DATE '1996-04-01'",
+          "ir": {
+            "metric": "account_count",
+            "entity": "ai.account",
+            "counting_grain": "account_id",
+            "time": {
+              "column": "open_date",
+              "periods": [
+                {
+                  "from": "1996-01-01",
+                  "to": "1996-04-01"
+                }
+              ]
+            },
+            "group_by": [],
+            "filters": [],
+            "order": null,
+            "limit": null
+          },
+          "model_reasoning": "A 'new account' is an account whose open_date falls in the period, so I used the certified account_count metric on ai.account, which has one row per account and needs no join. Q1 is read as the calendar quarter, January to March 1996, filtered with a half-open range on open_date. I did not use a loan or transaction date column.",
+          "model_assumptions": [
+            "Q1 1996 means the calendar quarter 1 January to 31 March 1996.",
+            "The count covers only the accounts the caller is entitled to see, because results are filtered by the database policy."
+          ],
+          "model_caveats": [
+            "C4"
+          ],
+          "guard_allowed": true,
+          "guard_reason": "allowed (row limit 10000 applied)",
+          "executed_sql": "SELECT\n  COUNT(*) AS account_count\nFROM ai.account\nWHERE\n  open_date >= CAST('1996-01-01' AS DATE)\n  AND open_date < CAST('1996-04-01' AS DATE)\nLIMIT 10000",
+          "verification": {
+            "ok": true,
+            "stage": "verified",
+            "findings": [],
+            "checks": [
+              "ir",
+              "columns",
+              "entity",
+              "joins",
+              "periods",
+              "measure",
+              "grouping",
+              "filters",
+              "limit",
+              "guard",
+              "plan",
+              "recompute"
+            ],
+            "canonical_sql": "SELECT COUNT(*) AS value FROM ai.account e  WHERE ((e.open_date >= DATE '1996-01-01' AND e.open_date < DATE '1996-04-01'))"
+          },
+          "status": "answered",
+          "row_count": 1,
+          "columns": [
+            "account_count"
+          ],
+          "rows": [
+            {
+              "account_count": 334
+            }
+          ]
+        }
+      ],
+      "attempts_used": 1,
+      "generated_sql": "SELECT count(*) AS account_count FROM ai.account WHERE open_date >= DATE '1996-01-01' AND open_date < DATE '1996-04-01'",
+      "ir": {
+        "metric": "account_count",
+        "entity": "ai.account",
+        "counting_grain": "account_id",
+        "time": {
+          "column": "open_date",
+          "periods": [
+            {
+              "from": "1996-01-01",
+              "to": "1996-04-01"
+            }
+          ]
+        },
+        "group_by": [],
+        "filters": [],
+        "order": null,
+        "limit": null
+      },
+      "verification": {
+        "ok": true,
+        "stage": "verified",
+        "findings": [],
+        "checks": [
+          "ir",
+          "columns",
+          "entity",
+          "joins",
+          "periods",
+          "measure",
+          "grouping",
+          "filters",
+          "limit",
+          "guard",
+          "plan",
+          "recompute"
+        ],
+        "canonical_sql": "SELECT COUNT(*) AS value FROM ai.account e  WHERE ((e.open_date >= DATE '1996-01-01' AND e.open_date < DATE '1996-04-01'))"
+      },
+      "executed_sql": "SELECT\n  COUNT(*) AS account_count\nFROM ai.account\nWHERE\n  open_date >= CAST('1996-01-01' AS DATE)\n  AND open_date < CAST('1996-04-01' AS DATE)\nLIMIT 10000",
+      "rows": [
+        {
+          "account_count": 334
+        }
+      ],
+      "row_count": 1,
+      "columns": [
+        "account_count"
+      ],
+      "model_reasoning": "A 'new account' is an account whose open_date falls in the period, so I used the certified account_count metric on ai.account, which has one row per account and needs no join. Q1 is read as the calendar quarter, January to March 1996, filtered with a half-open range on open_date. I did not use a loan or transaction date column.",
+      "model_assumptions": [
+        "Q1 1996 means the calendar quarter 1 January to 31 March 1996.",
+        "The count covers only the accounts the caller is entitled to see, because results are filtered by the database policy."
+      ],
+      "model_caveats": [
+        "C4"
+      ],
+      "guard_reason": "allowed (row limit 10000 applied)",
+      "error": null,
+      "executed_at_utc": "2026-10-28T11:41:30+00:00"
+    },
+    "E4": {
+      "question_id": "E4",
+      "question": "How many loans were granted per quarter in 1996?",
+      "label": "LLM-GENERATED",
+      "provider": "claude_cli",
+      "model": "claude-sonnet-5-5",
+      "run_as_role": "cro_global",
+      "status": "answered",
+      "attempts": [
+        {
+          "attempt": 1,
+          "executed_call": true,
+          "call_error": null,
+          "duration_sec": 9.051,
+          "feedback_given": null,
+          "generated_sql": "SELECT c.quarter AS quarter, count(l.loan_id) AS loan_count FROM (SELECT DISTINCT quarter FROM ai.calendar WHERE date_key >= DATE '1996-01-01' AND date_key < DATE '1997-01-01') AS c LEFT JOIN ai.loan AS l ON extract(quarter FROM l.loan_date) = c.quarter AND l.loan_date >= DATE '1996-01-01' AND l.loan_date < DATE '1997-01-01' GROUP BY c.quarter ORDER BY c.quarter",
+          "ir": {
+            "metric": "loan_count",
+            "entity": "ai.loan",
+            "counting_grain": "loan_id",
+            "time": {
+              "column": "loan_date",
+              "periods": [
+                {
+                  "from": "1996-01-01",
+                  "to": "1997-01-01"
+                }
+              ]
+            },
+            "group_by": [
+              "quarter"
+            ],
+            "filters": [],
+            "order": null,
+            "limit": null
+          },
+          "model_reasoning": "ai.loan is the pre-joined loan entity and loan_count is the certified metric, counted at loan_id grain and filtered on loan_date with a half-open 1996 range. Quarters come from a calendar-derived list left-joined to loans so a quarter with no loans returns 0 rather than being omitted, and there is no join to a many-side table so nothing fans out.",
+          "model_assumptions": [
+            "Quarters are calendar quarters (Q1 = Jan-Mar ... Q4 = Oct-Dec) of 1996, based on loan_date.",
+            "Counts cover only the loans the caller is entitled to see, so they describe the caller's portfolio, not necessarily the whole bank."
+          ],
+          "model_caveats": [],
+          "guard_allowed": true,
+          "guard_reason": "allowed (row limit 10000 applied)",
+          "executed_sql": "SELECT\n  c.quarter AS quarter,\n  COUNT(l.loan_id) AS loan_count\nFROM (\n  SELECT DISTINCT\n    quarter\n  FROM ai.calendar\n  WHERE\n    date_key >= CAST('1996-01-01' AS DATE) AND date_key < CAST('1997-01-01' AS DATE)\n) AS c\nLEFT JOIN ai.loan AS l\n  ON EXTRACT(QUARTER FROM l.loan_date) = c.quarter\n  AND l.loan_date >= CAST('1996-01-01' AS DATE)\n  AND l.loan_date < CAST('1997-01-01' AS DATE)\nGROUP BY\n  c.quarter\nORDER BY\n  c.quarter\nLIMIT 10000",
+          "verification": {
+            "ok": true,
+            "stage": "verified",
+            "findings": [],
+            "checks": [
+              "ir",
+              "columns",
+              "entity",
+              "joins",
+              "periods",
+              "measure",
+              "grouping",
+              "filters",
+              "limit",
+              "guard",
+              "plan",
+              "recompute"
+            ],
+            "canonical_sql": "SELECT extract(quarter FROM e.loan_date)::int AS g0, COUNT(*) AS value FROM ai.loan e  WHERE ((e.loan_date >= DATE '1996-01-01' AND e.loan_date < DATE '1997-01-01')) GROUP BY extract(quarter FROM e.loan_date)::int"
+          },
+          "status": "answered",
+          "row_count": 4,
+          "columns": [
+            "quarter",
+            "loan_count"
+          ],
+          "rows": [
+            {
+              "quarter": 1,
+              "loan_count": 20
+            },
+            {
+              "quarter": 2,
+              "loan_count": 23
+            },
+            {
+              "quarter": 3,
+              "loan_count": 39
+            },
+            {
+              "quarter": 4,
+              "loan_count": 35
+            }
+          ]
+        }
+      ],
+      "attempts_used": 1,
+      "generated_sql": "SELECT c.quarter AS quarter, count(l.loan_id) AS loan_count FROM (SELECT DISTINCT quarter FROM ai.calendar WHERE date_key >= DATE '1996-01-01' AND date_key < DATE '1997-01-01') AS c LEFT JOIN ai.loan AS l ON extract(quarter FROM l.loan_date) = c.quarter AND l.loan_date >= DATE '1996-01-01' AND l.loan_date < DATE '1997-01-01' GROUP BY c.quarter ORDER BY c.quarter",
+      "ir": {
+        "metric": "loan_count",
+        "entity": "ai.loan",
+        "counting_grain": "loan_id",
+        "time": {
+          "column": "loan_date",
+          "periods": [
+            {
+              "from": "1996-01-01",
+              "to": "1997-01-01"
+            }
+          ]
+        },
+        "group_by": [
+          "quarter"
+        ],
+        "filters": [],
+        "order": null,
+        "limit": null
+      },
+      "verification": {
+        "ok": true,
+        "stage": "verified",
+        "findings": [],
+        "checks": [
+          "ir",
+          "columns",
+          "entity",
+          "joins",
+          "periods",
+          "measure",
+          "grouping",
+          "filters",
+          "limit",
+          "guard",
+          "plan",
+          "recompute"
+        ],
+        "canonical_sql": "SELECT extract(quarter FROM e.loan_date)::int AS g0, COUNT(*) AS value FROM ai.loan e  WHERE ((e.loan_date >= DATE '1996-01-01' AND e.loan_date < DATE '1997-01-01')) GROUP BY extract(quarter FROM e.loan_date)::int"
+      },
+      "executed_sql": "SELECT\n  c.quarter AS quarter,\n  COUNT(l.loan_id) AS loan_count\nFROM (\n  SELECT DISTINCT\n    quarter\n  FROM ai.calendar\n  WHERE\n    date_key >= CAST('1996-01-01' AS DATE) AND date_key < CAST('1997-01-01' AS DATE)\n) AS c\nLEFT JOIN ai.loan AS l\n  ON EXTRACT(QUARTER FROM l.loan_date) = c.quarter\n  AND l.loan_date >= CAST('1996-01-01' AS DATE)\n  AND l.loan_date < CAST('1997-01-01' AS DATE)\nGROUP BY\n  c.quarter\nORDER BY\n  c.quarter\nLIMIT 10000",
+      "rows": [
+        {
+          "quarter": 1,
+          "loan_count": 20
+        },
+        {
+          "quarter": 2,
+          "loan_count": 23
+        },
+        {
+          "quarter": 3,
+          "loan_count": 39
+        },
+        {
+          "quarter": 4,
+          "loan_count": 35
+        }
+      ],
+      "row_count": 4,
+      "columns": [
+        "quarter",
+        "loan_count"
+      ],
+      "model_reasoning": "ai.loan is the pre-joined loan entity and loan_count is the certified metric, counted at loan_id grain and filtered on loan_date with a half-open 1996 range. Quarters come from a calendar-derived list left-joined to loans so a quarter with no loans returns 0 rather than being omitted, and there is no join to a many-side table so nothing fans out.",
+      "model_assumptions": [
+        "Quarters are calendar quarters (Q1 = Jan-Mar ... Q4 = Oct-Dec) of 1996, based on loan_date.",
+        "Counts cover only the loans the caller is entitled to see, so they describe the caller's portfolio, not necessarily the whole bank."
+      ],
+      "model_caveats": [],
+      "guard_reason": "allowed (row limit 10000 applied)",
+      "error": null,
+      "executed_at_utc": "2026-10-28T11:42:00+00:00"
+    }
+  }
+}
