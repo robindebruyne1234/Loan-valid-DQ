@@ -1,6 +1,6 @@
 # Berka governed data product -- semantic layer v1.0.0
 
-A governed, entitlement-aware view of a Czech retail bank's 1993-1998 book: clients, accounts, dispositions, cards, loans, standing orders and 1.06 million transactions. Every entity below has been cleaned against 123 data quality rules; rows that broke a key, a join path or a certified metric were quarantined and are not present.
+A governed, entitlement-aware view of a Czech retail bank's 1993-1998 book: clients, accounts, dispositions, cards, loans, standing orders and 1.06 million transactions. Every entity below has been cleaned against 124 data quality rules; rows that broke a key, a join path or a certified metric were quarantined and are not present.
 
 - SQL dialect: **postgresql 16**
 - Query only the **`ai`** schema.
@@ -19,7 +19,7 @@ QR4. **Do not try to widen what you can see, and do not mention entitlements in 
    _Why:_ Results are already filtered to the caller's entitled clients by a database policy. Nothing you can write changes that, so an attempt only produces a rejected query.
 QR5. **Use the certified metric definitions below verbatim. Never re-derive `is_problematic`, `direction` or an age.**  
    _Why:_ These are the definitions the bank has agreed. Re-deriving them is how two reports end up disagreeing about the same word.
-QR6. **When a question asks "per month" or "per year", join `ai.calendar` so periods with no activity are returned as zero.**  
+QR6. **When a question asks "per month", "per quarter" or "per year", join `ai.calendar` so periods with no activity are returned as zero.**  
    _Why:_ An omitted period reads as "no data", which is a different claim from "nothing happened". Q6 is exactly this case.
 QR7. **Prefer the pre-joined entity over assembling the join yourself. `ai.loan` and `ai.account_owner` already carry the owner, their card type and the statement frequency.**  
    _Why:_ The owner join is the one most likely to go wrong: a card can belong to a disponent rather than to the account owner, and these entities have already resolved that.
@@ -29,6 +29,10 @@ QR9. **Round percentages to two decimals. Do not round monetary sums.**
    _Why:_ Consistency with the rest of the product's reporting.
 QR10. **If a question cannot be answered from the entities below, say exactly what is missing instead of guessing a column.**  
    _Why:_ An invented column name produces an error; an invented *meaning* produces a plausible wrong answer, which is worse.
+QR11. **Filter time on the metric's own date column (its `time_column` below) with half-open ranges, for example `loan_date >= DATE '1995-01-01' AND loan_date < DATE '1995-10-01'`. In a user's question, Q1 to Q4 are CALENDAR QUARTERS: Q1 = January-March, Q2 = April-June, Q3 = July-September, Q4 = October-December (`ai.calendar.quarter` 1 to 4). "Q1-Q3 of 1995 and 1998" means 1 January to 30 September of EACH named year, one group per year, and every named year must appear in the filter. The labels "Q1" to "Q10" used elsewhere in this document only name the bank's ten reference questions; they never mean quarters.**  
+   _Why:_ A date filter that drops the quarter bound, drops one of the years, or uses another date column (an account's open_date for a loan question) still runs and returns a plausible number. The guard cannot see that; only the query author can.
+QR12. **Count and sum at the grain of the entity the question is about. Never aggregate a measure after joining that entity to a table on the "many" side of a join (see the cardinality on each join below): joining ai.loan to ai.transaction repeats every loan once per posting. Aggregate the many side first in a subquery, or use count(DISTINCT key) for counts.**  
+   _Why:_ A fan-out join multiplies sums and counts silently. On this data, joining loans to transactions inflates a loan total more than a hundredfold, and the query is still valid SQL.
 
 ## Business glossary
 
@@ -61,8 +65,12 @@ QR10. **If a question cannot be answered from the entities below, say exactly wh
   - Careful: Use this entity rather than computing a balance from ai.transaction: the tie-break and the carry-forward are already applied here, consistently with every other balance figure the bank reports (assumption A14).
   - Where: `ai.account_month_end_balance`
 
+**quarter** -- A calendar quarter: Q1 = January-March, Q2 = April-June, Q3 = July-September, Q4 = October-December. "Q1-Q3 of a year" is 1 January to 30 September of that year.
+  - NOT: A fiscal quarter, a rolling three months, or one of the bank's reference questions (labelled Q1-Q10 in this document).
+  - Where: `ai.calendar.quarter, or extract(quarter FROM <date column>)`
+
 **age at loan start** -- The account owner's exact age in years, including the fractional part, on the loan start date. Pre-computed.
-  - Careful: Do not compute it as a difference of calendar years: that reports ages about half a year too high (assumption A10).
+  - Careful: Do not recompute it. Truncating to completed years reports ages about half a year too low, and a difference of calendar years is wrong for any individual loan (assumption A10).
   - Where: `ai.loan.owner_age_at_loan_start`
 
 ## Certified metrics -- use these expressions verbatim
@@ -73,40 +81,50 @@ QR10. **If a question cannot be answered from the entities below, say exactly wh
 
 **account_count** on `ai.account`: Number of accounts.
   - expression: `count(*)`
+  - time_column: `open_date` (filter and group periods on this date)
 
 **loan_count** on `ai.loan`: Number of loans.
   - expression: `count(*)`
+  - time_column: `loan_date` (filter and group periods on this date)
   - grain: ai.loan is one row per loan, not per account. In this book every account has at most one loan, but the model does not rely on that.
 
 **total_loan_amount** on `ai.loan`: Total principal granted.
   - expression: `sum(amount)`
+  - time_column: `loan_date` (filter and group periods on this date)
   - careful: The principal, not `monthly_payment * duration_months`, which is the gross repayment including interest (assumption A3).
 
 **average_loan_amount** on `ai.loan`: Average principal per loan.
   - expression: `round(avg(amount), 2)`
+  - time_column: `loan_date` (filter and group periods on this date)
 
 **problematic_loan_share** on `ai.loan`: Share of loans that are problematic, as a percentage.
   - expression: `round(100.0 * count(*) FILTER (WHERE is_problematic) / count(*), 2)`
+  - time_column: `loan_date` (filter and group periods on this date)
   - careful: Always report `count(*)` and `count(*) FILTER (WHERE is_problematic)` beside it, so the denominator is visible.
 
 **incoming_transaction_amount** on `ai.transaction`: Total amount arriving in accounts.
   - expression: `sum(amount)`
   - filter: `direction = 'credit'`
+  - time_column: `trans_date` (filter and group periods on this date)
 
 **outgoing_transaction_amount** on `ai.transaction`: Total amount leaving accounts.
   - expression: `sum(amount)`
   - filter: `direction = 'debit'`
+  - time_column: `trans_date` (filter and group periods on this date)
 
 **net_flow** on `ai.transaction`: Net movement, credits minus debits.
   - expression: `sum(signed_amount)`
+  - time_column: `trans_date` (filter and group periods on this date)
 
 **average_month_end_balance** on `ai.account_month_end_balance`: Average closing balance across accounts at a given month end.
   - expression: `round(avg(closing_balance), 2)`
   - filter: `month_end_date = DATE 'YYYY-MM-DD'`
+  - time_column: `month_end_date` (filter and group periods on this date)
   - careful: Average over accounts that have a known balance on that date. An account with no posting has no balance and must not be counted as zero (assumption A15). Report `count(*)` and `count(*) FILTER (WHERE is_carried_forward)` beside the average.
 
 **average_age_at_loan_start** on `ai.loan`: Average exact age of the account owner when the loan started.
   - expression: `round(avg(owner_age_at_loan_start), 2)`
+  - time_column: `loan_date` (filter and group periods on this date)
 
 **gender_share** on `any entity with a gender column`: Share of a population by gender, as a percentage.
   - expression: `round(100.0 * count(*) / sum(count(*)) OVER (), 2)`
@@ -124,7 +142,6 @@ A person who banks with us. One row per client, including clients who hold no ac
 
 | column | type | meaning | allowed values |
 |---|---|---|---|
-| `client_ref` | text | The client's EXTERNAL reference (BRK-XXXX-XXXX). This is the identifier to quote in an answer, on a statement or in a URL: it is opaque, so unlike client_id it cannot be guessed, counted or correlated. Use client_id to join, client_ref to refer. |  |
 | `client_ref` | text | The client's EXTERNAL reference (BRK-XXXX-XXXX). This is the identifier to QUOTE in an answer, on a statement or in a link: it is opaque, so unlike client_id it cannot be guessed, enumerated or counted. Join on client_id; refer to people by client_ref. |  |
 | `client_id` | bigint | Unique client identifier. The entitlement key. |  |
 | `birth_date` | date | Date of birth, decoded from the source birth number. |  |
@@ -136,8 +153,8 @@ A person who banks with us. One row per client, including clients who hold no ac
 | `data_quality_flags` | text[] | Warn-level data quality flags on this row; empty array when clean. |  |
 
 Joins:
-- to `ai.district` on `district_id` -- The client's own district.
-- to `ai.account_owner` on `client_id = owner_client_id` -- The accounts this client owns.
+- to `ai.district` on `district_id` (many-to-one) -- The client's own district.
+- to `ai.account_owner` on `client_id = owner_client_id` (one-to-many; optional: not every row has a match) -- 869 clients own no account (disponents only); an INNER JOIN drops them, so never count clients through this join. The accounts this client owns.
 
 ### `ai.account` -- Account
 
@@ -159,10 +176,11 @@ A current account held at the bank. One row per account.
 | `data_quality_flags` | text[] | Warn-level data quality flags on this row. |  |
 
 Joins:
-- to `ai.district` on `district_id` -- The account's own district.
-- to `ai.account_owner` on `account_id` -- Who owns the account.
-- to `ai.transaction` on `account_id`
-- to `ai.loan` on `account_id`
+- to `ai.district` on `district_id` (many-to-one) -- The account's own district.
+- to `ai.account_owner` on `account_id` (one-to-one) -- Who owns the account.
+- to `ai.transaction` on `account_id` (one-to-many) -- Fan-out: up to hundreds of postings per account. Aggregate transactions before joining them to another entity (QR12).
+- to `ai.loan` on `account_id` (one-to-many; optional: not every row has a match) -- Most accounts have no loan; an INNER JOIN keeps only accounts that do.
+- to `ai.calendar` on `open_date = date_key` (many-to-one)
 
 ### `ai.account_owner` -- Account with its owner
 
@@ -193,9 +211,9 @@ Each account together with its single legal owner, the owner's own region, and t
 | `data_quality_flags` | text[] | Warn-level data quality flags on the account, owner or disposition. |  |
 
 Joins:
-- to `ai.client` on `owner_client_id = client_id`
-- to `ai.loan` on `account_id`
-- to `ai.account_month_end_balance` on `account_id`
+- to `ai.client` on `owner_client_id = client_id` (many-to-one)
+- to `ai.loan` on `account_id` (one-to-many; optional: not every row has a match) -- Most accounts have no loan; an INNER JOIN keeps only accounts that do.
+- to `ai.account_month_end_balance` on `account_id` (one-to-many) -- Fan-out: one row per month end. Filter month_end_date before aggregating.
 
 ### `ai.card` -- Payment card
 
@@ -214,8 +232,8 @@ An issued payment card with its holder. A card belongs to a disposition, so its 
 | `holder_is_account_owner` | boolean | True when the holder is the account OWNER; false when the holder is a disponent. Filter on true for any question about the owner's card. |  |
 
 Joins:
-- to `ai.account` on `account_id`
-- to `ai.client` on `holder_client_id = client_id`
+- to `ai.account` on `account_id` (many-to-one)
+- to `ai.client` on `holder_client_id = client_id` (many-to-one)
 
 ### `ai.loan` -- Loan
 
@@ -249,8 +267,9 @@ A loan, pre-joined to its account owner, the owner's card type, the owner's exac
 | `data_quality_flags` | text[] | Warn-level flags, for example 'val_owner_age_at_loan_start' on the 6 loans whose owner is recorded as under 15. |  |
 
 Joins:
-- to `ai.account_owner` on `account_id`
-- to `ai.account` on `account_id`
+- to `ai.account_owner` on `account_id` (many-to-one)
+- to `ai.account` on `account_id` (many-to-one)
+- to `ai.calendar` on `loan_date = date_key` (many-to-one)
 
 ### `ai.transaction` -- Transaction
 
@@ -277,12 +296,12 @@ One posting on an account. 1.06 million rows, the largest entity. Pre-joined to 
 | `account_region` | text | Region of that district. |  |
 
 Joins:
-- to `ai.account` on `account_id`
-- to `ai.calendar` on `trans_date = date_key`
+- to `ai.account` on `account_id` (many-to-one)
+- to `ai.calendar` on `trans_date = date_key` (many-to-one)
 
 ### `ai.account_month_end_balance` -- Account balance at month end
 
-The closing balance of each account at each month end, with the intra-day tie-break and the carry-forward already applied. The right source for any question about the balance at the end of a period.
+The closing balance of each account at each month end, with the intra-day tie-break and the carry-forward already applied. The right source for any question about the balance at the end of a period. Rows start at the account's first posting month: before it the balance is unknown and there is no row, so an average at an early month end covers only the accounts active by then.
 
 - **Grain: one row per account per month end** (key: account_id, month_end_date)
 - Rows when unfiltered: 185,615
@@ -298,8 +317,8 @@ The closing balance of each account at each month end, with the intra-day tie-br
 | `account_data_quality_flags` | text[] | Warn-level flags on the account, including 'con_balance_reconciliation_material' for the 55 accounts whose flows disagree with their reported balance by more than 100 CZK. |  |
 
 Joins:
-- to `ai.account` on `account_id`
-- to `ai.account_owner` on `account_id`
+- to `ai.account` on `account_id` (many-to-one)
+- to `ai.account_owner` on `account_id` (many-to-one)
 
 ### `ai.district` -- District
 
@@ -322,7 +341,7 @@ Administrative district reference data, including the region. Not entitlement fi
 
 ### `ai.calendar` -- Calendar
 
-One row per day in the book's window. Join to it when a question asks per month or per year, so that periods with no activity come back as zero instead of being omitted.
+One row per day in the book's window. Join to it when a question asks per month, per quarter or per year, so that periods with no activity come back as zero instead of being omitted. Join a date column to date_key, for example loan_date = date_key.
 
 - **Grain: one row per calendar day** (key: date_key)
 - Rows when unfiltered: 2,191
@@ -332,7 +351,7 @@ One row per day in the book's window. Join to it when a question asks per month 
 |---|---|---|---|
 | `date_key` | date | The calendar day. |  |
 | `year` | integer | Calendar year, 1993 to 1998. |  |
-| `quarter` | integer | Calendar quarter, 1 to 4. |  |
+| `quarter` | integer | Calendar quarter, 1 to 4: 1 = January-March, 2 = April-June, 3 = July-September, 4 = October-December. Q1 to Q4 in a question mean these values. |  |
 | `month` | integer | Month number, 1 to 12. |  |
 | `month_name` | text | Month name in English, for example 'January'. |  |
 | `year_month` | text | Year and month as text, for example '1996-01'. Useful as a stable sort key. |  |
@@ -345,7 +364,7 @@ One row per day in the book's window. Join to it when a question asks per month 
 The published mapping from source codes to business labels. The entities above already expose the labels, so this is for explaining an answer rather than for joining.
 
 - **Grain: one row per code per code set** (key: code_set, code)
-- Rows when unfiltered: 27
+- Rows when unfiltered: 28
 
 | column | type | meaning | allowed values |
 |---|---|---|---|
@@ -364,7 +383,7 @@ One row describing the calling user's own entitlement. Query it to tell "there a
 | column | type | meaning | allowed values |
 |---|---|---|---|
 | `database_role` | text | The role the caller is authenticated as. |  |
-| `principal_type` | text | What kind of principal is asking. 'client' is a self-service customer entitled to exactly themselves; anything else is a staff user entitled to the union of their portfolios. Use it to word an answer appropriately: a customer asking 'how many accounts do I have' means their own, and should not be told it is a portfolio total. | `client`, `relationship_manager`, `risk` |
+| `principal_type` | text | What kind of principal is asking. 'client' is a self-service customer entitled to exactly themselves; anything else is a staff user entitled to the union of their portfolios. Use it to word an answer appropriately: a customer asking 'how many accounts do I have' means their own, and should not be told it is a portfolio total. | `client`, `relationship_manager`, `risk`, `administrator` |
 | `entitled_clients` | bigint | How many clients the caller may see. |  |
 | `entitled_accounts` | bigint | How many accounts the caller may see. |  |
 | `portfolios` | text | The portfolios the caller holds, comma separated. For a self-service customer there is no portfolio, so this reads 'SELF:<client_id>' instead. NULL only when the caller has been granted nothing at all. |  |
@@ -373,7 +392,7 @@ One row describing the calling user's own entitlement. Query it to tell "there a
 
 **C1** [warn, 55 rows, rule `CON_BALANCE_RECONCILIATION_MATERIAL`] (affects metric `average_month_end_balance`): For 55 of 4,500 accounts the sum of all postings disagrees with the last reported balance by more than 100 CZK (one by 1,200 CZK). The balance column is used as reported, because it is what the bank's own statements showed; the discrepancy means the flows cannot reproduce it. Flagged as 'con_balance_reconciliation_material' in account_data_quality_flags.
 
-**C2** [warn, 183 rows, rule `CON_INTRADAY_ORDER_AMBIGUOUS`] (affects metric `average_month_end_balance`): Transaction ids are not chronological within a day, so when an account has several postings on its last active day the closing balance is a documented choice (highest transaction id) rather than a fact. This affects 183 accounts.
+**C2** [warn, 183 rows, rule `CON_INTRADAY_ORDER_AMBIGUOUS`] (affects metric `average_month_end_balance`): Transaction ids are not chronological within a day, so when an account has several postings on its last active day the closing balance is a documented choice (highest transaction id) rather than a fact. This affects 183 accounts. Known limitation under review: the running balance on each posting can usually order same-day postings, and that order disagrees with the highest-id choice for some accounts, so an individual account's month-end balance can be off by a fee or an interest posting.
 
 **C3** [warn, 6 rows, rule `VAL_OWNER_AGE_AT_LOAN_START`] (affects metric `average_age_at_loan_start`): 6 loans were granted to account owners recorded as under 15 years old (minimum 10.3 years), which is not legally possible. The loans are kept because their amount and status are sound, and they are flagged as 'val_owner_age_at_loan_start'. Report the average age with and without them when asked about age.
 

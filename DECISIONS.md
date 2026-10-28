@@ -678,7 +678,10 @@ semantics), the table should be split rather than given a third flavour.
 
 ---
 
-## D022 - The customer's view is narrowed to ownership, matching the manager's
+## D022 - The customer's view is narrowed to ownership, matching the manager's (superseded by D023)
+
+> **Superseded by D023** (a customer also sees the accounts they may operate) and
+> D024 (a disposition grants the account, never the person). Kept as history.
 
 **Context.** `sec.v_my_accounts` resolves accounts from entitled clients
 `WHERE is_owner` (A21). For a relationship manager that is right: their book is

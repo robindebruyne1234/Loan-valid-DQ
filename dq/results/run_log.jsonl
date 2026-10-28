@@ -192,3 +192,5 @@
 {"step": "demo", "command": "make demo", "executed_at_utc": "2026-10-27T14:22:30+00:00", "detail": {"principals": 8, "attempts": 13, "leaks": 0}}
 {"step": "questions_separate", "command": "make questions (provider=ollama, model=qwen2.5-coder:3b)", "executed_at_utc": "2026-10-27T16:30:49+00:00", "detail": {"answered": 10, "total": 10, "answered_first_attempt": 8, "run_as": "cro_global", "output": "D:\\Werk\\Sollicit. Oef\\Loan-valid-DQ\\dq\\results\\local\\llm_results.json"}}
 {"step": "evaluate_separate", "command": "make evaluate", "executed_at_utc": "2026-10-27T16:31:15+00:00", "detail": {"tally": {"match": 6, "partial": 2, "mismatch": 2}, "output": "D:\\Werk\\Sollicit. Oef\\Loan-valid-DQ\\dq\\results\\local\\evaluation.json"}}
+{"step": "semantic", "command": "make semantic", "executed_at_utc": "2026-10-28T09:06:20+00:00", "detail": {"entities": 11, "columns": 105, "context_pack_chars": 33391, "problems": []}}
+{"step": "semantic", "command": "make semantic", "executed_at_utc": "2026-10-28T09:06:31+00:00", "detail": {"entities": 11, "columns": 105, "context_pack_chars": 33388, "problems": []}}
