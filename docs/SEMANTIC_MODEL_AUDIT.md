@@ -200,6 +200,7 @@ ran (probe script kept outside the repository):
 
 **With the IR, every defect is caught before an answer is trusted [RUN].** The
 prototype is `scripts/ir_check_prototype.py`: read-only, not imported by the app.
+(Superseded by `src/sql_ir.py`, now active in the runner and the web app; see §8.)
 
 | Case | Static check | Differential check | Verdict |
 |---|---|---|---|
@@ -389,3 +390,34 @@ static check alone is heuristic.
 | 5 | **RLS-dependent NULLs**: for a disponent, `ai.loan` shows `'no card'` and a NULL frequency (`docs/INTERVIEW_PREPARATION.md` §8 S2) | Medium | Do not coalesce hidden joins; declare "hidden" explicitly |
 | 6 | **`is_problematic` is coded twice** (staging and core) | Low | Core reuses `stg.is_problematic` |
 | 7 | **`evaluate.numeric()` ignores `Decimal`.** Harmless today because rows are converted first, but a trap for reuse | Low | Accept `Decimal` |
+
+---
+
+## 8. Follow-up (2026-10-28, after this audit)
+
+This record describes the audited version and is otherwise left as written.
+What changed since, and where the evidence is:
+
+| Audit item | Outcome | Evidence |
+|---|---|---|
+| Risk 1, month-end tie-break | **Fixed (D028).** The closing posting is the end of the day's running-balance chain; where it cannot be ordered (2,303 of 185,057 posted month ends; 42 accounts at 1998-12-31) the lowest `trans_id` is used and the row says `closing_basis = 'ambiguous'`. Q9: 43,808.94 → **43,810.47**. Material reconciliation breaks 55 → 14, rounding band 81 → 70 | `tests/test_month_end.py` (production SQL on synthetic postings; independent derivation, 0 disagreements); `ASSUMPTIONS.md` A14, A20; archive `dq/results/archive/2026-10-28_before_D028/` |
+| Risk 2, no pre-execution semantic verification | **Fixed (D029).** The model returns an IR with its SQL; `src/sql_ir.py` verifies IR, columns and SQL-against-IR before any session is opened, then EXPLAIN, guarded execution under RLS and recomputation from the IR. One entry point for the runner and the web app (`run_questions.verify_and_execute`) | `tests/test_sql_ir.py` (66 tests); `DECISIONS.md` D029 |
+| The observed failure: `t2.gender` on `ai.account_owner` | Refused at the `columns` stage with the nearest real column named (`owner_gender`); no database session opened. Correct path: `ai.loan.owner_gender` = `core.dim_client.gender` of the account's single `OWNER` disposition (A47) | `tests/test_sql_ir.py::test_a_nonexistent_gender_column_is_refused_before_execution` |
+| Risk 3, Ollama untested | **Still open.** No Ollama server was reachable in the environment used; nothing is claimed for it. The runner and evaluator now take `--out`/`--llm`, so an Ollama run writes `llm_results_ollama.json` and cannot overwrite or merge with the Claude run | `src/run_questions.py`, `src/evaluate.py` |
+| Risk 4, evaluation tuned to the ten | Partly addressed: four additional questions (gender of loans, Q1–Q3 comparison, Q1 1996 accounts, loans per quarter) with independent reference SQL on the core tables | `data/questions_extra.csv`, `sql/61_reference_extra.sql` |
+| §2.5 IR prototype | Superseded by `src/sql_ir.py`; the prototype is kept unchanged as this section's evidence | `scripts/ir_check_prototype.py` docstring |
+
+**Re-evaluation** (Claude Sonnet 5.5 via `claude_cli`, run as `cro_global`, code
+at commit `49059c0`): the brief's ten answered and verified on the first
+attempt, **10 of 10 match** the reference; the four additional questions
+answered and verified on the first attempt, **4 of 4 match**. A first run on the
+same day exposed two verifier defects that refused correct answers (Q9's
+composite grain written as a string; Q6 months as numbers). Both were fixed and
+pinned by tests before the run above; that first run is archived with its
+explanation in `dq/results/archive/2026-10-28_first_verified_run/`.
+
+**Still awaiting business confirmation:** A47 (loans by the owner's gender, not
+loan-client pairs), A48 (calendar quarters; one row per period), A49 (interest
+counts as incoming money), and the D028 fallback for the ambiguous
+account-months.
+

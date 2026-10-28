@@ -159,6 +159,7 @@ def sheet_overview(book: Workbook, context: dict[str, Any]) -> None:
 
     evaluation = context["evaluation"] or {}
     llm = context["llm"] or {}
+    extra = {k: v or {} for k, v in (context.get("extra") or {}).items()}
     dq_summary = context["dq_summary"]
     facts: list[tuple[str, Any]] = [
         ("Built at (UTC)", db.utc_now_iso()),
@@ -190,8 +191,13 @@ def sheet_overview(book: Workbook, context: dict[str, Any]) -> None:
                                  f"{llm.get('model', '-')}"),
         ("LLM isolation", "No tools, no MCP, no filesystem, no database access. "
                           "It sees only the rendered semantic layer."),
-        ("Questions answered", f"{llm.get('answered', 0)} of {llm.get('total', 10)}"),
+        ("Questions answered", f"{llm.get('answered', 0)} of {llm.get('total', 10)}, each "
+                               "verified against the intent the model declared (D029)"),
         ("Answers matching reference", f"{evaluation.get('tally', {}).get('match', 0)} of 10"),
+        ("Additional questions (gender, quarters)",
+         f"{extra.get('llm', {}).get('answered', 0)} of {extra.get('llm', {}).get('total', 0)} "
+         f"answered, {extra.get('evaluation', {}).get('tally', {}).get('match', 0)} matching "
+         "the hand-written reference (Questions tab, below the ten)"),
         ("", ""),
         ("TASK 3 -- entitlements", ""),
         ("Where the filter sits", "Row level security policies on the core tables; "
@@ -337,7 +343,7 @@ def sheet_questions(book: Workbook, context: dict[str, Any]) -> None:
     :returns: ``None``.
     """
     sheet = book.create_sheet("Questions")
-    set_widths(sheet, [6, 52, 70, 46, 70, 46, 12, 34, 40])
+    set_widths(sheet, [6, 52, 70, 46, 70, 46, 12, 34, 40, 46, 40])
     row = 1
     sheet.cell(row=row, column=1, value="The 10 questions: generated query and answer").font = TITLE_FONT
     row += 1
@@ -351,12 +357,15 @@ def sheet_questions(book: Workbook, context: dict[str, Any]) -> None:
             "reference answers -- it saw only the rendered semantic layer. Generated SQL is "
             "reproduced exactly as the model produced it; nothing was hand-corrected. "
             f"Executed as the consumer role '{llm.get('run_as_role', '-')}', so every query "
-            "passed through the row level security policies."
+            "passed through the row level security policies. Each answer also carries the "
+            "intent (IR) the model declared; an answer is shown only when the SQL was verified "
+            "against that intent and the semantic layer, and the metric recomputed from it "
+            "agreed (D029). Passing the SQL guard alone is not evidence of a correct answer."
         ),
     )
     note.font = SUBTLE_FONT
     note.alignment = WRAP
-    sheet.merge_cells(start_row=row, start_column=1, end_row=row, end_column=9)
+    sheet.merge_cells(start_row=row, start_column=1, end_row=row, end_column=11)
     sheet.row_dimensions[row].height = 58
     row += 2
 
@@ -364,15 +373,48 @@ def sheet_questions(book: Workbook, context: dict[str, Any]) -> None:
         sheet,
         ["#", "Question", "REFERENCE SQL (hand written)", "REFERENCE answer",
          "LLM-GENERATED SQL", "LLM answer", "Verdict", "Model's stated caveats",
-         "Interpretation applied (see Assumptions tab)"],
+         "Interpretation applied (see Assumptions tab)", "Declared intent (IR)",
+         "Intent check (src/sql_ir.py)"],
         row,
     )
+    row = _question_rows(sheet, row, config.QUESTION_IDS, context["reference"]["results"],
+                         context["llm"], context["evaluation"])
 
-    reference = context["reference"]["results"]
-    llm_results = (context["llm"] or {}).get("results", {})
-    verdicts = {v["question_id"]: v for v in (context["evaluation"] or {}).get("verdicts", [])}
+    extra = context.get("extra") or {}
+    if extra.get("reference"):
+        row += 1
+        title = sheet.cell(row=row, column=1, value=(
+            "Additional questions, not in the brief: the gender and calendar-quarter cases "
+            "(sql/61_reference_extra.sql; assumptions A47, A48)"))
+        title.font = Font(bold=True, size=12, color="1F3864")
+        sheet.merge_cells(start_row=row, start_column=1, end_row=row, end_column=11)
+        row += 1
+        _question_rows(sheet, row, tuple(extra["reference"]["results"]),
+                       extra["reference"]["results"], extra.get("llm"), extra.get("evaluation"))
 
-    for question_id in config.QUESTION_IDS:
+
+def _intent_check(answer: dict[str, Any]) -> str:
+    """One cell describing the verification an answer went through."""
+    verification = answer.get("verification")
+    if not verification:
+        return config.NOT_EXECUTED
+    if verification.get("ok"):
+        return "VERIFIED: " + ", ".join(verification.get("checks") or [])
+    return (f"REFUSED at {verification.get('stage')}: "
+            + "; ".join(verification.get("findings") or []))
+
+
+def _question_rows(sheet: Worksheet, row: int, question_ids: tuple[str, ...],
+                   reference: dict[str, Any], llm: dict[str, Any] | None,
+                   evaluation: dict[str, Any] | None) -> int:
+    """Write one row per question: reference, LLM answer, verdict and intent check.
+
+    :returns: The next free row.
+    """
+    llm_results = (llm or {}).get("results", {})
+    verdicts = {v["question_id"]: v for v in (evaluation or {}).get("verdicts", [])}
+
+    for question_id in question_ids:
         ref = reference[question_id]
         answer = llm_results.get(question_id, {})
         verdict = verdicts.get(question_id, {})
@@ -393,14 +435,17 @@ def sheet_questions(book: Workbook, context: dict[str, Any]) -> None:
                 verdict.get("verdict", config.NOT_EXECUTED),
                 ", ".join(answer.get("model_caveats") or []) or "-",
                 interpretation,
+                json.dumps(answer["ir"], indent=1) if answer.get("ir") else config.NOT_EXECUTED,
+                _intent_check(answer),
             ],
         )
-        for column in (3, 5):
+        for column in (3, 5, 10):
             sheet.cell(row=row - 1, column=column).font = MONO_FONT
         verdict_cell = sheet.cell(row=row - 1, column=7)
         verdict_cell.fill = VERDICT_FILL.get(verdict.get("verdict", ""), VERDICT_FILL["not_executed"])
         verdict_cell.font = Font(bold=True)
         sheet.row_dimensions[row - 1].height = 150
+    return row
 
 
 def sheet_question_detail(book: Workbook, context: dict[str, Any]) -> None:
@@ -836,6 +881,11 @@ def gather_context() -> dict[str, Any]:
         "reference": reference,
         "llm": load_json(config.LLM_RESULTS_JSON),
         "evaluation": load_json(config.EVALUATION_JSON),
+        "extra": {
+            "reference": load_json(config.SUITES["extra"]["reference_json"]),
+            "llm": load_json(config.SUITES["extra"]["llm_json"]),
+            "evaluation": load_json(config.SUITES["extra"]["evaluation_json"]),
+        },
         "core_counts": core_counts,
         "policies": policies,
         "entitlements": entitlements,

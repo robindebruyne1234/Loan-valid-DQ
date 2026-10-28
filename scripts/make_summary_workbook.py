@@ -14,6 +14,7 @@ Read-only against the database. Usage: python scripts/make_summary_workbook.py
 
 from __future__ import annotations
 
+import json
 import re
 import sys
 from pathlib import Path
@@ -76,7 +77,8 @@ PIPELINE: list[tuple[str, ...]] = [
      "Builds schema core as a star schema with a bridge: dim_date, dim_district, dim_client, "
      "dim_account, bridge_disposition (owner or disponent), dim_card, fact_loan "
      "(is_problematic = status B or D), fact_transaction (1,056,319 rows = stg minus 1 "
-     "quarantined), fact_account_month_end_balance (month-end balance with carry-forward) and "
+     "quarantined), fact_account_month_end_balance (month-end balance: the closing posting is "
+     "the end of the day's running-balance chain, D028, with carry-forward) and "
      "ref_codes. Adds curated views v_account_owner, v_loan_enriched, v_client_region. Adds "
      "opaque client_ref and account_ref. Then re-applies the ai views (step 7).",
      "core.* with row counts reconciled: core = stg - quarantine on rows and on money.",
@@ -98,7 +100,7 @@ PIPELINE: list[tuple[str, ...]] = [
      "row counts. The build validates it against information_schema: a described column that "
      "does not exist, an existing column nobody described, or a grain that is not really one "
      "row per key fails the build. It is then rendered into semantic/context_pack.md "
-     "(about 29,500 characters, 6,900 tokens), which is all the LLM ever sees.",
+     "(about 36,900 characters), which is all the LLM ever sees.",
      "semantic/context_pack.md.",
      "A semantic layer that has drifted from the schema is worse than none: the model cannot "
      "check it."),
@@ -140,18 +142,26 @@ PIPELINE: list[tuple[str, ...]] = [
      "because Berka is public 1999 data."),
     ("10", "Asking questions",
      "make questions\nmake evaluate\nscripts\\windows.ps1 questions / evaluate\n(web: step 7 Ask)",
-     "src/run_questions.py, src/llm_client.py, src/sql_guard.py, src/evaluate.py",
+     "src/run_questions.py, src/llm_client.py, src/sql_guard.py, src/sql_ir.py, src/evaluate.py",
      "For each question: (1) the context pack plus the question is sent to the LLM, which has "
-     "no tools, no database and no files and must answer with one JSON object: sql, reasoning, "
-     "assumptions, caveats. (2) sqlglot parses the SQL: exactly one read-only statement, only "
-     "the ai schema, a row cap added, a statement timeout set. (3) It runs as the chosen "
-     "database user after both factors, so row level security filters the rows. (4) If the "
-     "output cannot be parsed or the guard rejects it, one retry is allowed with the reason "
-     "(maximum 2 attempts). (5) Every call is logged in llm_logs/. (6) 'evaluate' compares each "
-     "answer value-by-value with the reference (tolerance 0.011).",
-     "dq/results/llm_results.json, dq/results/evaluation.json, llm_logs/Q*_attempt*.json.",
-     "The LLM is treated as an untrusted query author: the guard checks the shape, the policy "
-     "decides the rows."),
+     "no tools, no database and no files and must answer with one JSON object: sql, ir (the "
+     "certified metric, entity, counting grain, half-open periods, grouping, filters it "
+     "intends), reasoning, assumptions, caveats. (2) sqlglot parses the SQL: exactly one "
+     "read-only statement, only the ai schema, a row cap added, a statement timeout set. "
+     "(3) src/sql_ir.py checks the IR against the semantic layer and the SQL against the IR: "
+     "every column exists, the period filter selects exactly the IR's days, joins are declared "
+     "and cannot repeat the counted entity, grouping and filters are the ones declared (D029). "
+     "(4) Only then does it log in as the chosen database user (both factors), have PostgreSQL "
+     "plan the query, run it under row level security, and recompute the metric from the IR; "
+     "the two must agree before any row is shown. (5) Any refusal allows one retry with the "
+     "reason (maximum 2 attempts). (6) Every call is logged in llm_logs/. (7) 'evaluate' "
+     "compares each verified answer value-by-value with the reference (tolerance 0.011). "
+     "'make extra' does the same for the additional gender and quarter questions.",
+     "dq/results/llm_results.json, dq/results/evaluation.json, llm_logs/Q*_attempt*.json; "
+     "dq/results/*_extra.json and llm_logs/extra/ for the additional questions.",
+     "The LLM is treated as an untrusted query author: the guard checks the shape, the IR "
+     "verifier checks the meaning, the policy decides the rows. A guard pass alone proves "
+     "nothing about correctness."),
 ]
 
 #: (topic, detail) for the Ollama block
@@ -162,11 +172,13 @@ OLLAMA: list[tuple[str, str]] = [
      "Claude CLI and the Anthropic API (src/llm_client.py, call_ollama). Free, no API key, and "
      "no data leaves the machine."),
     ("Status in this repository (read this first)",
-     "The ten recorded answers on tab 4 were generated by Claude Sonnet 5.5 through the Claude "
-     "CLI, not by Ollama. The code path for Ollama exists and is covered by the provider "
-     "switch, but the note in src/llm_client.py and in DECISIONS.md D005 says it has never "
-     "executed in the build environment, because the model download hosts were not reachable "
-     "there. No Ollama result is claimed anywhere in this workbook."),
+     "The ten recorded answers on tab 4, and the four additional ones below them, were "
+     "generated by Claude Sonnet 5.5 through the Claude CLI, not by Ollama. The code path for "
+     "Ollama exists and is covered by the provider switch, but the note in src/llm_client.py "
+     "and in DECISIONS.md D005 says it has never executed in the build environment, because "
+     "the model download hosts were not reachable there; no Ollama server was reachable for "
+     "the 2026-10-28 re-evaluation either. No Ollama result is claimed anywhere in this "
+     "workbook."),
     ("Install (Windows)",
      "1. Install Ollama from ollama.com (Windows installer; it starts a background service).\n"
      "2. PowerShell: ollama pull qwen2.5-coder:7b\n"
@@ -176,11 +188,16 @@ OLLAMA: list[tuple[str, str]] = [
     ("Point the project at it (PowerShell, native Windows)",
      "$env:LLM_PROVIDER = \"ollama\"\n"
      "$env:LLM_MODEL = \"qwen2.5-coder:7b\"\n"
-     "scripts\\windows.ps1 questions\n"
-     "scripts\\windows.ps1 evaluate\n"
-     "Optional: $env:OLLAMA_HOST (default http://localhost:11434), $env:LLM_TIMEOUT_SECONDS "
-     "(default 300). Linux/macOS/WSL: export LLM_PROVIDER=ollama LLM_MODEL=qwen2.5-coder:7b, "
-     "then make questions."),
+     ".venv\\Scripts\\python.exe -m src.run_questions --out dq\\results\\llm_results_ollama.json\n"
+     ".venv\\Scripts\\python.exe -m src.evaluate --llm dq\\results\\llm_results_ollama.json "
+     "--out dq\\results\\evaluation_ollama.json\n"
+     "Additional questions: add --suite extra and use llm_results_extra_ollama.json / "
+     "evaluation_extra_ollama.json.\n"
+     "Use separate files like this: the default ones hold the Claude run, and the runner only "
+     "merges results from the same provider and model. Call logs go to "
+     "llm_logs\\llm_results_ollama\\. Optional: $env:OLLAMA_HOST (default "
+     "http://localhost:11434), $env:LLM_TIMEOUT_SECONDS (default 300). Linux/macOS/WSL: export "
+     "LLM_PROVIDER=ollama LLM_MODEL=qwen2.5-coder:7b and the same python -m commands."),
     ("Asking from the web page",
      "Start the site in the same window after setting the two variables "
      "(scripts\\windows.ps1 web-open). Step 7 'Ask' then calls the local model. If Ollama is not "
@@ -189,12 +206,13 @@ OLLAMA: list[tuple[str, str]] = [
     ("What is sent",
      "POST /api/generate with the system prompt, the rendered context pack plus the question, "
      "stream = false and temperature 0.0 (src/config.py LLM_TEMPERATURE). The reply is parsed "
-     "as one JSON object {sql, reasoning, assumptions, caveats}."),
+     "as one JSON object {sql, ir, reasoning, assumptions, caveats}."),
     ("What does not change with the provider",
-     "The semantic layer, the SQL guard, the row cap and timeout, the retry rule (max 2 "
-     "attempts), the login (password + one-time code) and row level security are identical. A "
-     "weaker model can therefore write a worse query, but it cannot see rows its logged-in user "
-     "is not entitled to."),
+     "The semantic layer, the SQL guard, the IR verifier, the row cap and timeout, the retry "
+     "rule (max 2 attempts), the login (password + one-time code) and row level security are "
+     "identical. A weaker model can therefore write a worse query, but the verifier refuses it "
+     "rather than showing a number it cannot vouch for, and it cannot see rows its logged-in "
+     "user is not entitled to."),
     ("What to expect",
      "Smaller models will get some of the ten wrong or return malformed JSON. That is worth "
      "showing: 'evaluate' reports exactly which questions match, are partial or mismatch the "
@@ -270,7 +288,7 @@ def sheet_qa(book: Workbook) -> None:
     llm_by_id = _by_id(llm.get("results"))
 
     sheet = book.create_sheet("4 Questions & Answers")
-    mw.set_widths(sheet, [6, 36, 70, 52, 52, 12, 10, 60, 14])
+    mw.set_widths(sheet, [6, 36, 70, 52, 52, 12, 10, 60, 14, 44, 40])
     sheet.cell(row=1, column=1, value="Questions to SQL: what the LLM generated and what came back"
                ).font = mw.TITLE_FONT
     note = sheet.cell(
@@ -281,15 +299,45 @@ def sheet_qa(book: Workbook) -> None:
                f"{llm.get('git_commit')}. The SQL is unedited. It was NOT generated by Ollama; "
                "tab 3 explains how to regenerate it with Ollama. The reference answer is "
                "hand-written SQL (sql/60_reference_queries.sql), never shown to the model. "
-               "Verdict = value-by-value comparison, tolerance 0.011."))
+               "Every answer was verified against the intent (IR) the model declared before "
+               "and after execution (src/sql_ir.py, D029); a guard pass alone is not evidence "
+               "of a correct answer. Verdict = value-by-value comparison, tolerance 0.011."))
     note.font, note.alignment = mw.SUBTLE_FONT, mw.WRAP
-    sheet.merge_cells(start_row=2, start_column=1, end_row=2, end_column=9)
+    sheet.merge_cells(start_row=2, start_column=1, end_row=2, end_column=11)
     sheet.row_dimensions[2].height = 48
     row = mw.write_header(sheet, [
         "#", "Question (natural language)", "Generated SQL", "Answer returned by that SQL",
         "Reference answer (hand-written SQL)", "Verdict", "Attempts",
-        "Model's stated interpretation and assumptions", "Caveats cited"], 4)
-    for qid in config.QUESTION_IDS:
+        "Model's stated interpretation and assumptions", "Caveats cited",
+        "Declared intent (IR)", "Intent check"], 4)
+    row = _qa_rows(sheet, row, config.QUESTION_IDS, llm_by_id, ref_by_id, verdicts)
+    tally = evaluation.get("tally", {})
+    sheet.cell(row=row + 1, column=2, value="Evaluation tally").font = Font(bold=True)
+    sheet.cell(row=row + 1, column=3, value=", ".join(f"{k}: {v}" for k, v in tally.items()))
+
+    extra = {k: mw.load_json(config.SUITES["extra"][f"{k}_json"], {})
+             for k in ("llm", "reference", "evaluation")}
+    if extra["reference"]:
+        row += 3
+        title = sheet.cell(row=row, column=1, value=(
+            "Additional questions, not in the brief: gender of loans and calendar quarters "
+            "(sql/61_reference_extra.sql; assumptions A47, A48). Same provider, same checks."))
+        title.font = Font(bold=True, size=12)
+        sheet.merge_cells(start_row=row, start_column=1, end_row=row, end_column=11)
+        extra_verdicts = {v["question_id"]: v for v in extra["evaluation"].get("verdicts", [])}
+        ref_extra = _by_id(extra["reference"].get("results"))
+        row = _qa_rows(sheet, row + 1, tuple(ref_extra), _by_id(extra["llm"].get("results")),
+                       ref_extra, extra_verdicts)
+        tally = extra["evaluation"].get("tally", {})
+        sheet.cell(row=row + 1, column=2, value="Evaluation tally").font = Font(bold=True)
+        sheet.cell(row=row + 1, column=3, value=", ".join(f"{k}: {v}" for k, v in tally.items()))
+
+
+def _qa_rows(sheet: Any, row: int, question_ids: tuple[str, ...],
+             llm_by_id: dict[str, dict[str, Any]], ref_by_id: dict[str, dict[str, Any]],
+             verdicts: dict[str, dict[str, Any]]) -> int:
+    """Write one row per question and return the next free row."""
+    for qid in question_ids:
         item = llm_by_id.get(qid, {})
         reference = ref_by_id.get(qid, {})
         verdict = verdicts.get(qid, {})
@@ -303,6 +351,8 @@ def sheet_qa(book: Workbook) -> None:
             verdict.get("verdict", status), item.get("attempts_used", ""),
             (item.get("model_reasoning") or "") + ("\n\n" + assumptions if assumptions else ""),
             ", ".join(item.get("model_caveats") or []) or "-",
+            json.dumps(item["ir"], indent=1) if item.get("ir") else "-",
+            mw._intent_check(item),  # noqa: SLF001 - same wording as the submission workbook
         ]
         row = mw.write_row(sheet, row, values)
         sheet.cell(row=row - 1, column=3).font = mw.MONO_FONT
@@ -313,9 +363,7 @@ def sheet_qa(book: Workbook) -> None:
         lines = max(sql.count("\n"), values[3].count("\n"), values[4].count("\n"),
                     len(values[7]) // 62, 6) + 1
         sheet.row_dimensions[row - 1].height = min(400, 13 * lines)
-    tally = evaluation.get("tally", {})
-    sheet.cell(row=row + 1, column=2, value="Evaluation tally").font = Font(bold=True)
-    sheet.cell(row=row + 1, column=3, value=", ".join(f"{k}: {v}" for k, v in tally.items()))
+    return row
 
 
 def _by_id(results: Any) -> dict[str, dict[str, Any]]:

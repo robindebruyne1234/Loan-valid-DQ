@@ -123,9 +123,12 @@ semantic layer and the question, and nothing else. Its SQL is parsed with
 sqlglot -- not pattern-matched -- and must be a single read-only statement on
 the `ai` schema, with a row cap and a statement timeout applied. *Why parse
 rather than match:* `SELECT 1 FROM ai.client/**/;/**/DELETE FROM core.fact_loan`
-is one line to a regular expression and three statements to a parser. *Cost:* a
-parser dependency, and legitimate queries are occasionally stricter than
-necessary (every table must be schema-qualified).
+is one line to a regular expression and three statements to a parser. A guard
+pass says a statement may run, not that it answers the question, so the model
+also declares its intent (metric, periods, grouping, filters); the SQL is checked
+against it before running and the metric recomputed from it after, or refused.
+*Cost:* a parser dependency, and legitimate queries are occasionally stricter
+than necessary (every table must be schema-qualified).
 
 ### What breaks at 100,000x the volume
 

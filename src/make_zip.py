@@ -33,7 +33,10 @@ INCLUDE_TREES: tuple[tuple[str, str], ...] = (
     ("tests", "*.py"),
     ("dq", "dq_rules.yaml"),
     ("dq/results", "*"),
+    ("dq/results/archive/2026-10-28_before_D028", "*"),
+    ("dq/results/archive/2026-10-28_first_verified_run", "*"),
     ("llm_logs", "*.json"),
+    ("llm_logs/extra", "*.json"),
     ("scripts", "*"),
     ("docs", "*.md"),
     ("web", "*"),
@@ -62,6 +65,7 @@ INCLUDE_FILES: tuple[str, ...] = (
     "docker-compose.yml",
     "pyproject.toml",
     "data/questions.csv",
+    "data/questions_extra.csv",
     "deliverables/defects.csv",
     "deliverables/model_explanation.md",
     # scripts/simulate_agents.py is already covered by the ("scripts", "*")
@@ -115,17 +119,23 @@ Excel workbook, which is a separate deliverable.
 9. `semantic/context_pack.md` -- that file rendered into the exact text the LLM
    received. Nothing else was in its context.
 10. `semantic/prompt_template.md` -- the prompt around it.
-11. `src/sql_guard.py` -- what happens to the SQL the model produces before it
-   is allowed to run.
+11. `src/sql_guard.py` and `src/sql_ir.py` -- what happens to the SQL the model
+   produces before it is allowed to run. The guard checks the statement's
+   shape; the verifier checks it against the intent (IR) the model declared
+   and the semantic layer, then recomputes the metric from the IR after
+   execution (DECISIONS.md D029). Only a verified answer is shown.
 12. `sql/50_sec_rls.sql` and `sql/51_sec_auth.sql` -- the entitlement model,
    the row level security policies, the access grant set and the two-factor
    machinery (Task 3).
 13. `dq/dq_rules.yaml` -- the {rule_count} hand-written data quality rules, each
    with its severity and the reason for that severity (Task 1).
 14. `llm_logs/` -- one JSON file per model call: prompt, model, parameters, raw
-   response, timing and cost. This is the evidence behind the Questions tab.
+   response, timing and cost. This is the evidence behind the Questions tab;
+   `llm_logs/extra/` holds the calls for the additional questions.
 15. `dq/results/` -- the profile, the candidate defects, the data quality report,
-   the reference answers, the LLM answers and the evaluation.
+   the reference answers, the LLM answers and the evaluation; `*_extra.json`
+   for the additional gender and quarter questions (`sql/61_reference_extra.sql`),
+   and `archive/` for superseded runs, each with a README saying why.
 
 ## Not part of the assessed pipeline
 
