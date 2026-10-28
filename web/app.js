@@ -390,16 +390,24 @@ async function sendQuestion() {
   if (!res.ok) { out.innerHTML = `<div class="card"><p class="err">${esc(d.error || 'failed')}</p></div>`; return; }
 
   const stageNote = {
-    llm: 'The model could not be reached. The page says so rather than inventing an answer.',
+    llm: 'The model step failed, so there is no answer. The page says so rather than inventing one.',
     parse: 'The model replied, but not in the shape asked for. Common with very small models.',
     guard: 'The guard refused the SQL before it touched the database.',
     execute: 'The SQL was allowed but failed when it ran.',
     done: '',
   }[d.stage] || '';
 
+  const t = d.timings || {};
+  const timing = [
+    t.llm_sec != null ? `model ${t.llm_sec}s` : '',
+    t.login_sec != null ? `login ${t.login_sec}s` : '',
+    t.guard_and_query_sec != null ? `guard + query ${t.guard_and_query_sec}s` : '',
+    t.total_sec != null ? `total ${t.total_sec}s` : '',
+  ].filter(Boolean).join(' · ');
+
   out.innerHTML = `
     <div class="card"><h3>What the model wrote</h3>
-      <p class="muted">${esc(d.provider)} / ${esc(d.model)} · ${esc(d.elapsed_sec)}s</p>
+      <p class="muted">${esc(d.provider)} / ${esc(d.model)} · ${esc(timing || `${d.elapsed_sec}s`)}</p>
       ${d.sql ? `<pre>${esc(d.sql)}</pre>` : `<p class="muted">No SQL was produced.</p>`}
       ${d.model_explanation ? `<p class="muted" style="margin-top:8px">${esc(d.model_explanation)}</p>` : ''}
     </div>
@@ -417,6 +425,7 @@ async function sendQuestion() {
            different persona and ask the same question — the SQL will be the same and the answer
            will not.</p></div>`
       : `<div class="card"><p class="err">${esc(d.error || 'no answer')}</p>
+           ${d.error_kind ? `<p class="muted">Failure: <code>${esc(d.error_kind)}</code></p>` : ''}
            <p class="muted">${esc(stageNote)}</p></div>`}`;
 }
 

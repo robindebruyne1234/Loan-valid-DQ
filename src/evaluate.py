@@ -29,8 +29,10 @@ Run with ``make evaluate``.
 
 from __future__ import annotations
 
+import argparse
 import json
 import math
+from pathlib import Path
 from typing import Any
 
 from src import config, db
@@ -242,20 +244,29 @@ def evaluate_question(
     }
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     """Evaluate every question and write ``dq/results/evaluation.json``.
 
+    :param argv: Command-line arguments; ``None`` reads ``sys.argv``.
     :returns: Process exit code: ``0`` when every question matches, ``1``
         otherwise. A non-zero exit is information, not a build failure: the
         point of the evaluation is to report honestly on the model.
     """
+    parser = argparse.ArgumentParser(description="Compare LLM answers with the reference.")
+    parser.add_argument("--llm-results", type=Path, default=config.LLM_RESULTS_JSON,
+                        help="the question run to evaluate")
+    parser.add_argument("--output", type=Path, default=config.EVALUATION_JSON,
+                        help="where to write the verdicts")
+    args = parser.parse_args(argv)
+    llm_results_path: Path = args.llm_results.resolve()
+    output: Path = args.output.resolve()
     if not config.REFERENCE_RESULTS_JSON.exists():
         LOGGER.error("no reference results; run 'make reference' first")
         return 1
     reference = json.loads(config.REFERENCE_RESULTS_JSON.read_text(encoding="utf-8"))["results"]
     llm_payload = (
-        json.loads(config.LLM_RESULTS_JSON.read_text(encoding="utf-8"))
-        if config.LLM_RESULTS_JSON.exists()
+        json.loads(llm_results_path.read_text(encoding="utf-8"))
+        if llm_results_path.exists()
         else {"results": {}}
     )
     llm_results = llm_payload.get("results", {})
@@ -273,6 +284,7 @@ def main() -> int:
         "generated_at_utc": db.utc_now_iso(),
         "git_commit": db.git_commit(),
         "command": "make evaluate",
+        "llm_results": str(llm_results_path),
         "reference_source": "sql/60_reference_queries.sql (hand written)",
         "llm_provider": llm_payload.get("provider"),
         "llm_model": llm_payload.get("model"),
@@ -287,7 +299,8 @@ def main() -> int:
         "tally": tally,
         "verdicts": verdicts,
     }
-    config.EVALUATION_JSON.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
 
     LOGGER.info("___ evaluation ___")
     for verdict in verdicts:
@@ -305,9 +318,11 @@ def main() -> int:
                 "       missing: %s %s = %s", item["key"], item["measure"], item["value"]
             )
     LOGGER.info("  tally: %s", ", ".join(f"{k}={v}" for k, v in sorted(tally.items())))
-    LOGGER.info("wrote %s", config.EVALUATION_JSON.relative_to(config.PROJECT_ROOT))
+    LOGGER.info("wrote %s", output)
 
-    db.record_run("evaluate", "make evaluate", {"tally": tally})
+    separate = output != config.EVALUATION_JSON.resolve()
+    db.record_run("evaluate_separate" if separate else "evaluate", "make evaluate",
+                  {"tally": tally, **({"output": str(output)} if separate else {})})
     return 0 if tally.get("match", 0) == len(config.QUESTION_IDS) else 1
 
 

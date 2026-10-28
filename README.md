@@ -30,6 +30,9 @@ for Windows + WSL + Docker + VS Code that assumes nothing: what to install and
 why, what each command does, what good output looks like, how to query the
 clean gold data yourself, how to run the AI step or skip it, and what to do
 when something breaks. About twenty minutes, most of it waiting.
+On native Windows without WSL or Docker, and with a free local model for the
+AI step instead of an API, see
+**[`docs/LOCAL_LLM_WINDOWS.md`](docs/LOCAL_LLM_WINDOWS.md)**.
 
 **Start here if you would rather click than read:**
 ```

@@ -441,11 +441,61 @@ QUESTION_IDS: tuple[str, ...] = tuple(f"Q{i}" for i in range(1, 11))
 #: Code CLI as a plain text completion endpoint), ``anthropic_api``,
 #: ``ollama`` or ``none`` (export the prompt pack without executing).
 LLM_PROVIDER: str = os.environ.get("LLM_PROVIDER", "claude_cli")
-LLM_MODEL: str = os.environ.get("LLM_MODEL", "claude-sonnet-5-5")
+
+#: Model used for each provider when ``LLM_MODEL`` is not set, so choosing
+#: ``LLM_PROVIDER=ollama`` alone never sends a Claude model name to Ollama.
+LLM_DEFAULT_MODELS: dict[str, str] = {
+    "claude_cli": "claude-sonnet-5-5",
+    "anthropic_api": "claude-sonnet-5-5",
+    "ollama": "qwen2.5-coder:3b",
+}
+LLM_MODEL: str = os.environ.get("LLM_MODEL") or LLM_DEFAULT_MODELS.get(
+    LLM_PROVIDER, LLM_DEFAULT_MODELS["claude_cli"])
 LLM_API_KEY_ENV: str = "LLM_API_KEY"
 LLM_TEMPERATURE: float = float(os.environ.get("LLM_TEMPERATURE", "0.0"))
 LLM_TIMEOUT_SECONDS: int = int(os.environ.get("LLM_TIMEOUT_SECONDS", "300"))
-OLLAMA_HOST: str = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+
+
+def _http_url(value: str) -> str:
+    """Turn an Ollama address into a URL a client can call.
+
+    Ollama's own server reads ``OLLAMA_HOST`` as a bind address, usually
+    without a scheme (``0.0.0.0:11434``). The same variable therefore arrives
+    here in either form, and a bind-all address is not something to connect to.
+
+    :param value: ``host:port`` or a full URL.
+    :returns: An ``http(s)://host:port`` URL without a trailing slash.
+    """
+    url = value.strip().rstrip("/")
+    if "://" not in url:
+        url = f"http://{url}"
+    return url.replace("://0.0.0.0", "://127.0.0.1")
+
+
+#: Ollama endpoint. 127.0.0.1 rather than localhost: on Windows ``localhost``
+#: tries ::1 first, and a refused IPv6 connection costs about two seconds
+#: before the IPv4 attempt that Ollama actually listens on.
+OLLAMA_HOST: str = _http_url(os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434"))
+
+#: Context window requested from Ollama, in tokens. Set explicitly because
+#: Ollama's default is a few thousand tokens and the semantic layer alone is
+#: larger: an unset window silently drops the start of the prompt.
+OLLAMA_NUM_CTX: int = int(os.environ.get("OLLAMA_NUM_CTX", "12288"))
+
+#: Maximum tokens the model may generate for one answer.
+OLLAMA_NUM_PREDICT: int = int(os.environ.get("OLLAMA_NUM_PREDICT", "1024"))
+
+#: How long Ollama keeps the model, and the evaluated semantic layer, in
+#: memory after a call. Long enough that a walkthrough does not pay the load
+#: and the prompt evaluation again for every question.
+OLLAMA_KEEP_ALIVE: str = os.environ.get("OLLAMA_KEEP_ALIVE", "30m")
+
+#: Model layers Ollama may place on a GPU. Unset lets Ollama decide; ``0``
+#: keeps the model on the CPU. Measured on a laptop with a 2 GB GeForce MX150:
+#: Ollama's Vulkan backend loaded the model once, then misreported the card
+#: as having 6.9 GiB free and crashed on every later load. CPU-only was stable.
+OLLAMA_NUM_GPU: int | None = (int(os.environ["OLLAMA_NUM_GPU"])
+                              if os.environ.get("OLLAMA_NUM_GPU", "").strip() else None)
 
 #: Marker written into deliverables when a step could not be executed.
 NOT_EXECUTED: str = "NOT EXECUTED"

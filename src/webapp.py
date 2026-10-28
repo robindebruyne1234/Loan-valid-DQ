@@ -426,6 +426,7 @@ def ask(role: str, question: str) -> dict[str, Any]:
     from src.run_questions import build_prompt, parse_model_output  # noqa: PLC0415
 
     started = time.time()
+    clock = time.perf_counter()
     prompt = build_prompt(context_pack(), "WEB", question)
     with _ASK_LOCK:
         response = llm_client.complete(prompt)
@@ -447,47 +448,69 @@ def ask(role: str, question: str) -> dict[str, Any]:
     except Exception:  # noqa: BLE001 - logging must never fail the request
         LOGGER.exception("could not write the call log")
 
+    timings: dict[str, float] = {"llm_sec": round(response.duration_sec, 2)}
     result: dict[str, Any] = {
         "question": question,
         "as_role": role,
         "provider": response.provider,
         "model": response.model,
         "executed": response.executed,
+        "error_kind": response.error_kind,
         "elapsed_sec": round(time.time() - started, 1),
+        "timings": timings,
+        "tokens": {k: response.usage.get(k) for k in ("prompt_eval_count", "eval_count")
+                   if response.usage.get(k) is not None},
         "raw_response": (response.text or "")[:4000],
     }
-    if not response.executed:
-        result["error"] = response.error or config.NOT_EXECUTED
-        result["stage"] = "llm"
+
+    def finish(stage: str, error: str | None = None) -> dict[str, Any]:
+        result["stage"] = stage
+        if error:
+            result["error"] = error
+        timings["total_sec"] = round(time.perf_counter() - clock, 2)
+        result["elapsed_sec"] = round(time.time() - started, 1)
         return result
+
+    if not response.executed:
+        return finish("llm", response.error or config.NOT_EXECUTED)
 
     parsed, parse_error = parse_model_output(response.text or "")
     if parsed is None:
-        result["error"] = parse_error or "the model did not return the expected JSON"
-        result["stage"] = "parse"
-        return result
+        result["error_kind"] = "malformed_output"
+        return finish("parse", parse_error or "the model did not return the expected JSON")
 
     sql = str(parsed.get("sql", "")).strip()
     result["sql"] = sql
-    result["model_explanation"] = parsed.get("explanation")
+    # The prompt template asks for "reasoning"; "explanation" is what this
+    # page originally read, so it is still accepted.
+    result["model_explanation"] = parsed.get("reasoning") or parsed.get("explanation")
 
-    with auth.login(role, demo_autocode=True) as conn:
-        verdict, rows, error = sql_guard.execute_guarded(conn, sql)
-    result["guard"] = {
-        "allowed": verdict.allowed,
-        "violations": list(verdict.violations),
-        "rewritten_sql": verdict.rewritten_sql,
-    }
+    def guard_payload(verdict: sql_guard.GuardVerdict) -> dict[str, Any]:
+        return {"allowed": verdict.allowed, "violations": list(verdict.violations),
+                "notes": list(verdict.notes), "rewritten_sql": verdict.rewritten_sql}
+
+    # Judged before logging in: a refused statement spends no one-time code
+    # and opens no database session. execute_guarded judges it again anyway.
+    verdict = sql_guard.guard(sql)
     if not verdict.allowed:
-        result["stage"] = "guard"
-        result["error"] = "; ".join(verdict.violations)
-        return result
-    if error:
-        result["stage"] = "execute"
-        result["error"] = error
-        return result
+        result["guard"] = guard_payload(verdict)
+        return finish("guard", "; ".join(verdict.violations))
 
-    result["stage"] = "done"
+    # The identity is the persona's own two-factor login. Nothing the model
+    # wrote takes part in choosing it.
+    step = time.perf_counter()
+    with auth.login(role, demo_autocode=True) as conn:
+        timings["login_sec"] = round(time.perf_counter() - step, 2)
+        step = time.perf_counter()
+        verdict, rows, error = sql_guard.execute_guarded(conn, sql)
+        timings["guard_and_query_sec"] = round(time.perf_counter() - step, 3)
+    result["guard"] = guard_payload(verdict)
+    if not verdict.allowed:
+        return finish("guard", "; ".join(verdict.violations))
+    if error:
+        return finish("execute", error)
+
+    finish("done")
     result["rows"] = [
         {k: _jsonable(v) for k, v in row.items()} for row in (rows or [])[:50]
     ]
@@ -606,8 +629,9 @@ class Handler(BaseHTTPRequestHandler):
     def _persona(self, body: dict[str, Any]) -> str | None:
         """Resolve the persona for a request, by session or by explicit role.
 
-        Always returns a value from the allowlist or ``None``. This is the
-        only place a request can influence which role is used.
+        Always returns a value from the allowlist or ``None``. Used by
+        ``/api/peek``, which shows what a password alone reaches and so takes
+        a named role; ``/api/ask`` accepts a completed login session only.
 
         :param body: The parsed request body.
         :returns: A valid role, or ``None``.
@@ -687,6 +711,10 @@ class Handler(BaseHTTPRequestHandler):
             state["detail"] = str(exc)
         state["llm_configured"] = config.LLM_PROVIDER != "none"
         state["llm_model"] = config.LLM_MODEL
+        if config.LLM_PROVIDER == "ollama":
+            llm = llm_client.ollama_status(timeout=2.0)
+            state["llm_ready"] = llm["error"] is None
+            state["llm_detail"] = llm["error"]
         return state
 
     def do_POST(self) -> None:  # noqa: N802
@@ -745,7 +773,10 @@ class Handler(BaseHTTPRequestHandler):
                                         **persona_state(requested)})
 
             if path == "/api/ask":
-                role = self._persona(body)
+                # A session only, never a named role: the question runs as
+                # whoever completed both factors on the login step. Accepting
+                # {"role": ...} here would let a request skip that step.
+                role = session_role(body.get("session"))
                 if role is None:
                     return self._json(401, {"error": "log in as a persona first"})
                 question = str(body.get("question") or "").strip()

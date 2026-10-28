@@ -115,6 +115,19 @@ def test_asking_without_logging_in_is_refused(base_url: str) -> None:
     assert "log in" in body.get("error", "").lower()
 
 
+@pytest.mark.parametrize("role", ["admin_demo", "client_3763", "rm_north"])
+def test_naming_a_persona_does_not_replace_logging_in_as_one(base_url: str, role: str) -> None:
+    """A valid persona name is not a session.
+
+    ``/api/ask`` once accepted ``{"role": ...}`` in place of a session, which
+    let a request skip the two-step login and ask as the administrator.
+    """
+    status, body = post(f"{base_url}/api/ask",
+                        {"role": role, "question": "How many clients are there?"})
+    assert status == 401, f"asked as {role} without logging in"
+    assert "log in" in body.get("error", "").lower()
+
+
 def test_a_forged_session_token_is_refused(base_url: str) -> None:
     """A made-up token must not resolve to a persona."""
     status, _body = post(f"{base_url}/api/ask",

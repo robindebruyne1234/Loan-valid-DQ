@@ -1,0 +1,262 @@
+{
+  "generated_at_utc": "2026-10-27T16:31:15+00:00",
+  "git_commit": "5b13f2b",
+  "command": "make evaluate",
+  "llm_results": "D:\\Werk\\Sollicit. Oef\\Loan-valid-DQ\\dq\\results\\local\\llm_results.json",
+  "reference_source": "sql/60_reference_queries.sql (hand written)",
+  "llm_provider": "ollama",
+  "llm_model": "qwen2.5-coder:3b",
+  "llm_run_as_role": "cro_global",
+  "comparison_method": "value based: every (dimension, measure) pair in the reference answer must appear on some row of the LLM answer, within an absolute tolerance of 0.011 (enough to absorb two-decimal rounding, not enough to absorb a wrong number); row order is additionally checked for the three questions that ask for a ranking",
+  "tally": {
+    "match": 6,
+    "partial": 2,
+    "mismatch": 2
+  },
+  "verdicts": [
+    {
+      "question_id": "Q1",
+      "verdict": "match",
+      "expected_values": 8,
+      "matched_values": 8,
+      "missing": [],
+      "order_checked": false,
+      "order_ok": true,
+      "note": "",
+      "llm_status": "answered",
+      "llm_row_count": 8,
+      "reference_row_count": 8,
+      "attempts_used": 1
+    },
+    {
+      "question_id": "Q2",
+      "verdict": "match",
+      "expected_values": 6,
+      "matched_values": 6,
+      "missing": [],
+      "order_checked": false,
+      "order_ok": true,
+      "note": "",
+      "llm_status": "answered",
+      "llm_row_count": 6,
+      "reference_row_count": 6,
+      "attempts_used": 1
+    },
+    {
+      "question_id": "Q3",
+      "verdict": "partial",
+      "expected_values": 3,
+      "matched_values": 1,
+      "missing": [
+        {
+          "key": null,
+          "measure": "problematic_loans",
+          "value": 76.0
+        },
+        {
+          "key": null,
+          "measure": "total_loans",
+          "value": 682.0
+        }
+      ],
+      "order_checked": false,
+      "order_ok": true,
+      "note": "",
+      "llm_status": "answered",
+      "llm_row_count": 1,
+      "reference_row_count": 1,
+      "attempts_used": 1
+    },
+    {
+      "question_id": "Q4",
+      "verdict": "match",
+      "expected_values": 4,
+      "matched_values": 4,
+      "missing": [],
+      "order_checked": false,
+      "order_ok": true,
+      "note": "",
+      "llm_status": "answered",
+      "llm_row_count": 4,
+      "reference_row_count": 4,
+      "attempts_used": 1
+    },
+    {
+      "question_id": "Q5",
+      "verdict": "match",
+      "expected_values": 10,
+      "matched_values": 10,
+      "missing": [],
+      "order_checked": true,
+      "order_ok": true,
+      "note": "",
+      "llm_status": "answered",
+      "llm_row_count": 10,
+      "reference_row_count": 10,
+      "attempts_used": 2
+    },
+    {
+      "question_id": "Q6",
+      "verdict": "mismatch",
+      "expected_values": 12,
+      "matched_values": 0,
+      "missing": [
+        {
+          "key": "1996-01",
+          "measure": "accounts_opened",
+          "value": 106.0
+        },
+        {
+          "key": "1996-02",
+          "measure": "accounts_opened",
+          "value": 104.0
+        },
+        {
+          "key": "1996-03",
+          "measure": "accounts_opened",
+          "value": 124.0
+        },
+        {
+          "key": "1996-04",
+          "measure": "accounts_opened",
+          "value": 101.0
+        },
+        {
+          "key": "1996-05",
+          "measure": "accounts_opened",
+          "value": 91.0
+        },
+        {
+          "key": "1996-06",
+          "measure": "accounts_opened",
+          "value": 113.0
+        },
+        {
+          "key": "1996-07",
+          "measure": "accounts_opened",
+          "value": 137.0
+        },
+        {
+          "key": "1996-08",
+          "measure": "accounts_opened",
+          "value": 133.0
+        },
+        {
+          "key": "1996-09",
+          "measure": "accounts_opened",
+          "value": 108.0
+        },
+        {
+          "key": "1996-10",
+          "measure": "accounts_opened",
+          "value": 115.0
+        },
+        {
+          "key": "1996-11",
+          "measure": "accounts_opened",
+          "value": 106.0
+        },
+        {
+          "key": "1996-12",
+          "measure": "accounts_opened",
+          "value": 125.0
+        }
+      ],
+      "order_checked": true,
+      "order_ok": true,
+      "note": "",
+      "llm_status": "answered",
+      "llm_row_count": 12,
+      "reference_row_count": 12,
+      "attempts_used": 1
+    },
+    {
+      "question_id": "Q7",
+      "verdict": "partial",
+      "expected_values": 4,
+      "matched_values": 1,
+      "missing": [
+        {
+          "key": "finished, paid in full",
+          "measure": "average_age_at_loan_start",
+          "value": 37.07
+        },
+        {
+          "key": "finished, unpaid (default)",
+          "measure": "average_age_at_loan_start",
+          "value": 39.6
+        },
+        {
+          "key": "running, client in debt",
+          "measure": "average_age_at_loan_start",
+          "value": 37.0
+        }
+      ],
+      "order_checked": false,
+      "order_ok": true,
+      "note": "",
+      "llm_status": "answered",
+      "llm_row_count": 650,
+      "reference_row_count": 4,
+      "attempts_used": 1
+    },
+    {
+      "question_id": "Q8",
+      "verdict": "match",
+      "expected_values": 2,
+      "matched_values": 2,
+      "missing": [],
+      "order_checked": false,
+      "order_ok": true,
+      "note": "",
+      "llm_status": "answered",
+      "llm_row_count": 2,
+      "reference_row_count": 2,
+      "attempts_used": 1
+    },
+    {
+      "question_id": "Q9",
+      "verdict": "match",
+      "expected_values": 1,
+      "matched_values": 1,
+      "missing": [],
+      "order_checked": false,
+      "order_ok": true,
+      "note": "",
+      "llm_status": "answered",
+      "llm_row_count": 1,
+      "reference_row_count": 1,
+      "attempts_used": 1
+    },
+    {
+      "question_id": "Q10",
+      "verdict": "mismatch",
+      "expected_values": 3,
+      "matched_values": 0,
+      "missing": [
+        {
+          "key": "after transaction",
+          "measure": "problematic_pct",
+          "value": 18.75
+        },
+        {
+          "key": "weekly",
+          "measure": "problematic_pct",
+          "value": 12.09
+        },
+        {
+          "key": "monthly",
+          "measure": "problematic_pct",
+          "value": 10.55
+        }
+      ],
+      "order_checked": true,
+      "order_ok": false,
+      "note": "row order differs: the reference ranks ['after transaction', 'weekly', 'monthly']..., the answer produced positions [2]...",
+      "llm_status": "answered",
+      "llm_row_count": 1,
+      "reference_row_count": 3,
+      "attempts_used": 2
+    }
+  ]
+}

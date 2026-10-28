@@ -1,7 +1,7 @@
 {
-  "generated_at_utc": "2026-10-25T21:14:14+00:00",
-  "git_commit": "a9c9f38",
-  "stg_build_seconds": 45.109,
+  "generated_at_utc": "2026-10-27T14:19:54+00:00",
+  "git_commit": "5b13f2b",
+  "stg_build_seconds": 56.89,
   "tables": [
     {
       "table": "district",
@@ -82,7 +82,7 @@
           "nulls": 0,
           "null_rate": 0.0,
           "distinct_values": 8,
-          "min_value": "Prague",
+          "min_value": "central Bohemia",
           "max_value": "west Bohemia",
           "min_length": 6,
           "max_length": 15,
@@ -674,7 +674,7 @@
           ]
         }
       ],
-      "duration_sec": 0.047
+      "duration_sec": 0.036
     },
     {
       "table": "client",
@@ -951,7 +951,7 @@
           ]
         }
       ],
-      "duration_sec": 0.179
+      "duration_sec": 0.11
     },
     {
       "table": "account",
@@ -1218,7 +1218,7 @@
           ]
         }
       ],
-      "duration_sec": 0.155
+      "duration_sec": 0.1
     },
     {
       "table": "disp",
@@ -1441,7 +1441,7 @@
           ]
         }
       ],
-      "duration_sec": 0.075
+      "duration_sec": 0.065
     },
     {
       "table": "card",
@@ -1668,7 +1668,7 @@
           ]
         }
       ],
-      "duration_sec": 0.025
+      "duration_sec": 0.02
     },
     {
       "table": "loan",
@@ -2063,7 +2063,7 @@
           ]
         }
       ],
-      "duration_sec": 0.032
+      "duration_sec": 0.026
     },
     {
       "table": "order",
@@ -2410,7 +2410,7 @@
           ]
         }
       ],
-      "duration_sec": 0.152
+      "duration_sec": 0.125
     },
     {
       "table": "trans",
@@ -3065,7 +3065,7 @@
           ]
         }
       ],
-      "duration_sec": 26.5
+      "duration_sec": 51.847
     }
   ],
   "candidates": [

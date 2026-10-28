@@ -74,8 +74,13 @@ FORBIDDEN_FUNCTIONS: frozenset[str] = frozenset(
         "pg_logical_emit_message",
         "dblink_connect",
         "copy_from_program",
+        "current_setting",   # reads server and session configuration
     }
 )
+
+#: Schemas a function may be qualified with, beyond the allowed data schemas.
+#: ``pg_catalog`` holds the built-ins, which an unqualified call reaches anyway.
+FUNCTION_SCHEMAS: frozenset[str] = frozenset({"pg_catalog"})
 
 
 @dataclass
@@ -120,6 +125,70 @@ def _cte_names(statement: exp.Expression) -> set[str]:
         if alias:
             names.add(alias.lower())
     return names
+
+
+def _function_schema_violations(
+    statement: exp.Expression, allowed_schemas: tuple[str, ...]
+) -> list[str]:
+    """Find functions called through a schema the query may not use.
+
+    The table check sees ``FROM sec.app_user`` but not ``sec.end_session()``:
+    a schema-qualified call is a dotted expression, or, in a FROM clause, a
+    table whose body is a function. Both are checked here. Unqualified calls
+    resolve to the built-ins and are judged by name in the forbidden list.
+
+    :param statement: Parsed statement.
+    :param allowed_schemas: Schemas the statement may reference.
+    :returns: One message per offending call.
+    """
+    permitted = set(allowed_schemas) | FUNCTION_SCHEMAS
+    violations: list[str] = []
+    for dot in statement.find_all(exp.Dot):
+        if not isinstance(dot.expression, exp.Func):
+            continue
+        qualifier = dot.this
+        if isinstance(qualifier, exp.Dot):
+            violations.append(f"calls {dot.expression.name}() through a three-part name")
+        elif (qualifier.name or "").lower() not in permitted:
+            violations.append(f"calls {qualifier.name}.{dot.expression.name}(), outside "
+                              f"the allowed schemas")
+    for table in statement.find_all(exp.Table):
+        schema = (table.db or "").lower()
+        if isinstance(table.this, exp.Func) and schema and schema not in permitted:
+            violations.append(f"reads from the function {schema}.{table.this.name}(), "
+                              "outside the allowed schemas")
+    return violations
+
+
+def _bound_rows(statement: exp.Expression, verdict: GuardVerdict) -> None:
+    """Make sure the statement returns at most the row cap.
+
+    A bound the model wrote is kept only when it is a plain number no larger
+    than the cap. ``LIMIT ALL``, a computed limit, ``FETCH ... PERCENT`` or
+    ``WITH TIES``, and anything above the cap are replaced -- otherwise the
+    cap holds only for models that forget to write a limit.
+
+    :param statement: Parsed statement, modified in place.
+    :param verdict: Receives a note describing any change.
+    :returns: ``None``.
+    """
+    cap = config.GUARD_MAX_ROWS
+    bound = statement.args.get("limit")
+    if bound is None:
+        statement.set("limit", exp.Limit(expression=exp.Literal.number(cap)))
+        verdict.notes.append(f"row limit {cap} applied")
+        return
+    count = None
+    if isinstance(bound, exp.Limit):
+        count = bound.expression
+    elif isinstance(bound, exp.Fetch):
+        options = bound.args.get("limit_options")
+        if not (options and (options.args.get("percent") or options.args.get("with_ties"))):
+            count = bound.args.get("count")
+    if isinstance(count, exp.Literal) and count.is_int and int(count.this) <= cap:
+        return
+    statement.set("limit", exp.Limit(expression=exp.Literal.number(cap)))
+    verdict.notes.append(f"row limit {cap} replaced the model's '{bound.sql(dialect='postgres')}'")
 
 
 def guard(sql: str, allowed_schemas: tuple[str, ...] = config.GUARD_ALLOWED_SCHEMAS) -> GuardVerdict:
@@ -175,11 +244,13 @@ def guard(sql: str, allowed_schemas: tuple[str, ...] = config.GUARD_ALLOWED_SCHE
             verdict.violations.append(f"calls the forbidden function {name}()")
 
     # 4. Every table reference must be an explicitly qualified allowed schema.
+    #    A CTE name only stands in for an UNqualified reference: a CTE called
+    #    dim_client must not wave core.dim_client through.
     cte_names = _cte_names(statement)
     for table in statement.find_all(exp.Table):
         name = (table.name or "").lower()
         schema = (table.db or "").lower()
-        if not name or name in cte_names:
+        if not name or (not schema and name in cte_names):
             continue
         if not schema:
             verdict.violations.append(
@@ -192,15 +263,16 @@ def guard(sql: str, allowed_schemas: tuple[str, ...] = config.GUARD_ALLOWED_SCHE
                 f"(allowed: {', '.join(allowed_schemas)})"
             )
 
+    # 5. No function reached through a schema the query may not read.
+    verdict.violations.extend(_function_schema_violations(statement, allowed_schemas))
+
     if verdict.violations:
         return verdict
 
-    # 5. Bound the result. A missing LIMIT is not a violation, it is something
-    #    the guard fixes, because an unbounded result is a cost problem rather
-    #    than a correctness or safety one.
-    if statement.args.get("limit") is None:
-        statement.set("limit", exp.Limit(expression=exp.Literal.number(config.GUARD_MAX_ROWS)))
-        verdict.notes.append(f"row limit {config.GUARD_MAX_ROWS} applied")
+    # 6. Bound the result. A missing or too-loose limit is not a violation, it
+    #    is something the guard fixes, because an unbounded result is a cost
+    #    problem rather than a correctness or safety one.
+    _bound_rows(statement, verdict)
 
     verdict.allowed = True
     verdict.rewritten_sql = statement.sql(dialect="postgres", pretty=True)
@@ -214,7 +286,8 @@ def execute_guarded(
 
     The statement runs inside a read-only transaction with a statement timeout,
     so a query that passes the guard still cannot write and cannot run forever.
-    Belt and braces: the consumer role has no write privileges either.
+    Belt and braces: the consumer role has no write privileges either, and at
+    most one row beyond the cap is ever fetched.
 
     :param conn: Open connection, normally authenticated as a consumer role.
     :param sql: The SQL the model produced.
@@ -231,8 +304,13 @@ def execute_guarded(
             cur.execute("BEGIN READ ONLY")
             cur.execute(f"SET LOCAL statement_timeout = {config.GUARD_STATEMENT_TIMEOUT_MS}")
             cur.execute(verdict.rewritten_sql)
-            rows = list(cur.fetchall())
+            rows = list(cur.fetchmany(config.GUARD_MAX_ROWS + 1))
             cur.execute("COMMIT")
+        if len(rows) > config.GUARD_MAX_ROWS:
+            # The rewrite should make this impossible. If it ever happens the
+            # honest outcome is a refusal, not a silently shortened answer.
+            LOGGER.error("guarded query returned more than %d rows", config.GUARD_MAX_ROWS)
+            return verdict, None, f"the result exceeded the {config.GUARD_MAX_ROWS}-row cap"
         return verdict, rows, None
     except psycopg.Error as exc:
         conn.rollback()
@@ -257,7 +335,10 @@ def main() -> int:
         ("a forbidden function", "SELECT pg_read_file('/etc/passwd')"),
         ("a session variable", "SELECT set_config('app.end_user', 'cro_global', false)"),
         ("a hidden write in a CTE", "WITH x AS (DELETE FROM core.fact_loan RETURNING 1) SELECT * FROM x"),
+        ("a CTE named like a table", "WITH dim_client AS (SELECT 1) SELECT * FROM core.dim_client"),
+        ("an internal function", "SELECT sec.end_session()"),
         ("an unbounded query", "SELECT * FROM ai.transaction"),
+        ("a limit above the cap", "SELECT * FROM ai.transaction LIMIT 100000000"),
     ]
     for label, sql in examples:
         verdict = guard(sql)

@@ -13,11 +13,16 @@
   Targets: setup, init-db, check, build, test, web, web-open, demo, demo-login,
            demo-interactive, ingest, profile, dq, model, ledger, reference,
            semantic, entitlements, questions, evaluate, workbook, ddr, zip,
-           deliverables, status, simulate, simulate-faults, all, clean, help
+           deliverables, status, simulate, simulate-faults, all, clean, help,
+           llm-pull, llm-check, llm-warm, questions-local, evaluate-local
 
   Connection settings come from the same environment variables as
   src/config.py (PGHOST, PGPORT, PGDATABASE, PGUSER, PGPASSWORD) with the
   same defaults. Nothing secret is written to disk.
+
+  The model step (web step 7, questions) runs on a local Ollama model unless
+  LLM_PROVIDER is already set: no API key, no paid inference. See
+  docs/LOCAL_LLM_WINDOWS.md.
 #>
 param(
     [Parameter(Position = 0)][string]$Target = "help",
@@ -38,6 +43,20 @@ $env:PYTHONUTF8 = "1"
 
 $VenvPy = Join-Path $Root ".venv\Scripts\python.exe"
 $Py = if (Test-Path $VenvPy) { $VenvPy } else { "python" }
+
+# Local, free inference by default: Ollama and the model src/config.py names
+# for it. Set LLM_PROVIDER (and LLM_MODEL) beforehand to use another provider.
+if (-not $env:LLM_PROVIDER) { $env:LLM_PROVIDER = "ollama" }
+# A laptop CPU evaluates the semantic layer slowly the first time; see the docs.
+if (-not $env:LLM_TIMEOUT_SECONDS -and $env:LLM_PROVIDER -eq "ollama") { $env:LLM_TIMEOUT_SECONDS = "900" }
+# CPU only unless told otherwise: on a 2 GB laptop GPU, Ollama's Vulkan backend
+# loaded the model once and then crashed on every load. -1 lets Ollama decide.
+if (-not $env:OLLAMA_NUM_GPU -and $env:LLM_PROVIDER -eq "ollama") { $env:OLLAMA_NUM_GPU = "0" }
+
+# Where a local model's question run goes, so it never replaces the recorded
+# Claude run in dq\results\llm_results.json that the deliverables are built from.
+$LocalResults = "dq\results\local\llm_results.json"
+$LocalEvaluation = "dq\results\local\evaluation.json"
 
 function Invoke-Py {
     & $Py @args
@@ -71,7 +90,7 @@ function Invoke-Setup {
 function Find-Psql {
     $cmd = Get-Command psql -ErrorAction SilentlyContinue
     if ($cmd) { return $cmd.Source }
-    $found = Get-ChildItem "C:\Program Files\PostgreSQL\*\bin\psql.exe" -ErrorAction SilentlyContinue |
+    $found = Get-ChildItem "D:\Programmas\PostGres\bin\psql.exe" -ErrorAction SilentlyContinue |
         Sort-Object { [int]($_.Directory.Parent.Name -replace '\D', '') } -Descending |
         Select-Object -First 1
     if ($found) { return $found.FullName }
@@ -109,6 +128,24 @@ function Invoke-Check {
     if ($LASTEXITCODE -ne 0) { throw "Cannot connect to PostgreSQL. Is the service running, and did you run init-db?" }
 }
 
+function Find-Ollama {
+    $cmd = Get-Command ollama -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+    # The installer adds itself to PATH, but only for shells opened afterwards.
+    $default = Join-Path $env:LOCALAPPDATA "Programs\Ollama\ollama.exe"
+    if (Test-Path $default) { return $default }
+    throw "ollama.exe not found. Install it with: winget install --id Ollama.Ollama -e --source winget"
+}
+
+function Invoke-LlmPull {
+    $ollama = Find-Ollama
+    $model = & $Py -c "from src import config; print(config.LLM_MODEL)"
+    if ($LASTEXITCODE -ne 0) { throw "could not read the configured model from src/config.py" }
+    Write-Host "llm-pull | $ollama pull $model"
+    & $ollama pull $model
+    if ($LASTEXITCODE -ne 0) { throw "ollama pull $model failed (exit $LASTEXITCODE). Is the Ollama app running?" }
+}
+
 function Invoke-Model {
     Invoke-Py -m src.build_model
     # Rebuilding core drops the dependent ai views; re-apply them (as the Makefile does).
@@ -133,8 +170,18 @@ function Invoke-Target([string]$name) {
         "reference"        { Invoke-Py -m src.run_reference }
         "semantic"         { Invoke-Py -m src.semantic_context --write }
         "entitlements"     { Invoke-Py -m src.build_security }
-        "questions"        { Invoke-Py -m src.run_questions }
+        "questions"        {
+            if ($env:LLM_PROVIDER -eq "ollama") {
+                throw "questions replaces the recorded Claude run (dq\results\llm_results.json). For the local model run: scripts\windows.ps1 questions-local"
+            }
+            Invoke-Py -m src.run_questions
+        }
         "evaluate"         { Invoke-Py -m src.evaluate }
+        "llm-pull"         { Invoke-LlmPull }
+        "llm-check"        { Invoke-Py -m src.llm_client }
+        "llm-warm"         { Invoke-Py -m src.llm_client --warm }
+        "questions-local"  { Invoke-Py -m src.run_questions --output $LocalResults --log-subdir local }
+        "evaluate-local"   { Invoke-Py -m src.evaluate --llm-results $LocalResults --output $LocalEvaluation }
         "workbook"         { Invoke-Py -m src.make_workbook }
         "ddr"              { Invoke-Py -m src.make_ddr }
         "zip"              { Invoke-Py -m src.make_zip }
@@ -156,7 +203,10 @@ function Invoke-Target([string]$name) {
             "semantic", "entitlements", "demo", "test" | ForEach-Object { Invoke-Target $_ }
             Write-Host "build | done. Try: scripts\windows.ps1 web-open"
         }
-        "all"              { "build", "questions", "evaluate", "deliverables", "status" | ForEach-Object { Invoke-Target $_ } }
+        "all"              {
+            $ask = if ($env:LLM_PROVIDER -eq "ollama") { "questions-local", "evaluate-local" } else { "questions", "evaluate" }
+            @("build") + $ask + @("deliverables", "status") | ForEach-Object { Invoke-Target $_ }
+        }
         "clean"            { Invoke-Py -m src.ingest --drop-all }
         default            { Get-Help $PSCommandPath -Detailed | Out-Host }
     }

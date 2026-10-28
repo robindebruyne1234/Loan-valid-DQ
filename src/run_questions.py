@@ -29,7 +29,9 @@ import argparse
 import csv
 import json
 import re
+import time
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 
 from src import auth, config, db, llm_client, semantic_context, sql_guard
@@ -130,6 +132,7 @@ def answer_question(
     run_as: str,
     provider: str,
     model: str,
+    log_prefix: str = "",
 ) -> dict[str, Any]:
     """Ask the model one question and execute the SQL it produces.
 
@@ -139,11 +142,15 @@ def answer_question(
     :param run_as: Consumer role the generated SQL is executed as.
     :param provider: LLM provider name.
     :param model: Model identifier.
+    :param log_prefix: Sub-directory of ``llm_logs/`` for the call logs, so a
+        run of another model does not overwrite the recorded evidence.
     :returns: A result dictionary for ``llm_results.json``.
     """
     base_prompt = build_prompt(context_pack, question_id, question)
     attempts: list[dict[str, Any]] = []
     feedback: str | None = None
+    question_started = time.perf_counter()
+    label = f"{log_prefix}/{question_id}" if log_prefix else question_id
 
     for attempt in range(1, MAX_ATTEMPTS + 1):
         prompt = base_prompt
@@ -160,20 +167,22 @@ def answer_question(
             "attempt": attempt,
             "executed_call": response.executed,
             "call_error": response.error,
+            "call_error_kind": response.error_kind,
             "duration_sec": round(response.duration_sec, 3),
+            "llm_usage": response.usage,
             "feedback_given": feedback,
         }
 
         if not response.executed:
             record["status"] = config.NOT_EXECUTED
-            llm_client.write_call_log(f"{question_id}_attempt{attempt}", response, record)
+            llm_client.write_call_log(f"{label}_attempt{attempt}", response, record)
             attempts.append(record)
             break
 
         parsed, parse_error = parse_model_output(response.text)
         if parse_error:
             record.update({"status": "unparsable_response", "parse_error": parse_error})
-            llm_client.write_call_log(f"{question_id}_attempt{attempt}", response, record)
+            llm_client.write_call_log(f"{label}_attempt{attempt}", response, record)
             attempts.append(record)
             feedback = parse_error
             continue
@@ -194,7 +203,7 @@ def answer_question(
 
         if not verdict.allowed:
             record["status"] = "guard_rejected"
-            llm_client.write_call_log(f"{question_id}_attempt{attempt}", response, record)
+            llm_client.write_call_log(f"{label}_attempt{attempt}", response, record)
             attempts.append(record)
             feedback = f"the SQL guard rejected it: {verdict.reason}"
             continue
@@ -202,12 +211,16 @@ def answer_question(
         # Both factors. The generated SQL runs on a session that had to
         # authenticate like any other consumer -- an assistant does not get a
         # standing connection that skipped the login.
+        step = time.perf_counter()
         with auth.login(run_as, demo_autocode=True) as conn:
+            record["login_sec"] = round(time.perf_counter() - step, 3)
+            step = time.perf_counter()
             _, rows, error = sql_guard.execute_guarded(conn, generated_sql)
+            record["database_sec"] = round(time.perf_counter() - step, 3)
 
         if error:
             record.update({"status": "database_error", "database_error": error})
-            llm_client.write_call_log(f"{question_id}_attempt{attempt}", response, record)
+            llm_client.write_call_log(f"{label}_attempt{attempt}", response, record)
             attempts.append(record)
             feedback = f"the database rejected it: {error}"
             continue
@@ -221,7 +234,7 @@ def answer_question(
                 "rows": clean_rows,
             }
         )
-        llm_client.write_call_log(f"{question_id}_attempt{attempt}", response, record)
+        llm_client.write_call_log(f"{label}_attempt{attempt}", response, record)
         attempts.append(record)
         break
 
@@ -257,6 +270,7 @@ def answer_question(
         "guard_reason": final.get("guard_reason"),
         "error": final.get("call_error") or final.get("database_error")
                  or final.get("parse_error"),
+        "total_sec": round(time.perf_counter() - question_started, 3),
         "executed_at_utc": db.utc_now_iso(),
     }
 
@@ -271,9 +285,17 @@ def main() -> int:
     parser.add_argument("--as-user", default=DEFAULT_RUN_AS,
                         help="consumer role to execute the generated SQL as")
     parser.add_argument("--provider", default=config.LLM_PROVIDER)
-    parser.add_argument("--model", default=config.LLM_MODEL)
+    parser.add_argument("--model", help="model identifier; defaults to the provider's own")
     parser.add_argument("--only", help="comma-separated question ids to run")
+    parser.add_argument("--output", type=Path, default=config.LLM_RESULTS_JSON,
+                        help="results file; a different model's run belongs in its own")
+    parser.add_argument("--log-subdir", default="",
+                        help="write call logs under llm_logs/<this>/ instead of llm_logs/")
     args = parser.parse_args()
+    if not args.model:
+        args.model = (config.LLM_MODEL if args.provider == config.LLM_PROVIDER
+                      else config.LLM_DEFAULT_MODELS.get(args.provider, config.LLM_MODEL))
+    output: Path = args.output.resolve()
 
     layer = semantic_context.load_semantic_layer()
     context_pack = semantic_context.render_context_pack(layer)
@@ -289,8 +311,8 @@ def main() -> int:
 
     results: dict[str, Any] = {}
     existing = {}
-    if config.LLM_RESULTS_JSON.exists():
-        existing = json.loads(config.LLM_RESULTS_JSON.read_text(encoding="utf-8")).get("results", {})
+    if output.exists():
+        existing = json.loads(output.read_text(encoding="utf-8")).get("results", {})
     results.update(existing)
 
     for question in questions:
@@ -301,6 +323,7 @@ def main() -> int:
             args.as_user,
             args.provider,
             args.model,
+            args.log_subdir,
         )
 
     answered = [r for r in results.values() if r["status"] == "answered"]
@@ -317,10 +340,9 @@ def main() -> int:
         "total": len(results),
         "results": results,
     }
-    config.LLM_RESULTS_JSON.write_text(
-        json.dumps(payload, indent=2, default=str), encoding="utf-8"
-    )
-    LOGGER.info("wrote %s", config.LLM_RESULTS_JSON.relative_to(config.PROJECT_ROOT))
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
+    LOGGER.info("wrote %s", output)
 
     first_attempt = sum(1 for r in results.values()
                         if r["status"] == "answered" and r["attempts_used"] == 1)
@@ -333,14 +355,19 @@ def main() -> int:
             LOGGER.warning("  ! %s -> %s (%s)", result["question_id"],
                            result["status"], result.get("error") or result.get("guard_reason"))
 
+    # A run written elsewhere is ledgered under its own step name: the status
+    # report pairs the latest "questions" entry with llm_results.json, and
+    # must not pair it with a different model's run.
+    separate = output != config.LLM_RESULTS_JSON.resolve()
     db.record_run(
-        "questions",
+        "questions_separate" if separate else "questions",
         f"make questions (provider={args.provider}, model={args.model})",
         {
             "answered": len(answered),
             "total": len(results),
             "answered_first_attempt": first_attempt,
             "run_as": args.as_user,
+            **({"output": str(output)} if separate else {}),
         },
     )
     return 0 if len(answered) == len(results) else 1
