@@ -242,6 +242,21 @@ DOCS = {
         "parts": sorted((HERE / "lessons").glob("*.md")),
         "toc": True,
     },
+    "kids": {
+        "file": "01b_Study_Guide_School_Edition.pdf",
+        "footer": "The school, the archive and the robot · study guide, school edition",
+        "kicker": "The same study guide · school edition",
+        "title": "The School, the Archive and the Robot",
+        "sub": "The whole project explained as if the bank were a school: the pupils, the teachers, "
+               "the record books in the archive, and a robot that helps everyone understand their own files.",
+        "pills": ["Same chapters as the study guide", "Pupils = clients", "Record books = accounts",
+                  "Topics = districts", "Tutors = bank staff", "The robot = the LLM"],
+        "meta": "Every number is the real number from the delivered version (commit fc0c281), dressed up in "
+                "school words. Each chapter ends with an <b>In grown-up words</b> box that translates back.",
+        "css": "style_kids.css",
+        "parts": sorted((HERE / "guide_kids").glob("*.md")),
+        "toc": True,
+    },
     "cheatsheet": {
         "file": "04_Cheat_Sheet.pdf",
         "footer": "Berka governed data product · cheat sheet",
@@ -252,6 +267,8 @@ DOCS = {
 
 
 def cover(doc: dict) -> str:
+    pills = "".join(f'<span class="pill">{html.escape(p)}</span>' for p in doc.get("pills", DEFAULT_PILLS))
+    meta = doc.get("meta", DEFAULT_META)
     return f"""
 <section class="cover">
   <div>
@@ -260,15 +277,19 @@ def cover(doc: dict) -> str:
     <div class="sub">{html.escape(doc['sub'])}</div>
   </div>
   <div class="meta">
-    <span class="pill">Berka (PKDD'99) take-home</span><span class="pill">PostgreSQL</span>
-    <span class="pill">Data quality</span><span class="pill">Semantic layer</span>
-    <span class="pill">Row level security</span><span class="pill">LLM as untrusted client</span><br><br>
-    Describes the <b>delivered version</b>: branch <b>{DELIVERED_BRANCH}</b>, commit <b>{DELIVERED_COMMIT}</b>
-    (code b5b18f2), 2026-10-28.<br>
-    Work done <b>after</b> delivery (D028, D029, branch ccr-46f6f45a-t9wtd4) is marked as such wherever it appears.<br>
-    Every figure comes from the delivered evidence files or a query run on 2026-11-04; nothing is from memory.
+    {pills}<br><br>
+    {meta}
   </div>
 </section>"""
+
+
+DEFAULT_PILLS = ["Berka (PKDD'99) take-home", "PostgreSQL", "Data quality", "Semantic layer",
+                 "Row level security", "LLM as untrusted client"]
+DEFAULT_META = (f"Describes the <b>delivered version</b>: branch <b>{DELIVERED_BRANCH}</b>, commit "
+                f"<b>{DELIVERED_COMMIT}</b> (code b5b18f2), 2026-10-28.<br>"
+                "Work done <b>after</b> delivery (D028, D029, branch ccr-46f6f45a-t9wtd4) is marked as such "
+                "wherever it appears.<br>Every figure comes from the delivered evidence files or a query run "
+                "on 2026-11-04; nothing is from memory.")
 
 
 def assemble(doc: dict, toc_pages: dict[str, int] | None) -> tuple[str, list[tuple[int, str, str]]]:
@@ -301,6 +322,8 @@ def assemble(doc: dict, toc_pages: dict[str, int] | None) -> tuple[str, list[tup
                + "</section>")
     head = (f'<meta charset="utf-8"><style>{fonts.ensure(BUILD / "fonts")}</style>'
             f'<link rel="stylesheet" href="{(HERE / "style.css").as_uri()}">')
+    if doc.get("css"):
+        head += f'<link rel="stylesheet" href="{(HERE / doc["css"]).as_uri()}">'
     pre = cover(doc) if "title" in doc else ""
     return f"<!doctype html><html lang=\"en\"><head>{head}<title>{html.escape(doc.get('title', doc['footer']))}</title></head><body>{pre}{toc}{body}</body></html>", heads
 

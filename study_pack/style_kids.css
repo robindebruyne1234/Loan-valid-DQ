@@ -1,0 +1,67 @@
+/* School edition: same structure as the study guide, friendlier look. Loaded after style.css. */
+:root {
+  --primary: #1d4e89;        /* school blue */
+  --primary-2: #2f6db3;
+  --primary-tint: #e9f1fc;
+  --accent: #d9820b;         /* pencil yellow, dark enough for text */
+  --accent-tint: #fff4dc;
+  --post: #6b3fa0;
+  --post-tint: #f3edfb;
+}
+body { font-size: 10.6pt; line-height: 1.62; }
+h1 { font-size: 23pt; }
+h2 { font-size: 14.5pt; }
+h1 + p.lede, h1 + .lede { font-size: 11.6pt; }
+.cover { background: #1d4e89; }
+.cover .kicker { color: #ffd166; opacity: 1; }
+.cover .title { font-size: 38pt; }
+.box { border-radius: 4mm; padding: 3mm 4mm 1.8mm; }
+.box > .label { font-size: 8pt; }
+.say { background: #e9f1fc; }
+.weak { background: #fff1e0; }
+.key { background: #fff8e1; }
+.evidence { background: #eef2f6; border: 1.2px dashed #9fb3c8; }
+.evidence > .label { color: #334e68; }
+table { font-size: 9pt; }
+.stats .n { color: #1d4e89; }
+.stats > div { border-radius: 3mm; background: #fbfcfe; }
+
+/* the six rooms of the archive */
+.rooms { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2.6mm; margin: 2mm 0 4mm; page-break-inside: avoid; }
+.rooms > div { border-radius: 3.5mm; padding: 3mm 3.4mm; color: #fff; font-size: 9pt; line-height: 1.45; }
+.rooms b { display: block; font-size: 12pt; margin-bottom: 1mm; }
+.rooms i { display: block; font-style: normal; opacity: .85; font-size: 8pt; margin-top: 1.4mm; font-family: "JetBrains Mono", monospace; }
+.r-raw { background: #7b8794; } .r-stg { background: #2f6db3; } .r-dq { background: #d9820b; }
+.r-core { background: #1d4e89; } .r-ai { background: #2e8b57; } .r-sec { background: #b42318; }
+
+/* a row of people */
+.people { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2mm; margin: 2mm 0 4mm; page-break-inside: avoid; }
+.people > div { border: 1.4px solid #d9e2ec; border-radius: 3mm; padding: 2.4mm; text-align: center; font-size: 8.4pt; line-height: 1.35; }
+.people .e { font-size: 18pt; display: block; line-height: 1.2; }
+.people b { display: block; font-size: 9pt; color: #1d4e89; margin: .6mm 0; }
+.people .n { display: block; font-size: 15pt; font-weight: 700; color: #d9820b; margin-top: 1mm; }
+
+/* a simple step chain */
+.chain { display: flex; flex-wrap: wrap; gap: 1.6mm; align-items: stretch; margin: 2mm 0 4mm; page-break-inside: avoid; }
+.chain > div { flex: 1 1 30%; background: #e9f1fc; border-radius: 3mm; padding: 2.2mm 2.6mm; font-size: 8.6pt; line-height: 1.4; }
+.chain b { display: block; color: #1d4e89; font-size: 9.2pt; margin-bottom: .6mm; }
+
+/* traffic lights */
+.lights { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2.6mm; margin: 2mm 0 4mm; page-break-inside: avoid; }
+.lights > div { border-radius: 3.5mm; padding: 3mm 3.4mm; font-size: 9.4pt; }
+.lights b { display: block; font-size: 12pt; margin-bottom: 1mm; }
+.lights .red { background: #fdecea; } .lights .red b { color: #b42318; }
+.lights .orange { background: #fef3e2; } .lights .orange b { color: #b54708; }
+.lights .green { background: #e8f5ee; } .lights .green b { color: #067647; }
+
+/* dominoes for the "who wrote last" puzzle */
+.dominoes { display: flex; gap: 2mm; align-items: center; margin: 2mm 0 4mm; page-break-inside: avoid; }
+.dominoes > div { border: 1.6px solid #1d4e89; border-radius: 2.6mm; padding: 2.2mm 3mm; font-size: 9pt; text-align: center; background: #fff; }
+.dominoes > div.last { background: #1d4e89; color: #fff; }
+.dominoes > span { color: #1d4e89; font-weight: 700; font-size: 14pt; }
+
+/* keep short tables in one piece (long ones still split when they must) */
+table { break-inside: avoid; page-break-inside: avoid; }
+.qa { break-inside: avoid; }
+.qblock { break-inside: avoid; page-break-inside: avoid; }
+.splittable table { break-inside: auto; page-break-inside: auto; }
