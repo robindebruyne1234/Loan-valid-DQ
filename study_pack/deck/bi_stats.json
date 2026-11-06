@@ -1,0 +1,994 @@
+{
+ "generated_at_utc": "2026-11-06T22:01:43+00:00",
+ "command": "python study_pack/deck/bi_stats.py",
+ "source": "PostgreSQL core schema; Q1-Q8 and Q10 re-run with the delivered reference SQL and checked against study_pack/sources/delivered/reference_results.json; Q9 with the delivered highest-trans_id rule",
+ "method": {
+  "sd": "sample standard deviation (n - 1)",
+  "percentiles": "linear interpolation (= percentile_cont)",
+  "outliers": "Tukey fences: below Q1 - 1.5 IQR or above Q3 + 1.5 IQR",
+  "ci": "95% Wilson interval for shares; mean +/- 1.96 SD / sqrt(n) for means",
+  "test": "two-sided Fisher exact test"
+ },
+ "q": {
+  "Q1": {
+   "rows": [
+    {
+     "region": "south Moravia",
+     "clients": 937,
+     "pct_of_clients": 17.45
+    },
+    {
+     "region": "north Moravia",
+     "clients": 920,
+     "pct_of_clients": 17.14
+    },
+    {
+     "region": "central Bohemia",
+     "clients": 664,
+     "pct_of_clients": 12.37
+    },
+    {
+     "region": "Prague",
+     "clients": 663,
+     "pct_of_clients": 12.35
+    },
+    {
+     "region": "east Bohemia",
+     "clients": 660,
+     "pct_of_clients": 12.29
+    },
+    {
+     "region": "north Bohemia",
+     "clients": 561,
+     "pct_of_clients": 10.45
+    },
+    {
+     "region": "west Bohemia",
+     "clients": 515,
+     "pct_of_clients": 9.59
+    },
+    {
+     "region": "south Bohemia",
+     "clients": 449,
+     "pct_of_clients": 8.36
+    }
+   ]
+  },
+  "Q2": {
+   "rows": [
+    {
+     "year": 1993,
+     "loans": 20,
+     "total_amount": 2619276.0,
+     "average_amount": 130963.8
+    },
+    {
+     "year": 1994,
+     "loans": 101,
+     "total_amount": 13379904.0,
+     "average_amount": 132474.3
+    },
+    {
+     "year": 1995,
+     "loans": 90,
+     "total_amount": 13344372.0,
+     "average_amount": 148270.8
+    },
+    {
+     "year": 1996,
+     "loans": 117,
+     "total_amount": 18317676.0,
+     "average_amount": 156561.33
+    },
+    {
+     "year": 1997,
+     "loans": 196,
+     "total_amount": 30731364.0,
+     "average_amount": 156792.67
+    },
+    {
+     "year": 1998,
+     "loans": 158,
+     "total_amount": 24869148.0,
+     "average_amount": 157399.67
+    }
+   ],
+   "sd_by_year": {
+    "1993": 102616.37278596126,
+    "1994": 92176.8673719762,
+    "1995": 112748.73488248105,
+    "1996": 110043.05786498237,
+    "1997": 125004.74304172913,
+    "1998": 114554.15870063705
+   }
+  },
+  "Q3": {
+   "rows": [
+    {
+     "total_loans": 682,
+     "problematic_loans": 76,
+     "problematic_pct": 11.14,
+     "status_b_finished_unpaid": 31,
+     "status_d_running_in_debt": 45
+    }
+   ],
+   "ci95": [
+    8.996275640468584,
+    13.726389614486308
+   ],
+   "share_by_volume": 15.08802001593233,
+   "by_status": {
+    "A": 203,
+    "B": 31,
+    "C": 403,
+    "D": 45
+   }
+  },
+  "Q4": {
+   "rows": [
+    {
+     "owner_card_type": "junior",
+     "loans": 21,
+     "average_loan_amount": 221970.29,
+     "total_loan_amount": 4661376.0
+    },
+    {
+     "owner_card_type": "gold",
+     "loans": 16,
+     "average_loan_amount": 161880.75,
+     "total_loan_amount": 2590092.0
+    },
+    {
+     "owner_card_type": "no card",
+     "loans": 512,
+     "average_loan_amount": 148864.71,
+     "total_loan_amount": 76218732.0
+    },
+    {
+     "owner_card_type": "classic",
+     "loans": 133,
+     "average_loan_amount": 148808.57,
+     "total_loan_amount": 19791540.0
+    }
+   ],
+   "by_card": {
+    "classic": {
+     "n": 133,
+     "sd": 108878.3199313111,
+     "median": 108720.0,
+     "ci95": 18503.917554669366
+    },
+    "gold": {
+     "n": 16,
+     "sd": 130049.83912100775,
+     "median": 109788.0,
+     "ci95": 63723.250720741715
+    },
+    "junior": {
+     "n": 21,
+     "sd": 125549.94409283616,
+     "median": 224604.0,
+     "ci95": 53697.611780822495
+    },
+    "no card": {
+     "n": 512,
+     "sd": 112860.26261774868,
+     "median": 116664.0,
+     "ci95": 9775.841925801024
+    }
+   }
+  },
+  "Q5": {
+   "rows": [
+    {
+     "rank": 1,
+     "district_id": 1,
+     "district_name": "Hl.m. Praha",
+     "region": "Prague",
+     "total_incoming_amount": 115130200.1,
+     "incoming_transactions": 13611,
+     "accounts": 554
+    },
+    {
+     "rank": 2,
+     "district_id": 70,
+     "district_name": "Karvina",
+     "region": "north Moravia",
+     "total_incoming_amount": 28506437.1,
+     "incoming_transactions": 3802,
+     "accounts": 152
+    },
+    {
+     "rank": 3,
+     "district_id": 74,
+     "district_name": "Ostrava - mesto",
+     "region": "north Moravia",
+     "total_incoming_amount": 27689271.9,
+     "incoming_transactions": 3378,
+     "accounts": 135
+    },
+    {
+     "rank": 4,
+     "district_id": 54,
+     "district_name": "Brno - mesto",
+     "region": "south Moravia",
+     "total_incoming_amount": 23095083.4,
+     "incoming_transactions": 3041,
+     "accounts": 128
+    },
+    {
+     "rank": 5,
+     "district_id": 64,
+     "district_name": "Zlin",
+     "region": "south Moravia",
+     "total_incoming_amount": 19723168.5,
+     "incoming_transactions": 2299,
+     "accounts": 92
+    },
+    {
+     "rank": 6,
+     "district_id": 68,
+     "district_name": "Frydek - Mistek",
+     "region": "north Moravia",
+     "total_incoming_amount": 19087598.8,
+     "incoming_transactions": 2006,
+     "accounts": 83
+    },
+    {
+     "rank": 7,
+     "district_id": 72,
+     "district_name": "Olomouc",
+     "region": "north Moravia",
+     "total_incoming_amount": 15916397.0,
+     "incoming_transactions": 2129,
+     "accounts": 88
+    },
+    {
+     "rank": 8,
+     "district_id": 5,
+     "district_name": "Kolin",
+     "region": "central Bohemia",
+     "total_incoming_amount": 14471603.6,
+     "incoming_transactions": 1542,
+     "accounts": 65
+    },
+    {
+     "rank": 9,
+     "district_id": 52,
+     "district_name": "Usti nad Orlici",
+     "region": "east Bohemia",
+     "total_incoming_amount": 14085167.4,
+     "incoming_transactions": 1431,
+     "accounts": 57
+    },
+    {
+     "rank": 10,
+     "district_id": 19,
+     "district_name": "Prachatice",
+     "region": "south Bohemia",
+     "total_incoming_amount": 12163147.0,
+     "incoming_transactions": 1359,
+     "accounts": 55
+    }
+   ],
+   "total_incoming_1997": 864692326.7,
+   "accounts_with_incoming_1997": 4495,
+   "per_account": {
+    "Hl.m. Praha": 207816.24566787,
+    "Karvina": 187542.34934210527,
+    "Ostrava - mesto": 205105.71777777775,
+    "Brno - mesto": 180430.3390625,
+    "Zlin": 214382.26630434784,
+    "Frydek - Mistek": 229971.0698795181,
+    "Olomouc": 180868.14772727274,
+    "Kolin": 222640.05538461538,
+    "Usti nad Orlici": 247108.2,
+    "Prachatice": 221148.12727272726
+   }
+  },
+  "Q6": {
+   "rows": [
+    {
+     "year_month": "1996-01",
+     "month_number": 1,
+     "month_name": "January",
+     "accounts_opened": 106
+    },
+    {
+     "year_month": "1996-02",
+     "month_number": 2,
+     "month_name": "February",
+     "accounts_opened": 104
+    },
+    {
+     "year_month": "1996-03",
+     "month_number": 3,
+     "month_name": "March",
+     "accounts_opened": 124
+    },
+    {
+     "year_month": "1996-04",
+     "month_number": 4,
+     "month_name": "April",
+     "accounts_opened": 101
+    },
+    {
+     "year_month": "1996-05",
+     "month_number": 5,
+     "month_name": "May",
+     "accounts_opened": 91
+    },
+    {
+     "year_month": "1996-06",
+     "month_number": 6,
+     "month_name": "June",
+     "accounts_opened": 113
+    },
+    {
+     "year_month": "1996-07",
+     "month_number": 7,
+     "month_name": "July",
+     "accounts_opened": 137
+    },
+    {
+     "year_month": "1996-08",
+     "month_number": 8,
+     "month_name": "August",
+     "accounts_opened": 133
+    },
+    {
+     "year_month": "1996-09",
+     "month_number": 9,
+     "month_name": "September",
+     "accounts_opened": 108
+    },
+    {
+     "year_month": "1996-10",
+     "month_number": 10,
+     "month_name": "October",
+     "accounts_opened": 115
+    },
+    {
+     "year_month": "1996-11",
+     "month_number": 11,
+     "month_name": "November",
+     "accounts_opened": 106
+    },
+    {
+     "year_month": "1996-12",
+     "month_number": 12,
+     "month_name": "December",
+     "accounts_opened": 125
+    }
+   ],
+   "mean": 113.58333333333333,
+   "sd": 13.727598832169072,
+   "z_max": 1.7058093664415925
+  },
+  "Q7": {
+   "rows": [
+    {
+     "status_code": "A",
+     "loan_status": "finished, paid in full",
+     "loans": 203,
+     "owners_with_known_age": 203,
+     "average_age_at_loan_start": 37.07,
+     "average_age_excluding_flagged": 37.53,
+     "loans_flagged_implausible_age": 4
+    },
+    {
+     "status_code": "B",
+     "loan_status": "finished, unpaid (default)",
+     "loans": 31,
+     "owners_with_known_age": 31,
+     "average_age_at_loan_start": 39.6,
+     "average_age_excluding_flagged": 39.6,
+     "loans_flagged_implausible_age": 0
+    },
+    {
+     "status_code": "C",
+     "loan_status": "running, no problem",
+     "loans": 403,
+     "owners_with_known_age": 403,
+     "average_age_at_loan_start": 38.7,
+     "average_age_excluding_flagged": 38.82,
+     "loans_flagged_implausible_age": 2
+    },
+    {
+     "status_code": "D",
+     "loan_status": "running, client in debt",
+     "loans": 45,
+     "owners_with_known_age": 45,
+     "average_age_at_loan_start": 37.0,
+     "average_age_excluding_flagged": 37.0,
+     "loans_flagged_implausible_age": 0
+    }
+   ],
+   "by_status": {
+    "A": {
+     "n": 203,
+     "sd": 12.976199278247327,
+     "ci95": 1.7850384772992205,
+     "min": 13.571184120465434,
+     "max": 61.20225872689939,
+     "under_15": 4
+    },
+    "B": {
+     "n": 31,
+     "sd": 13.283959002606455,
+     "ci95": 4.676218267497003,
+     "min": 15.571184120465434,
+     "max": 60.81570841889117,
+     "under_15": 0
+    },
+    "C": {
+     "n": 403,
+     "sd": 12.569656314353733,
+     "ci95": 1.2272102515966976,
+     "min": 14.310232717316905,
+     "max": 61.82939767282683,
+     "under_15": 2
+    },
+    "D": {
+     "n": 45,
+     "sd": 13.405553914929474,
+     "ci95": 3.9167567560116514,
+     "min": 15.586071184120465,
+     "max": 60.232375085557834,
+     "under_15": 0
+    }
+   }
+  },
+  "Q8": {
+   "rows": [
+    {
+     "gender": "male",
+     "gold_card_owners": 53,
+     "distinct_clients": 53,
+     "pct_of_gold_card_owners": 60.23
+    },
+    {
+     "gender": "female",
+     "gold_card_owners": 35,
+     "distinct_clients": 35,
+     "pct_of_gold_card_owners": 39.77
+    }
+   ],
+   "male_ci95": [
+    49.78072996053909,
+    69.81826184474656
+   ],
+   "male_pct_all_owners": 50.93333333333333
+  },
+  "Q10": {
+   "rows": [
+    {
+     "statement_frequency": "after transaction",
+     "loans": 32,
+     "problematic_loans": 6,
+     "problematic_pct": 18.75,
+     "rank_by_problematic_share": 1,
+     "ci95": [
+      8.88954463773112,
+      35.30915534756139
+     ]
+    },
+    {
+     "statement_frequency": "weekly",
+     "loans": 91,
+     "problematic_loans": 11,
+     "problematic_pct": 12.09,
+     "rank_by_problematic_share": 2,
+     "ci95": [
+      6.885508454706783,
+      20.36149848309168
+     ]
+    },
+    {
+     "statement_frequency": "monthly",
+     "loans": 559,
+     "problematic_loans": 59,
+     "problematic_pct": 10.55,
+     "rank_by_problematic_share": 3,
+     "ci95": [
+      8.27117854930527,
+      13.376384358279427
+     ]
+    }
+   ],
+   "fisher_p_top_vs_rest": 0.1549976307534764,
+   "overall_pct": 11.143695014662757
+  },
+  "Q9": {
+   "rows": [
+    {
+     "accounts_with_known_balance": 4500,
+     "average_balance": 43808.94,
+     "median_balance": 38494.55,
+     "min_balance": -25821.2,
+     "max_balance": 138317.2,
+     "accounts_carried_forward": 76,
+     "accounts_balance_unreconciled": 55,
+     "accounts_overdrawn": 39
+    }
+   ],
+   "dist": {
+    "n": 4500,
+    "mean": 43808.94093333333,
+    "sd": 25437.119553945315,
+    "min": -25821.2,
+    "max": 138317.2,
+    "p": {
+     "1": 1998.1990000000003,
+     "5": 13812.775,
+     "25": 23074.925,
+     "50": 38494.55,
+     "75": 60589.4,
+     "95": 92963.15500000001,
+     "99": 108433.24300000003
+    },
+    "iqr": 37514.475000000006,
+    "fence_lo": -33196.787500000006,
+    "fence_hi": 116861.11250000002,
+    "out_lo": 0,
+    "out_hi": 11,
+    "out_pct": 0.24444444444444444,
+    "z3": 7,
+    "whisker_lo": -25821.2,
+    "whisker_hi": 115662.8
+   },
+   "hist": {
+    "labels": [
+     "< 0",
+     "0–20",
+     "20–40",
+     "40–60",
+     "60–80",
+     "80–100",
+     "≥ 100"
+    ],
+    "values": [
+     39,
+     784,
+     1518,
+     1011,
+     652,
+     364,
+     132
+    ]
+   }
+  }
+ },
+ "clients": {
+  "n": 5369,
+  "gender": {
+   "male": 2724,
+   "female": 2645
+  },
+  "age": {
+   "n": 5369,
+   "mean": 45.29939091871365,
+   "sd": 17.28170277220597,
+   "min": 11.260780287474333,
+   "max": 87.36481861738535,
+   "p": {
+    "1": 17.547542778918547,
+    "5": 19.91457905544148,
+    "25": 30.559890485968516,
+    "50": 44.65434633812457,
+    "75": 58.09719370294319,
+    "95": 75.88117727583845,
+    "99": 80.22866529774126
+   },
+   "iqr": 27.53730321697467,
+   "fence_lo": -10.746064339493493,
+   "fence_hi": 99.4031485284052,
+   "out_lo": 0,
+   "out_hi": 0,
+   "out_pct": 0.0,
+   "z3": 0,
+   "whisker_lo": 11.260780287474333,
+   "whisker_hi": 87.36481861738535
+  },
+  "age_bands": {
+   "labels": [
+    "< 20",
+    "20–29",
+    "30–39",
+    "40–49",
+    "50–59",
+    "60–69",
+    "70+"
+   ],
+   "values": [
+    274,
+    1008,
+    984,
+    941,
+    1012,
+    590,
+    560
+   ]
+  },
+  "under_18": 72,
+  "roles": [
+   {
+    "role": "owner",
+    "n": 4500
+   },
+   {
+    "role": "disponent",
+    "n": 869
+   }
+  ],
+  "regions_top2_pct": 34.59
+ },
+ "money": {
+  "n": 1056319,
+  "volume": 6257793560.3,
+  "amount": {
+   "n": 1056319,
+   "mean": 5924.151284129131,
+   "sd": 9522.738136155467,
+   "min": 0.0,
+   "max": 87400.0,
+   "p": {
+    "1": 14.6,
+    "5": 14.6,
+    "25": 135.9,
+    "50": 2100.0,
+    "75": 6800.0,
+    "95": 25700.0,
+    "99": 45454.81999999995
+   },
+   "iqr": 6664.1,
+   "fence_lo": -9860.250000000002,
+   "fence_hi": 16796.15,
+   "out_lo": 0,
+   "out_hi": 120215,
+   "out_pct": 11.380558335124144,
+   "z3": 29851,
+   "whisker_lo": 0.0,
+   "whisker_hi": 16796.0,
+   "out_hi_share_of_sum": 54.349302301639874,
+   "top1pct_share_of_sum": 8.770603259940204
+  },
+  "by_direction": [
+   {
+    "direction": "credit",
+    "n": 405082,
+    "volume": 3227472424.5
+   },
+   {
+    "direction": "debit",
+    "n": 651237,
+    "volume": 3030321135.8
+   }
+  ],
+  "by_year": [
+   {
+    "year": 1993,
+    "n": 28205,
+    "volume": 204308528.7
+   },
+   {
+    "year": 1994,
+    "n": 91628,
+    "volume": 538790730.8
+   },
+   {
+    "year": 1995,
+    "n": 133022,
+    "volume": 767730464.1
+   },
+   {
+    "year": 1996,
+    "n": 196779,
+    "volume": 1163851468.3
+   },
+   {
+    "year": 1997,
+    "n": 284409,
+    "volume": 1688329011.1
+   },
+   {
+    "year": 1998,
+    "n": 322276,
+    "volume": 1894783357.3
+   }
+  ],
+  "by_operation": [
+   {
+    "operation": "cash deposit",
+    "n": 156743,
+    "volume": 2418521782.0
+   },
+   {
+    "operation": "cash withdrawal",
+    "n": 434918,
+    "volume": 2339512949.5
+   },
+   {
+    "operation": "collection from another bank",
+    "n": 65226,
+    "volume": 781479953.0
+   },
+   {
+    "operation": "remittance to another bank",
+    "n": 208283,
+    "volume": 672637786.3
+   },
+   {
+    "operation": "interest (no operation)",
+    "n": 183113,
+    "volume": 27470689.5
+   },
+   {
+    "operation": "credit card withdrawal",
+    "n": 8036,
+    "volume": 18170400.0
+   }
+  ],
+  "by_category": [
+   {
+    "category": "(no category)",
+    "n": 535314,
+    "volume": 5482192759.0
+   },
+   {
+    "category": "household payment",
+    "n": 118065,
+    "volume": 498506416.0
+   },
+   {
+    "category": "old age pension",
+    "n": 30338,
+    "volume": 167472118.0
+   },
+   {
+    "category": "loan payment",
+    "n": 13580,
+    "volume": 55252303.3
+   },
+   {
+    "category": "interest credited",
+    "n": 183113,
+    "volume": 27470689.5
+   },
+   {
+    "category": "insurance payment",
+    "n": 18500,
+    "volume": 24175193.0
+   },
+   {
+    "category": "payment for statement",
+    "n": 155832,
+    "volume": 2686418.2
+   },
+   {
+    "category": "sanction interest for negative balance",
+    "n": 1577,
+    "volume": 37663.3
+   }
+  ]
+ },
+ "loans": {
+  "n": 682,
+  "volume": 103261740.0,
+  "amount": {
+   "n": 682,
+   "mean": 151410.1759530792,
+   "sd": 113372.4063095917,
+   "min": 4980.0,
+   "max": 590820.0,
+   "p": {
+    "1": 12387.24,
+    "5": 22972.2,
+    "25": 66732.0,
+    "50": 116928.0,
+    "75": 210654.0,
+    "95": 388365.5999999998,
+    "99": 477059.39999999956
+   },
+   "iqr": 143922.0,
+   "fence_lo": -149151.0,
+   "fence_hi": 426537.0,
+   "out_lo": 0,
+   "out_hi": 18,
+   "out_pct": 2.6392961876832843,
+   "z3": 6,
+   "whisker_lo": 4980.0,
+   "whisker_hi": 421008.0,
+   "out_hi_share_of_sum": 8.493070134204595,
+   "top1pct_share_of_sum": 3.134113370547504
+  },
+  "payment": {
+   "n": 682,
+   "mean": 4190.6642228739,
+   "sd": 2215.8303442941256,
+   "min": 304.0,
+   "max": 9910.0,
+   "p": {
+    "1": 412.72,
+    "5": 963.9000000000002,
+    "25": 2477.0,
+    "50": 3934.0,
+    "75": 5813.5,
+    "95": 8048.199999999999,
+    "99": 9301.43999999999
+   },
+   "iqr": 3336.5,
+   "fence_lo": -2527.75,
+   "fence_hi": 10818.25,
+   "out_lo": 0,
+   "out_hi": 0,
+   "out_pct": 0.0,
+   "z3": 0,
+   "whisker_lo": 304.0,
+   "whisker_hi": 9910.0,
+   "out_hi_share_of_sum": 0.0,
+   "top1pct_share_of_sum": 2.0503961990641817
+  },
+  "status": {
+   "A": 203,
+   "B": 31,
+   "C": 403,
+   "D": 45
+  },
+  "by_duration": [
+   {
+    "months": 12,
+    "loans": 131,
+    "problematic": 11,
+    "pct": 8.396946564885496,
+    "ci95": [
+     4.753307475840692,
+     14.41102009498812
+    ]
+   },
+   {
+    "months": 24,
+    "loans": 138,
+    "problematic": 17,
+    "pct": 12.318840579710145,
+    "ci95": [
+     7.835319897744281,
+     18.843381223741424
+    ]
+   },
+   {
+    "months": 36,
+    "loans": 130,
+    "problematic": 15,
+    "pct": 11.538461538461538,
+    "ci95": [
+     7.118367247445512,
+     18.16636826287943
+    ]
+   },
+   {
+    "months": 48,
+    "loans": 138,
+    "problematic": 16,
+    "pct": 11.594202898550725,
+    "ci95": [
+     7.263902989541932,
+     18.004773153510804
+    ]
+   },
+   {
+    "months": 60,
+    "loans": 145,
+    "problematic": 17,
+    "pct": 11.724137931034482,
+    "ci95": [
+     7.450140889656766,
+     17.973863393635913
+    ]
+   }
+  ],
+  "avg_amount_problematic": 205002.0,
+  "avg_amount_ok": 144689.08910891088,
+  "share_by_volume": 15.08802001593233
+ },
+ "accounts": {
+  "n": 4500,
+  "frequency": [
+   {
+    "f": "monthly",
+    "n": 4167
+   },
+   {
+    "f": "weekly",
+    "n": 240
+   },
+   {
+    "f": "after transaction",
+    "n": 93
+   }
+  ],
+  "opened_by_year": [
+   {
+    "year": 1993,
+    "n": 1139
+   },
+   {
+    "year": 1994,
+    "n": 439
+   },
+   {
+    "year": 1995,
+    "n": 661
+   },
+   {
+    "year": 1996,
+    "n": 1363
+   },
+   {
+    "year": 1997,
+    "n": 898
+   }
+  ],
+  "with_loan": 682,
+  "cards": [
+   {
+    "t": "classic",
+    "n": 659
+   },
+   {
+    "t": "junior",
+    "n": 145
+   },
+   {
+    "t": "gold",
+    "n": 88
+   }
+  ],
+  "owners_with_card": 892,
+  "card_owner_age": {
+   "classic": {
+    "min": 21.04312114989733,
+    "mean": 43.34844967641221,
+    "max": 80.870636550308,
+    "under_18": 0
+   },
+   "junior": {
+    "min": 16.314852840520192,
+    "mean": 19.66992848544927,
+    "max": 24.40520191649555,
+    "under_18": 20
+   },
+   "gold": {
+    "min": 21.284052019164957,
+    "mean": 44.02902744073175,
+    "max": 68.50376454483231,
+    "under_18": 0
+   }
+  },
+  "balance": {
+   "n": 4500,
+   "mean": 43808.94093333333,
+   "sd": 25437.119553945315,
+   "min": -25821.2,
+   "max": 138317.2,
+   "p": {
+    "1": 1998.1990000000003,
+    "5": 13812.775,
+    "25": 23074.925,
+    "50": 38494.55,
+    "75": 60589.4,
+    "95": 92963.15500000001,
+    "99": 108433.24300000003
+   },
+   "iqr": 37514.475000000006,
+   "fence_lo": -33196.787500000006,
+   "fence_hi": 116861.11250000002,
+   "out_lo": 0,
+   "out_hi": 11,
+   "out_pct": 0.24444444444444444,
+   "z3": 7,
+   "whisker_lo": -25821.2,
+   "whisker_hi": 115662.8
+  }
+ }
+}

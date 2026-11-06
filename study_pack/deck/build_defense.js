@@ -1,4 +1,4 @@
-// Defence deck: the whole project as one short story (about 30 minutes, 14 main slides + backup).
+// Defence deck: the whole project as one short story (about 25 minutes, 14 story slides + 10 data slides + backup).
 // node study_pack/deck/build_defense.js  ->  deliverables/study_pack/05_Defense_Deck.pptx
 // Figures are from the delivered version (fc0c281) unless a slide says "after delivery".
 const path = require("path");
@@ -158,7 +158,8 @@ async function build() {
   iconCircle(s, "robot", 11.2, 0.7, 1.4, H.accent);
   notes(s, `
     [30 seconds] Thank you. I'll tell this as one story in five parts — the problem, the principle I designed around,
-    three proofs (one per task), the evidence, and what I would challenge myself on. About 25 minutes, then questions.
+    three proofs (one per task), the evidence, and what I would challenge myself on. About 25 minutes, plus about ten
+    for the evidence in numbers (insights and the ten answers as charts), then questions.
     Everything is from the version I handed in, commit fc0c281; where I mention later work, I'll say so.`);
 
   s = slide("WIDE");
@@ -453,6 +454,9 @@ async function build() {
     Precise authorship: the reference SQL wasn't written by the model under test, and every answer was re-derived from raw (L-12).`);
 
   // ---------------------------------------------------------------- 5 Honesty and next
+  // ---------------------------------------------------------------- 4b Evidence in numbers (BI visuals, bi_slides.js)
+  require("./bi_slides")({ pres, H, slide, title, notes, text, box, label, bullets, stat, chip, table, icon, iconCircle, section });
+
   section("5 · Honesty and next steps");
   s = slide("WIDE");
   title(s, "Where I would challenge myself");
