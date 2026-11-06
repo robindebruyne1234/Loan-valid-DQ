@@ -11,6 +11,7 @@ Preparation material for the 45-minute walkthrough of the delivered version
 | `02_Lessons_Learned_and_Self_Audit.pdf` | Every mistake, weak spot and sloppy detail found in the delivered version, verified against code, evidence or the database, with status and a way to say it |
 | `03_Walkthrough_Deck.pptx` / `.pdf` | 26 slides (22 main, 4 backup) with speaker notes, sized for about 30 minutes |
 | `04_Cheat_Sheet.pdf` | One page of figures and one-liners |
+| `05_Defense_Deck.pptx` / `.pdf` | The short defence: one story in five parts (problem → principle → three proofs → evidence → honesty and next), 14 main slides plus 5 backup, about 25 minutes. Icons, a "you are here" layer map, native charts, the diagrams, and speaker notes with timing and the document behind each slide. Source `deck/build_defense.js` |
 
 Figures come from the delivered evidence files, snapshotted in `sources/delivered/`
 (taken from `fc0c281`), or from queries run on 2026-11-04; `notes/verified_findings.md`
@@ -23,6 +24,7 @@ records each check. Work done after delivery (D028, D029, A47–A49) is in
 python study_pack/build.py                 # the four PDFs (or: guide, kids, lessons, cheatsheet) (needs python-markdown, pypdf; fontTools optional)
 cd study_pack/deck && npm install          # once: pptxgenjs
 NODE_PATH=study_pack/deck/node_modules node study_pack/deck/build_deck.js
+NODE_PATH=study_pack/deck/node_modules node study_pack/deck/build_defense.js   # the defence deck (also needs react, react-dom, react-icons, sharp)
 ```
 
 PDFs are printed by Chromium through Playwright (`render_pdf.mjs`); the deck's PDF
