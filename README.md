@@ -6,7 +6,7 @@ product that an AI assistant can query correctly. Take-home submission.
 ```
 make up     # PostgreSQL 16 (docker compose if a daemon is available, else a native cluster)
 make all    # the whole pipeline and every deliverable, 4m28s from an empty database
-make test   # 358 tests
+make test   # 369 tests
 ```
 
 ## What is here
@@ -173,7 +173,7 @@ semantic/     semantic_layer.yaml, the rendered context_pack.md, prompt_template
 src/          Python orchestration; config.py holds every shared constant
 dq/           dq_rules.yaml and every result the runs produced
 llm_logs/     one audited record per LLM call: prompt, model, parameters, response
-tests/        358 tests
+tests/        369 tests
 deliverables/ the workbook, the DDR, the ZIP, defects.csv, model_explanation.md
 ```
 

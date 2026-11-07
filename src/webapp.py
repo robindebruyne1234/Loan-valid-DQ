@@ -434,7 +434,7 @@ def usage_summary(usage: dict[str, Any] | None) -> dict[str, Any]:
 
 
 def ask(role: str, question: str, provider: str | None = None,
-        model: str | None = None) -> dict[str, Any]:
+        model: str | None = None, on_event: Any = None) -> dict[str, Any]:
     """Put a question to the model and run its SQL as the chosen persona.
 
     The model writes SQL with no knowledge of who is asking, and states its
@@ -457,6 +457,11 @@ def ask(role: str, question: str, provider: str | None = None,
     :param provider: LLM provider override (the playground's model picker);
         ``None`` uses :data:`src.config.LLM_PROVIDER`.
     :param model: Model override; ``None`` uses :data:`src.config.LLM_MODEL`.
+    :param on_event: Optional observer, ``on_event(name, data)`` (the
+        playground's kitchen view). Told ``prompt``, ``llm_start``,
+        ``llm_done``, ``parse``, every event of
+        :func:`src.run_questions.verify_and_execute`, ``attempt_end`` and
+        ``done``. It watches; it cannot change an outcome.
     :returns: The prompt metadata, the generated SQL and IR, the guard verdict,
         the verification and the rows, or an explanation of which step refused;
         plus ``attempts`` (one line per model call) and the summed ``usage``.
@@ -464,6 +469,7 @@ def ask(role: str, question: str, provider: str | None = None,
     from src.run_questions import (  # noqa: PLC0415
         MAX_ATTEMPTS,
         build_prompt,
+        emit,
         parse_model_output,
         retry_prompt,
         verify_and_execute,
@@ -486,9 +492,14 @@ def ask(role: str, question: str, provider: str | None = None,
                          **spent})
 
     for attempt in range(1, MAX_ATTEMPTS + 1):
+        prompt = retry_prompt(base_prompt, feedback)
+        emit(on_event, "prompt", attempt=attempt, prompt=prompt, pack_chars=len(context_pack()),
+             feedback=feedback, role=role, question=question)
         with _ASK_LOCK:
-            response = llm_client.complete(retry_prompt(base_prompt, feedback),
-                                           provider=provider, model=model)
+            emit(on_event, "llm_start", attempt=attempt, provider=provider or config.LLM_PROVIDER,
+                 model=model or config.LLM_MODEL)
+            response = llm_client.complete(prompt, provider=provider, model=model)
+        emit(on_event, "llm_done", attempt=attempt, response=response)
         result = {
             "question": question,
             "as_role": role,
@@ -504,22 +515,27 @@ def ask(role: str, question: str, provider: str | None = None,
             result["stage"] = "llm"
             _log_web_call(stamp, role, attempt, response, result)
             note(attempt, response)
+            emit(on_event, "attempt_end", attempt=attempt, result=result, last=True,
+                 log=f"llm_logs/web/{stamp}-{role}-attempt{attempt}.json")
             break
 
         parsed, parse_error = parse_model_output(response.text or "")
+        emit(on_event, "parse", attempt=attempt, parsed=parsed, error=parse_error)
         if parsed is None:
             result["error"] = parse_error or "the model did not return the expected JSON"
             result["stage"] = "parse"
             _log_web_call(stamp, role, attempt, response, result)
             note(attempt, response)
             feedback = result["error"]
+            emit(on_event, "attempt_end", attempt=attempt, result=result, last=attempt == MAX_ATTEMPTS,
+                 log=f"llm_logs/web/{stamp}-{role}-attempt{attempt}.json")
             continue
 
         sql = str(parsed.get("sql", "")).strip()
         result["sql"] = sql
         result["ir"] = parsed.get("ir")
         result["model_explanation"] = parsed.get("reasoning") or parsed.get("explanation")
-        verdict, verification = verify_and_execute(sql, result["ir"], question, role)
+        verdict, verification = verify_and_execute(sql, result["ir"], question, role, on_event)
         result["guard"] = {
             "allowed": verdict.allowed,
             "violations": list(verdict.violations),
@@ -533,14 +549,19 @@ def ask(role: str, question: str, provider: str | None = None,
             result["row_count"] = len(rows)
             _log_web_call(stamp, role, attempt, response, result)
             note(attempt, response)
+            emit(on_event, "attempt_end", attempt=attempt, result=result, last=True,
+                 log=f"llm_logs/web/{stamp}-{role}-attempt{attempt}.json")
             break
         result["error"] = verification.reason
         _log_web_call(stamp, role, attempt, response, result)
         note(attempt, response)
         feedback = f"it was refused at the {verification.stage} check: {verification.reason}"
+        emit(on_event, "attempt_end", attempt=attempt, result=result, last=attempt == MAX_ATTEMPTS,
+             log=f"llm_logs/web/{stamp}-{role}-attempt{attempt}.json", feedback=feedback)
     result["elapsed_sec"] = round(time.time() - started, 1)
     result["attempts"] = attempts
     result["usage"] = {**total, "cost_usd": round(total["cost_usd"], 4)}
+    emit(on_event, "done", result=result)
     return result
 
 

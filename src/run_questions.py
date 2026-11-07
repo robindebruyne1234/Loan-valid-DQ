@@ -37,6 +37,7 @@ import argparse
 import csv
 import json
 import re
+from collections.abc import Callable
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -164,8 +165,32 @@ def retry_prompt(base_prompt: str, feedback: str | None) -> str:
     )
 
 
+#: An observer of the checks: ``on_event(name, data)``. Called at each stage
+#: boundary with what that stage decided; it can watch, never decide.
+EventHook = Callable[[str, dict[str, Any]], None]
+
+
+def emit(on_event: EventHook | None, name: str, **data: Any) -> None:
+    """Tell an observer what just happened, if there is one.
+
+    An observer failing is logged and ignored: watching the checks must never
+    change their outcome.
+
+    :param on_event: The observer, or ``None``.
+    :param name: The event.
+    :param data: What the stage produced.
+    :returns: ``None``.
+    """
+    if on_event is None:
+        return
+    try:
+        on_event(name, data)
+    except Exception:
+        LOGGER.exception("event observer failed on %s", name)
+
+
 def verify_and_execute(
-    sql: str, ir: Any, question: str, run_as: str
+    sql: str, ir: Any, question: str, run_as: str, on_event: EventHook | None = None,
 ) -> tuple[sql_guard.GuardVerdict, sql_ir.Verification]:
     """Guard, verify against the IR, and only then execute as ``run_as``.
 
@@ -177,21 +202,35 @@ def verify_and_execute(
     :param ir: The model's declared intent (any type; malformed is a finding).
     :param question: The question, for the years/quarters cross-check.
     :param run_as: Consumer role to authenticate as.
+    :param on_event: Optional observer (the playground's kitchen view): told
+        ``guard``, ``intent``, ``login_start``, ``login`` / ``login_failed``
+        and ``executed`` -- the last with the persona's connection, after the
+        verdict, so an observer can describe the session without being in it.
     :returns: The guard verdict and the verification; rows are on the
         verification, and only when it is ``ok``.
     """
     verdict = sql_guard.guard(sql)
+    emit(on_event, "guard", sql=sql, verdict=verdict)
     if not verdict.allowed:
         return verdict, sql_ir.Verification(
             stage="guard", findings=[f"the SQL guard rejected it: {verdict.reason}"])
     verification = sql_ir.verify_static(sql, ir, question)
+    emit(on_event, "intent", ir=ir, verification=verification)
     if not verification.ok:
         return verdict, verification
     # Both factors. The generated SQL runs on a session that had to
     # authenticate like any other consumer -- an assistant does not get a
     # standing connection that skipped the login.
-    with auth.login(run_as, demo_autocode=True) as conn:
-        return verdict, sql_ir.run_verified(conn, sql, ir, question)
+    emit(on_event, "login_start", role=run_as)
+    try:
+        with auth.login(run_as, demo_autocode=True) as conn:
+            emit(on_event, "login", role=run_as)
+            verification = sql_ir.run_verified(conn, sql, ir, question)
+            emit(on_event, "executed", role=run_as, conn=conn, verification=verification)
+            return verdict, verification
+    except auth.AuthenticationError as exc:
+        emit(on_event, "login_failed", role=run_as, error=str(exc))
+        raise
 
 
 def answer_question(

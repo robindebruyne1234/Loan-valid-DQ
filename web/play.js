@@ -147,7 +147,7 @@ function renderAnswer(r) {
   const tries = (r.attempts || []).length > 1
     ? `<p class="muted">Attempt 1 was refused (${esc(r.attempts[0].stage)}: ${esc(r.attempts[0].error)}); the reason went back to Claude, which corrected itself.</p>` : '';
 
-  let html = stageStrip(r.stage) + meta + tries;
+  let html = (r.kitchen ? '' : stageStrip(r.stage)) + meta + tries;
   if (r.stage === 'done') {
     html += card(`Answer as ${personaName(r.as_role)} — ${fmt(r.row_count)} row(s)`, table(r.rows), 'answer');
   } else {
@@ -176,14 +176,118 @@ async function ask() {
   const question = $('#q').value.trim();
   if (question.length < 3) { $('#askState').textContent = 'Type a question first.'; return; }
   $('#askBtn').disabled = true;
-  $('#askState').innerHTML = '<span class="spin"></span> Claude is thinking — usually 10–40 s…';
+  $('#askState').innerHTML = '<span class="spin"></span> Cooking — watch the kitchen below. Claude usually takes 7–30 s.';
   $('#askOut').innerHTML = '';
-  const { ok, data } = await api('/api/play/ask', { question, role: $('#role').value, model: $('#model').value });
-  $('#askBtn').disabled = false;
-  $('#askState').textContent = '';
-  if (!ok) { $('#askOut').innerHTML = card('Error', `<p class="err">${esc(data.error)} ${esc(data.detail || '')}</p>`, 'refused'); return; }
-  S.last = data;
-  renderAnswer(data);
+  S.k = { version: -1, pinned: null, selected: null, seen: new Set() };
+  $('#kitchen').hidden = false;
+  $('#kitchenBody').innerHTML = '';
+  $('#kDetail').innerHTML = '';
+  $('#kStatus').innerHTML = '<span class="spin"></span> sending the question…';
+  const { ok, data } = await api('/api/play/ask_live', { question, role: $('#role').value, model: $('#model').value });
+  if (!ok) {
+    $('#askBtn').disabled = false;
+    $('#askState').textContent = '';
+    $('#askOut').innerHTML = card('Error', `<p class="err">${esc(data.error)} ${esc(data.detail || '')}</p>`, 'refused');
+    return;
+  }
+  S.k.id = data.id;
+  renderKitchen(data);
+  clearInterval(S.kpoll);
+  S.kpoll = setInterval(async () => {
+    const res = await api(`/api/play/live/${S.k.id}`);
+    if (!res.ok) return;
+    renderKitchen(res.data);
+    if (res.data.done) {
+      clearInterval(S.kpoll);
+      $('#askBtn').disabled = false;
+      $('#askState').textContent = '';
+      if (res.data.result) {
+        S.last = res.data.result;
+        renderAnswer({ ...res.data.result, kitchen: true });
+      }
+      else $('#askOut').innerHTML = card('Error', `<p class="err">${esc(res.data.error || 'the request failed')}</p>`, 'refused');
+    }
+  }, 300);
+}
+
+/* ---------- the kitchen: what the app does, lane by lane ------------- */
+
+const LANES = [
+  ['claude', '🤖', 'Claude', 'local claude CLI · no API key'],
+  ['app', '🍳', 'The app', 'this server: prompt, reply, log'],
+  ['checks', '🛡️', 'Guard & intent', 'shape and meaning'],
+  ['db', '🗄️', 'PostgreSQL', 'login · entitlement · RLS · rows'],
+];
+const LANE_IX = Object.fromEntries(LANES.map(([id], i) => [id, i]));
+const MARK = { pass: '✓', fail: '✗', skip: '·', running: '', info: 'i' };
+
+function kitchenHead() {
+  return `<div class="k-row k-headrow"><div class="k-t"></div><div class="k-lanes">${LANES.map(([id, icon, name, what]) =>
+    `<div class="k-lane-head lane-${id}"><span class="k-icon">${icon}</span><b>${esc(name)}</b><small>${esc(what)}</small></div>`).join('')}</div></div>`;
+}
+
+function kitchenRow(s) {
+  if (s.kind === 'arrow') {
+    const a = LANE_IX[s.from], b = LANE_IX[s.to];
+    const left = (Math.min(a, b) + 0.5) * 25, width = Math.abs(b - a) * 25;
+    return `<div class="k-row k-arrowrow"><div class="k-t"></div><div class="k-lanes">`
+      + `<div class="k-arrow ${b > a ? 'ltr' : 'rtl'} ${esc(s.status)}${S.k.seen.has(s.id) ? '' : ' k-new'}" style="left:${left}%;width:${width}%"><span>${esc(s.label)}</span></div>`
+      + `<div class="k-arrow-mobile muted">${esc(LANES[a][2])} → ${esc(LANES[b][2])}: ${esc(s.label)}</div></div></div>`;
+  }
+  const lane = LANES[LANE_IX[s.lane]];
+  const chips = (s.chips || []).length
+    ? `<span class="k-chips">${s.chips_label ? `<span class="k-chips-label">${esc(s.chips_label)}</span>` : ''}${s.chips.map((c) =>
+      `<span class="k-chip ${c.ok ? 'ok' : 'bad'}">${esc(c.text)}</span>`).join('')}</span>` : '';
+  const dt = s.dt !== undefined && s.dt !== null ? `<span class="k-dt">${esc(s.dt)} s</span>` : '';
+  const mark = s.status === 'running' ? '<span class="spin"></span>' : `<span class="k-mark">${MARK[s.status] || ''}</span>`;
+  return `<div class="k-row"><div class="k-t">+${Number(s.t).toFixed(1)} s</div><div class="k-lanes">`
+    + `<button class="k-card ${esc(s.status)} lane-${esc(s.lane)}${S.k.selected === s.id ? ' sel' : ''}${S.k.seen.has(s.id) ? '' : ' k-new'}" style="grid-column:${LANE_IX[s.lane] + 1}" data-id="${esc(s.id)}">`
+    + `<span class="k-lane-tag">${lane[1]} ${esc(lane[2])}</span>`
+    + `<span class="k-title">${dt}${mark}${esc(s.title)}</span>`
+    + `${(s.lines || []).map((l) => `<span class="k-line">${esc(l)}</span>`).join('')}${chips}</button></div></div>`;
+}
+
+function kitchenDetail(s) {
+  if (!s) return '';
+  const d = s.detail || {};
+  const lane = LANES[LANE_IX[s.lane]];
+  const facts = (d.facts || []).length ? `<table class="k-facts">${d.facts.map(([k, v]) =>
+    `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join('')}</table>` : '';
+  const checks = (d.checks || []).length ? `<ul class="k-checks">${d.checks.map(([ok, t]) =>
+    `<li class="${ok ? 'ok' : 'bad'}">${ok ? '✓' : '✗'} ${esc(t)}</li>`).join('')}</ul>` : '';
+  const code = d.code ? `<p class="muted">${esc(d.code_label || '')}</p><pre class="sql">${esc(d.code)}</pre>` : '';
+  const note = d.note ? `<p class="k-note">${esc(d.note)}</p>` : '';
+  const verdict = s.status === 'pass' ? 'done' : s.status === 'fail' ? 'refused' : 'running';
+  return `<div class="card k-detail lane-${esc(s.lane)}"><h3>${lane[1]} ${esc(lane[2])} · ${esc(s.title)}`
+    + ` <span class="verdict ${verdict}">${esc(s.status)}</span></h3>${note}${checks}${facts}${code}</div>`;
+}
+
+function renderKitchen(snap) {
+  const steps = snap.steps || [];
+  const cards = steps.filter((x) => x.kind === 'step');
+  if (!S.k.pinned) S.k.selected = (cards.find((x) => x.status === 'running') || cards[cards.length - 1] || {}).id;
+  const running = cards.find((x) => x.status === 'running');
+  const failed = cards.filter((x) => x.status === 'fail').pop();
+  $('#kStatus').innerHTML = snap.done
+    ? `${failed ? `<span class="verdict refused">last refusal: ${esc(failed.title)}</span>` : '<span class="verdict done">served</span>'} `
+      + `${cards.length} steps · ${esc(snap.elapsed)} s · click any step for its detail`
+    : `<span class="spin"></span> ${esc(running ? running.title : 'working')} · ${esc(snap.elapsed)} s`;
+  if (snap.version === S.k.version) return;
+  S.k.version = snap.version;
+  $('#kitchenBody').innerHTML = kitchenHead() + steps.map(kitchenRow).join('');
+  steps.forEach((x) => S.k.seen.add(x.id)); // only steps that are new next time get the entry animation
+  $$('#kitchenBody .k-card').forEach((b) => b.addEventListener('click', () => {
+    S.k.pinned = b.dataset.id;
+    S.k.selected = b.dataset.id;
+    $$('#kitchenBody .k-card').forEach((c) => c.classList.toggle('sel', c.dataset.id === b.dataset.id));
+    $('#kDetail').innerHTML = kitchenDetail(cards.find((x) => x.id === S.k.selected));
+  }));
+  $('#kDetail').innerHTML = kitchenDetail(cards.find((x) => x.id === S.k.selected));
+  // While it cooks, keep the newest step in view -- unless you clicked one to read it.
+  if (!snap.done && !S.k.pinned) {
+    const latest = $(`#kitchenBody .k-card[data-id="${CSS.escape(S.k.selected || '')}"]`);
+    if (latest) latest.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
 }
 
 async function runEveryone(sql, ir, question, target, btn) {

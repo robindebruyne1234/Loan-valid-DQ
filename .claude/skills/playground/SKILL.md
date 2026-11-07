@@ -27,7 +27,11 @@ scripts/play.sh --background        # DB up -> build if needed -> serve on 127.0
 ## 2. Show it to the user
 
 The page is **http://localhost:8080/play** (four tabs: Ask Claude, Test the
-questions, Guard lab, What Claude sees). In a Claude Code cloud session, report
+questions, Guard lab, What Claude sees). On the Ask tab, *Inside the kitchen*
+draws each request live on four lanes (Claude, the app, guard & intent,
+PostgreSQL): the login and identity, the entitlement, which ai views Claude
+chose and the core tables and RLS policies behind them, and every check that
+allowed or refused it. In a Claude Code cloud session, report
 the port to the app (the `report_preview_port` tool, port 8080) so the user can
 open the preview; on a desktop, give them the URL or run `make play-open`.
 
@@ -40,6 +44,7 @@ python -m src.playground health                      # DB, models, pack size
 python -m src.playground personas                    # who you can be
 python -m src.playground ask "Which 5 districts have the most clients?" --as rm_north
 python -m src.playground ask "What share of loans are problematic?" --as rm_north --everyone
+python -m src.playground ask "What share of loans are problematic?" --as rm_north --trace   # the kitchen
 python -m src.playground ask "..." --model haiku     # sonnet (default) | opus | haiku | api | ollama
 python -m src.playground ten --ids Q3,Q9             # live, scored against the reference
 python -m src.playground ten                         # all ten (about USD 0.70, a few minutes)

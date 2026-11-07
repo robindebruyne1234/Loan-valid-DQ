@@ -10,6 +10,8 @@ question ─► semantic layer ─► Claude ─► JSON {sql, ir} ─► guard 
 
 ![The playground: a question asked as rm_north, every layer passed, then the same SQL run as every persona](img/playground.png)
 
+![Inside the kitchen: the same question, lane by lane](img/kitchen.png)
+
 Nothing in it is a second implementation. Questions go through
 `src.webapp.ask` / `src.run_questions.answer_question`, SQL through
 `src.run_questions.verify_and_execute` and `src.sql_guard.execute_guarded`,
@@ -43,6 +45,36 @@ work; set `LLM_PROVIDER=anthropic_api` with `LLM_API_KEY` to use the API instead
 | **Guard lab** | Type SQL or pick a preset (writes, two statements, other schemas, a disguised CTE, server settings, no LIMIT) | The guard's verdict and rewrite; run it as one persona or as every persona. |
 | **What Claude sees** | -- | The rendered semantic layer (`semantic/context_pack.md`): the model's whole world. |
 
+## Inside the kitchen: what the app does with each question
+
+Under the question box, **Inside the kitchen** draws the request live, as it
+happens, on four lanes -- one per part of the system:
+
+| Lane | Who | Steps you watch |
+|---|---|---|
+| 🤖 **Claude** | the local `claude` CLI, no API key | *Claude writes SQL + intent*: model, seconds, tokens, cost, and the sandbox (no tools, no skills, no MCP, cwd outside the repo) |
+| 🍳 **The app** | this server | *Question received* (persona, model) · *Prompt assembled* (semantic layer + question; who you are and any data are **not** in it) · *Reply read* (sql + ir) · *Answer shown* / *Refused* and the audit log file |
+| 🛡️ **Guard & intent** | `src/sql_guard.py`, `src/sql_ir.py` | *Guard: is it safe to run?* -- one statement, read-only SELECT, **which views Claude chose** and whether each is in the `ai` schema, forbidden functions, the row cap · *Intent: does it compute what Claude says?* -- each D029 check, passed or failed |
+| 🗄️ **PostgreSQL** | roles, `sec`, RLS | *Who is asking? Two-factor login* -- `session_user`, password checked by PostgreSQL, one-time code checked by `sec.verify_second_factor()` · *What may Eva see?* -- principal type, books, entitled clients and accounts (`ai.my_entitlement`) · *Views → tables → row-level security* -- each chosen `ai` view, the `core` tables behind it and the policies that filter them (`entitled_loans` on `core.fact_loan` ...) · *Plan (EXPLAIN)* · *Execute under RLS* -- rows returned and e.g. "ai.loan: 179 of 682 rows visible" · *Recompute the metric independently* |
+
+Arrows are the hand-overs (prompt → Claude, JSON reply, SQL + intent, log in
+as rm_north, rows back); a dashed amber arrow is a refusal sent back for the
+one retry. A refused statement ends in *PostgreSQL never sees it*: no session
+is opened. Click any step for everything it checked -- the full check list,
+the facts, the SQL as written, as rewritten and as recomputed. The same trace
+prints in a terminal with `python -m src.playground ask "..." --as rm_north --trace`.
+
+**It watches; it never decides** (D031). `webapp.ask` and
+`run_questions.verify_and_execute` call an optional observer at each stage
+boundary with what that stage decided; an observer that fails is logged and
+ignored. The extra descriptions are read-only: the tables a statement names
+come from the same sqlglot parse as the guard, the views → tables → policies
+mapping from the catalog (as the owner, constant SQL), and the session facts
+and visible-row counts from the persona's own connection, in their own
+`BEGIN READ ONLY` transaction, after the verdict. `tests/test_kitchen.py`
+checks every lane on a served, a guard-refused and an intent-refused question,
+and that a broken observer changes nothing.
+
 ## The same from a terminal (or from Claude Code's chat)
 
 ```bash
@@ -50,6 +82,7 @@ python -m src.playground health
 python -m src.playground personas
 python -m src.playground ask "Which 5 districts have the most clients?" --as rm_north
 python -m src.playground ask "What share of loans are problematic?" --as rm_north --everyone
+python -m src.playground ask "What share of loans are problematic?" --as rm_north --trace   # the kitchen, as text
 python -m src.playground ask "..." --model haiku          # sonnet (default) | opus | haiku | api | ollama
 python -m src.playground ten --ids Q3,Q9                  # live, scored
 python -m src.playground ten --suite extra                # E1-E4

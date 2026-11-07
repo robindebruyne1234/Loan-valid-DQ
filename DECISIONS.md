@@ -979,3 +979,37 @@ flag, the flag is refused off loopback, the allowlists hold, the guard and RLS
 behave through the playground's routes, no model means no answer, and the CLI
 flags are feature-detected. First sessions' findings are in docs/PLAYGROUND.md
 (empty-book division by zero, the retry answering sideways, LOW-1 shown live).
+
+## D031 - The kitchen view observes the real path; it never decides
+
+**Context.** The playground showed the answer and a pass/fail strip, but not
+the mechanism: who the database thinks is asking, which views the model chose,
+which tables and policies sit behind them, and why a statement was allowed.
+That is exactly what a reviewer wants to watch.
+
+**Options.** (a) Re-run the checks a second time inside the playground to
+describe them. (b) Reconstruct the story from the call log afterwards.
+(c) Let the real code path report each stage to an optional observer.
+
+**Choice.** (c): `webapp.ask` and `run_questions.verify_and_execute` take an
+optional `on_event` and report `prompt`, `llm_start`, `llm_done`, `parse`,
+`guard`, `intent`, `login_start`, `login`, `executed`, `attempt_end` and
+`done` with what each stage decided. `src/kitchen.py` turns them into steps on
+four lanes, polled live by the page (`/api/play/ask_live`, `/api/play/live/<id>`).
+
+**Reason.** (a) is a second implementation that could disagree with the first;
+(b) cannot be live. With (c) the verdict shown is the verdict reached.
+
+**Cost.** Two security-relevant functions gained a parameter. Guarded: `emit`
+swallows and logs any observer exception, so observing cannot change or break
+an outcome (tested with an observer that always raises); the observer's own
+reads are read-only -- catalog queries as the owner with constant SQL, and the
+persona's session facts and visible-row counts in a separate `BEGIN READ ONLY`
+transaction on the persona's connection, only after the verdict. With no
+observer, behaviour is unchanged.
+
+**Consequence.** `tests/test_kitchen.py`: every lane on a served question
+(identity, 1,481 entitled clients for rm_north, `entitled_loans` on
+`core.fact_loan`, "179 of 682 rows visible"), a guard refusal that opens no
+session, an intent refusal, the live endpoint, and catalog reads limited to
+real `ai` views.

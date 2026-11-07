@@ -53,6 +53,7 @@ from functools import lru_cache
 from typing import Any
 
 from src import auth, config, db, evaluate, run_questions, sql_guard, webapp
+from src.kitchen import LANES, Kitchen
 
 LOGGER = db.setup_logging("playground")
 
@@ -237,19 +238,80 @@ def _text(value: Any, limit: int, what: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def ask(question: str, role: str = "cro_global", model: str = DEFAULT_MODEL) -> dict[str, Any]:
+def _kitchen(question: Any, role: Any, model: Any) -> tuple[Kitchen, str, str, dict[str, str]]:
+    question = _text(question, MAX_QUESTION, "question")
+    spec = _model(model)
+    role = _persona(role)
+    persona = next(p for p in PERSONAS if p["role"] == role)
+    return Kitchen(question, persona, spec["model"]), question, role, spec
+
+
+def ask(question: str, role: str = "cro_global", model: str = DEFAULT_MODEL,
+        kitchen: Kitchen | None = None) -> dict[str, Any]:
     """Ask the model one question as one persona, with the full trace.
 
     :param question: Free text.
     :param role: A persona from :data:`PERSONAS`.
     :param model: A key of :data:`MODELS`.
-    :returns: :func:`src.webapp.ask`'s result, plus the model key.
+    :param kitchen: The kitchen to cook in (the live page passes one it polls).
+    :returns: :func:`src.webapp.ask`'s result, plus the model key and the
+        ``kitchen`` steps: what the app did, lane by lane.
     """
-    question = _text(question, MAX_QUESTION, "question")
-    spec = _model(model)
-    result = webapp.ask(_persona(role), question, provider=spec["provider"], model=spec["model"])
-    result["model_key"] = model or DEFAULT_MODEL
+    made, question, role, spec = _kitchen(question, role, model)
+    kitchen = kitchen or made
+    try:
+        result = webapp.ask(role, question, provider=spec["provider"], model=spec["model"], on_event=kitchen)
+        result["model_key"] = model or DEFAULT_MODEL
+        kitchen.result = result
+    except Exception as exc:
+        kitchen.error = f"{type(exc).__name__}: {str(exc)[:300]}"
+        raise
+    finally:
+        kitchen.done = True
+    result["kitchen"] = kitchen.snapshot()["steps"]
     return result
+
+
+#: Kitchens being cooked or recently cooked, by id; the page polls them.
+_KITCHENS: dict[str, Kitchen] = {}
+_KITCHEN_LOCK = threading.Lock()
+KEEP_KITCHENS = 25
+
+
+def start_ask(question: Any, role: Any = "cro_global", model: Any = DEFAULT_MODEL) -> dict[str, Any]:
+    """Ask in the background and return at once, so the page can watch it cook.
+
+    :param question: Free text.
+    :param role: A persona from :data:`PERSONAS`.
+    :param model: A key of :data:`MODELS`.
+    :returns: The first snapshot (its ``id`` is what to poll).
+    """
+    kitchen, question, role, _spec = _kitchen(question, role, model)
+
+    def cook() -> None:
+        try:
+            ask(question, role, model, kitchen)
+        except Exception:
+            LOGGER.exception("live ask failed")
+
+    with _KITCHEN_LOCK:
+        _KITCHENS[kitchen.id] = kitchen
+        for old in list(_KITCHENS)[:-KEEP_KITCHENS]:
+            del _KITCHENS[old]
+    threading.Thread(target=cook, daemon=True).start()
+    return kitchen.snapshot()
+
+
+def kitchen_state(kitchen_id: str) -> dict[str, Any]:
+    """Where a live question has got to.
+
+    :param kitchen_id: As returned by :func:`start_ask`.
+    :returns: The kitchen's snapshot.
+    """
+    kitchen = _KITCHENS.get(kitchen_id)
+    if kitchen is None:
+        raise PlaygroundError(f"no live question {kitchen_id!r}")
+    return kitchen.snapshot()
 
 
 def _rows(rows: list[dict[str, Any]] | None, limit: int = 20) -> list[dict[str, Any]]:
@@ -487,9 +549,13 @@ def handle(method: str, path: str, body: dict[str, Any]) -> tuple[int, dict[str,
                 return 200, {"chars": len(text), "text": text}
             if path.startswith("/api/play/job/"):
                 return 200, job_summary(path.rsplit("/", 1)[-1])
+            if path.startswith("/api/play/live/"):
+                return 200, kitchen_state(path.rsplit("/", 1)[-1])
         if method == "POST":
             if path == "/api/play/ask":
                 return 200, ask(body.get("question"), body.get("role") or "cro_global", body.get("model"))
+            if path == "/api/play/ask_live":
+                return 200, start_ask(body.get("question"), body.get("role") or "cro_global", body.get("model"))
             if path == "/api/play/everyone":
                 return 200, everyone(body.get("sql"), body.get("ir"), str(body.get("question") or ""))
             if path == "/api/play/guard":
@@ -511,6 +577,32 @@ def handle(method: str, path: str, body: dict[str, Any]) -> tuple[int, dict[str,
 # ---------------------------------------------------------------------------
 # Terminal use
 # ---------------------------------------------------------------------------
+
+
+_MARK = {"pass": "✓", "fail": "✗", "skip": "·", "running": "…", "info": "i"}
+
+
+def print_kitchen(steps: list[dict[str, Any]]) -> None:
+    """The kitchen as text: one block per step, lanes as columns of indent.
+
+    :param steps: :meth:`src.kitchen.Kitchen.snapshot` steps.
+    :returns: ``None``.
+    """
+    lane_name = {"claude": "CLAUDE", "app": "APP", "checks": "CHECKS", "db": "POSTGRES"}
+    print("\nINSIDE THE KITCHEN")
+    for s in steps:
+        if s["kind"] == "arrow":
+            src, dst = LANES.index(s["from"]), LANES.index(s["to"])
+            pair = (f"{lane_name[s['from']]} ──▶ {lane_name[s['to']]}" if dst > src
+                    else f"{lane_name[s['to']]} ◀── {lane_name[s['from']]}")
+            print(f"  {'':>7}   {pair}: {s['label']}")
+            continue
+        dt = f" ({s['dt']} s)" if s.get("dt") is not None else ""
+        print(f"  {s['t']:>6.2f}s {_MARK.get(s['status'], '?')} [{lane_name[s['lane']]}] {s['title']}{dt}")
+        for line in s.get("lines", []):
+            print(f"  {'':>7}     {line}")
+        for ok, text in (s.get("detail") or {}).get("checks", []):
+            print(f"  {'':>7}       {'✓' if ok else '✗'} {text}")
 
 
 def _print_ask(result: dict[str, Any]) -> None:
@@ -548,6 +640,8 @@ def main(argv: list[str] | None = None) -> int:
     p_ask.add_argument("--model", default=DEFAULT_MODEL, choices=sorted(MODELS))
     p_ask.add_argument("--everyone", action="store_true", help="then run Claude's SQL as every persona")
     p_ask.add_argument("--json", action="store_true", help="print the full result as JSON")
+    p_ask.add_argument("--trace", action="store_true",
+                       help="print the kitchen: what the app did, step by step, lane by lane")
     p_ten = sub.add_parser("ten", help="ask a suite live and score it against the reference answers")
     p_ten.add_argument("--suite", default="core", choices=sorted(config.SUITES))
     p_ten.add_argument("--ids", help="comma-separated subset, e.g. Q3,Q9")
@@ -570,6 +664,8 @@ def main(argv: list[str] | None = None) -> int:
             if args.json:
                 print(json.dumps(result, indent=2, default=str))
             else:
+                if args.trace:
+                    print_kitchen(result["kitchen"])
                 _print_ask(result)
             if args.everyone and result.get("sql"):
                 runs = everyone(result["sql"], result.get("ir"), args.question)
