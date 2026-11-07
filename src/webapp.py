@@ -69,6 +69,9 @@ PERSONAS: tuple[dict[str, str], ...] = (
 )
 PERSONA_ROLES = {p["role"] for p in PERSONAS}
 
+#: Addresses the playground may be served on: this machine only.
+LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+
 #: How long a browser session may hold a logged-in persona before it must log
 #: in again. Shorter than the database session so the page never holds a
 #: handle to something the database has already forgotten.
@@ -414,7 +417,24 @@ _WEB_STAGE = {"ir": "ir", "columns": "sql", "consistency": "sql", "guard": "guar
               "verified": "done"}
 
 
-def ask(role: str, question: str) -> dict[str, Any]:
+def usage_summary(usage: dict[str, Any] | None) -> dict[str, Any]:
+    """Cost and token counts of one call, whatever the provider reported.
+
+    :param usage: :attr:`src.llm_client.LLMResponse.usage`.
+    :returns: ``cost_usd``, ``input_tokens`` (all input, cached or not) and
+        ``output_tokens``; zeros when the provider reported nothing.
+    """
+    usage = usage or {}
+    inner = usage.get("usage") or {}
+    tokens_in = sum(int(inner.get(k) or 0) for k in (
+        "input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens"))
+    return {"cost_usd": float(usage.get("total_cost_usd") or 0.0),
+            "input_tokens": tokens_in or int(usage.get("input_tokens") or 0),
+            "output_tokens": int(inner.get("output_tokens") or usage.get("output_tokens") or 0)}
+
+
+def ask(role: str, question: str, provider: str | None = None,
+        model: str | None = None) -> dict[str, Any]:
     """Put a question to the model and run its SQL as the chosen persona.
 
     The model writes SQL with no knowledge of who is asking, and states its
@@ -431,10 +451,15 @@ def ask(role: str, question: str) -> dict[str, Any]:
     (:func:`src.run_questions.verify_and_execute`), with the same single retry
     carrying the reason for a refusal.
 
-    :param role: A validated role from :data:`PERSONA_ROLES`.
+    :param role: A validated consumer role (the walkthrough passes one from
+        :data:`PERSONA_ROLES`, the playground one from its own allowlist).
     :param question: The visitor's question, in English.
+    :param provider: LLM provider override (the playground's model picker);
+        ``None`` uses :data:`src.config.LLM_PROVIDER`.
+    :param model: Model override; ``None`` uses :data:`src.config.LLM_MODEL`.
     :returns: The prompt metadata, the generated SQL and IR, the guard verdict,
-        the verification and the rows, or an explanation of which step refused.
+        the verification and the rows, or an explanation of which step refused;
+        plus ``attempts`` (one line per model call) and the summed ``usage``.
     """
     from src.run_questions import (  # noqa: PLC0415
         MAX_ATTEMPTS,
@@ -449,9 +474,21 @@ def ask(role: str, question: str) -> dict[str, Any]:
     stamp = time.strftime("%Y%m%dT%H%M%S", time.gmtime())
     feedback: str | None = None
     result: dict[str, Any] = {}
+    attempts: list[dict[str, Any]] = []
+    total = {"cost_usd": 0.0, "input_tokens": 0, "output_tokens": 0}
+
+    def note(attempt_no: int, response: Any) -> None:
+        spent = usage_summary(response.usage)
+        for key in total:
+            total[key] += spent[key]
+        attempts.append({"attempt": attempt_no, "stage": result.get("stage"),
+                         "error": result.get("error"), "seconds": round(response.duration_sec, 1),
+                         **spent})
+
     for attempt in range(1, MAX_ATTEMPTS + 1):
         with _ASK_LOCK:
-            response = llm_client.complete(retry_prompt(base_prompt, feedback))
+            response = llm_client.complete(retry_prompt(base_prompt, feedback),
+                                           provider=provider, model=model)
         result = {
             "question": question,
             "as_role": role,
@@ -466,6 +503,7 @@ def ask(role: str, question: str) -> dict[str, Any]:
             result["error"] = response.error or config.NOT_EXECUTED
             result["stage"] = "llm"
             _log_web_call(stamp, role, attempt, response, result)
+            note(attempt, response)
             break
 
         parsed, parse_error = parse_model_output(response.text or "")
@@ -473,6 +511,7 @@ def ask(role: str, question: str) -> dict[str, Any]:
             result["error"] = parse_error or "the model did not return the expected JSON"
             result["stage"] = "parse"
             _log_web_call(stamp, role, attempt, response, result)
+            note(attempt, response)
             feedback = result["error"]
             continue
 
@@ -493,11 +532,15 @@ def ask(role: str, question: str) -> dict[str, Any]:
             result["rows"] = [{k: _jsonable(v) for k, v in row.items()} for row in rows[:50]]
             result["row_count"] = len(rows)
             _log_web_call(stamp, role, attempt, response, result)
+            note(attempt, response)
             break
         result["error"] = verification.reason
         _log_web_call(stamp, role, attempt, response, result)
+        note(attempt, response)
         feedback = f"it was refused at the {verification.stage} check: {verification.reason}"
     result["elapsed_sec"] = round(time.time() - started, 1)
+    result["attempts"] = attempts
+    result["usage"] = {**total, "cost_usd": round(total["cost_usd"], 4)}
     return result
 
 
@@ -653,6 +696,8 @@ class Handler(BaseHTTPRequestHandler):
         :returns: ``None``.
         """
         path = urlparse(self.path).path
+        if path.startswith("/api/play/"):
+            return self._play("GET", path, {})
         if path.startswith("/api/"):
             return self._api_get(path)
         return self._static(path)
@@ -723,6 +768,8 @@ class Handler(BaseHTTPRequestHandler):
         """
         path = urlparse(self.path).path
         body = self._body()
+        if path.startswith("/api/play/"):
+            return self._play("POST", path, body)
         try:
             if path == "/api/peek":
                 role = self._persona(body)
@@ -787,12 +834,39 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(500, {"error": type(exc).__name__, "detail": str(exc)[:300]})
         return self._json(404, {"error": "not found"})
 
+    def _play(self, method: str, path: str, body: dict[str, Any]) -> None:
+        """Serve the playground's API, only on a server started with ``--playground``.
+
+        The playground lets a request pick any persona and send its own SQL
+        to the guard, so a public server must not have it at all: without the
+        flag every ``/api/play/`` path is a plain 404, indistinguishable from
+        a route that does not exist. :func:`main` only sets the flag on a
+        loopback address.
+
+        :param method: ``GET`` or ``POST``.
+        :param path: The request path.
+        :param body: The parsed JSON body.
+        :returns: ``None``.
+        """
+        if not getattr(self.server, "playground", False):
+            return self._json(404, {"error": "not found"})
+        from src import playground  # noqa: PLC0415 - only loaded where it is enabled
+
+        try:
+            status, payload = playground.handle(method, path, body)
+        except Exception as exc:  # noqa: BLE001 - a workbench should say what broke
+            LOGGER.exception("%s %s failed", method, path)
+            status, payload = 500, {"error": type(exc).__name__, "detail": str(exc)[:300]}
+        return self._json(status, payload)
+
     def _static(self, path: str) -> None:
         """Serve a file from ``web/``, and nothing outside it.
 
         :param path: The request path.
         :returns: ``None``.
         """
+        if path in ("/play", "/play/"):
+            path = "/play.html"
         relative = "index.html" if path in ("/", "") else path.lstrip("/")
         target = (WEB_DIR / relative).resolve()
         if not str(target).startswith(str(WEB_DIR.resolve())) or not target.is_file():
@@ -840,7 +914,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--port", type=int, default=8080)
     parser.add_argument("--open", action="store_true",
                         help="open the page in a browser once the server is up")
+    parser.add_argument("--playground", action="store_true",
+                        help="also serve the playground on /play (loopback addresses only)")
     args = parser.parse_args(argv)
+    if args.playground and args.host not in LOOPBACK_HOSTS:
+        LOGGER.error("--playground lets any visitor pick a persona and send SQL to the guard; "
+                     "it is only served on a loopback address (%s), not on %s",
+                     ", ".join(sorted(LOOPBACK_HOSTS)), args.host)
+        return 2
 
     health = Handler._health(Handler)  # type: ignore[arg-type]
     if not health.get("database"):
@@ -856,8 +937,12 @@ def main(argv: list[str] | None = None) -> int:
         LOGGER.info("llm -> %s / %s", config.LLM_PROVIDER, config.LLM_MODEL)
 
     server = ThreadingHTTPServer((args.host, args.port), Handler)
-    url = f"http://{'localhost' if args.host in ('127.0.0.1', '0.0.0.0') else args.host}:{args.port}"
+    server.playground = args.playground  # type: ignore[attr-defined]
+    url = f"http://{'localhost' if args.host in ('127.0.0.1', '0.0.0.0', '::1') else args.host}:{args.port}"
     LOGGER.info("serving the walkthrough on %s", url)
+    if args.playground:
+        url = f"{url}/play"
+        LOGGER.info("serving the playground on %s", url)
     if args.open:
         threading.Timer(1.0, open_browser, args=(url,)).start()
     try:

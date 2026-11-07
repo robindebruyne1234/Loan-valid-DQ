@@ -10,7 +10,8 @@
   Usage (from the repository root):
     powershell -ExecutionPolicy Bypass -File scripts\windows.ps1 <target>
 
-  Targets: setup, init-db, check, build, test, web, web-open, demo, demo-login,
+  Targets: setup, init-db, check, build, test, web, web-open, play, play-open,
+           play-check, play-test, demo, demo-login,
            demo-interactive, ingest, profile, dq, model, ledger, reference,
            semantic, entitlements, questions, evaluate, extra, workbook, ddr, zip,
            deliverables, status, simulate, simulate-faults, all, clean, help
@@ -130,6 +131,15 @@ function Invoke-Target([string]$name) {
         "demo-interactive" { Invoke-Py -m src.demo_console --interactive }
         "web"              { Invoke-Py -m src.webapp --host $WebHost --port $WebPort }
         "web-open"         { Invoke-Py -m src.webapp --host $WebHost --port $WebPort --open }
+        # The localhost Claude playground (http://localhost:8080/play); loopback only by design.
+        "play"             { Invoke-Py -m src.webapp --playground --host 127.0.0.1 --port $WebPort }
+        "play-open"        { Invoke-Py -m src.webapp --playground --host 127.0.0.1 --port $WebPort --open }
+        "play-check"       {
+            Invoke-Py -m src.playground health
+            Invoke-Py -m src.playground guard "SELECT count(*) AS clients FROM ai.client" --everyone
+            Invoke-Py -m src.playground ten --ids Q3
+        }
+        "play-test"        { Invoke-Py -m src.playground ten }
         "reference"        { Invoke-Py -m src.run_reference }
         "semantic"         { Invoke-Py -m src.semantic_context --write }
         "entitlements"     { Invoke-Py -m src.build_security }

@@ -6,7 +6,7 @@ product that an AI assistant can query correctly. Take-home submission.
 ```
 make up     # PostgreSQL 16 (docker compose if a daemon is available, else a native cluster)
 make all    # the whole pipeline and every deliverable, 4m28s from an empty database
-make test   # 114 tests
+make test   # 358 tests
 ```
 
 ## What is here
@@ -44,6 +44,18 @@ may read it, a two-step login, and finally a real question put to a real
 model and answered under the real entitlement filter — with the design choice
 and the assumption behind every step given as much room as the data.
 `docs/DEPLOYMENT.md` puts it on an Oracle Always Free box at a DuckDNS name.
+
+**Start here if you want to play with it yourself, against a live Claude model:**
+```
+make play            # or scripts/play.sh; opens nothing, serves http://localhost:8080/play
+```
+**[`docs/PLAYGROUND.md`](docs/PLAYGROUND.md)** -- a localhost workbench over
+the real pipeline: ask Claude anything as any of eight personas and watch every
+layer react (intent, SQL, guard, meaning check, rows under row level security,
+cost); run the same SQL as every persona; ask the ten questions live and score
+them against the reference; try SQL and prompt attacks in the guard lab. In
+Claude Code, type `/playground` and Claude starts it and can drive it from the
+chat (`python -m src.playground ask ... --as rm_north`). Localhost only, by design.
 
 **Start here if you want to see the privacy work in front of an audience:**
 **[`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)** -- a fifteen-minute
@@ -161,7 +173,7 @@ semantic/     semantic_layer.yaml, the rendered context_pack.md, prompt_template
 src/          Python orchestration; config.py holds every shared constant
 dq/           dq_rules.yaml and every result the runs produced
 llm_logs/     one audited record per LLM call: prompt, model, parameters, response
-tests/        114 tests
+tests/        358 tests
 deliverables/ the workbook, the DDR, the ZIP, defects.csv, model_explanation.md
 ```
 

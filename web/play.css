@@ -1,0 +1,75 @@
+/* The playground's additions to style.css. Same tokens, same rules: self-hosted, no CDN. */
+
+.pill.link { text-decoration: none; color: var(--navy); }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 4px; border-bottom: 1px solid var(--line); }
+.tabs button {
+  background: transparent; color: var(--grey); border: 0; border-bottom: 3px solid transparent;
+  border-radius: 0; padding: 9px 12px; font-weight: 600;
+}
+.tabs button[aria-selected="true"] { color: var(--navy); border-bottom-color: var(--navy); }
+
+.lbl { display: block; font-weight: 600; font-size: 14px; color: var(--navy); margin-bottom: 6px; }
+textarea, select {
+  font: inherit; padding: 9px 11px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--card); color: var(--ink); width: 100%;
+}
+select { width: auto; max-width: 100%; padding: 7px 9px; font-size: 14px; }
+textarea.mono, textarea#sql { font-family: var(--mono); font-size: 13.5px; }
+.ctl { margin-top: 10px; }
+.ctl label { font-size: 14px; color: var(--grey); display: flex; gap: 6px; align-items: center; }
+.top0 { margin-top: 0; }
+
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; align-items: center; }
+.chips .grp { font-size: 12px; color: var(--grey); text-transform: uppercase; letter-spacing: .05em; margin-right: 2px; }
+.chip {
+  background: var(--card); color: var(--navy); border: 1px solid var(--line);
+  font-size: 13px; padding: 5px 10px; border-radius: 999px; text-align: left;
+}
+.chip.attack { color: var(--red); border-color: var(--red); background: var(--red-bg); }
+.chip:hover { border-color: var(--navy); }
+
+/* the stage strip: one box per layer, coloured by what happened there */
+.stages { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 12px; }
+.stage {
+  flex: 1 1 96px; font-size: 12px; line-height: 1.25; padding: 7px 8px; border-radius: 7px;
+  border: 1px solid var(--line); color: var(--grey); background: var(--pale);
+}
+.stage b { display: block; font-size: 12.5px; }
+.stage.pass { border-color: var(--green); color: var(--green); background: var(--green-bg); }
+.stage.fail { border-color: var(--red); color: var(--red); background: var(--red-bg); }
+.stage.skip { opacity: .55; }
+
+.meta { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.meta span { font-size: 12.5px; padding: 3px 9px; border: 1px solid var(--line); border-radius: 999px; color: var(--grey); }
+.meta b { color: var(--ink); font-weight: 600; }
+
+.refused { border-left: 4px solid var(--red); background: var(--red-bg); }
+.refused h3 { color: var(--red) !important; }
+.answer { border-left: 4px solid var(--green); }
+details { margin-top: 10px; }
+details summary { cursor: pointer; color: var(--navy); font-size: 13.5px; }
+pre.sql { white-space: pre-wrap; word-break: break-word; }
+pre.pack { max-height: 70vh; overflow: auto; white-space: pre-wrap; }
+
+.verdict { font-family: var(--mono); font-size: 12px; padding: 2px 7px; border-radius: 4px; border: 1px solid var(--line); white-space: nowrap; }
+.verdict.match, .verdict.allowed, .verdict.done { color: var(--green); border-color: var(--green); background: var(--green-bg); }
+.verdict.partial { color: var(--amber); border-color: var(--amber); background: var(--amber-bg); }
+.verdict.mismatch, .verdict.error, .verdict.not_executed, .verdict.refused { color: var(--red); border-color: var(--red); background: var(--red-bg); }
+.verdict.running { color: var(--navy); border-color: var(--navy); }
+
+table.tests td { vertical-align: middle; }
+table.tests tr.open td { background: var(--pale); }
+td.num, th.num { text-align: right; white-space: nowrap; }
+.preset { display: grid; grid-template-columns: minmax(150px, 220px) 1fr; gap: 10px; align-items: baseline;
+  padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.preset:last-child { border-bottom: 0; }
+.preset .muted { font-size: 12.5px; }
+.banner { padding: 10px 14px; border-radius: 8px; margin: 14px 0 0; border: 1px solid var(--amber); background: var(--amber-bg); color: var(--ink); font-size: 14px; }
+.banner.bad { border-color: var(--red); background: var(--red-bg); }
+@media (max-width: 760px) { .preset { grid-template-columns: 1fr; } }
+
+/* the test table keeps its columns when a row opens to show SQL and rows */
+table.tests { table-layout: fixed; }
+table.tests col.c-q { width: 48px; } table.tests col.c-v { width: 112px; }
+table.tests col.c-n { width: 62px; } table.tests col.c-usd { width: 72px; } table.tests col.c-run { width: 66px; }
+.grid2 > * { min-width: 0; }

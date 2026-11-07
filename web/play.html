@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Playground</title>
+<meta name="description" content="Ask a live Claude model questions about the Berka data product as any persona, test the ten questions against the reference answers, and try SQL against the guard.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>🤖</text></svg>">
+<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/play.css">
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <div class="brand">Claude Playground
+      <small>The governed data product, on your machine — localhost only</small></div>
+    <a class="pill link" href="/">Walkthrough</a>
+    <span class="pill" id="health">checking…</span>
+    <span class="pill" id="cli">model…</span>
+    <button class="ghost small" id="theme" title="Switch theme">◐</button>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="banner"></div>
+  <h1>Play with your code base and a live Claude model</h1>
+  <p class="lede">Everything here runs the real pipeline. Claude sees only the semantic layer;
+    the guard checks the <b>shape</b> of its SQL, the intent check (D029) checks the <b>meaning</b>,
+    and row level security decides the <b>rows</b> — for whichever persona you pick.</p>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="ask" aria-selected="true">Ask Claude</button>
+    <button role="tab" data-tab="test">Test the questions</button>
+    <button role="tab" data-tab="guard">Guard lab</button>
+    <button role="tab" data-tab="pack">What Claude sees</button>
+  </nav>
+
+  <!-- ask -->
+  <section class="tab" id="tab-ask">
+    <div class="card">
+      <label class="lbl" for="q">Your question</label>
+      <textarea id="q" rows="3" maxlength="500" placeholder="e.g. Which 5 districts have the most clients?"></textarea>
+      <div class="row ctl">
+        <label>as <select id="role"></select></label>
+        <label>model <select id="model" class="modelsel"></select></label>
+        <button id="askBtn">Ask Claude</button>
+        <span id="askState" class="muted"></span>
+      </div>
+      <div id="examples"></div>
+    </div>
+    <div id="askOut"></div>
+  </section>
+
+  <!-- test -->
+  <section class="tab" id="tab-test" hidden>
+    <div class="card">
+      <p class="muted top0">Each question is asked live, executed as <code>cro_global</code> (every client),
+        and scored against the hand-written reference SQL by value — exactly like
+        <code>make questions evaluate</code>. One run at a time; a full run of ten takes a few minutes.</p>
+      <div class="row ctl">
+        <label>suite <select id="suite"><option value="core">The brief's ten (Q1–Q10)</option>
+          <option value="extra">Extra questions (E1–E4)</option></select></label>
+        <label>model <select id="tmodel" class="modelsel"></select></label>
+        <button id="runAll">Run all</button>
+        <span id="testState" class="muted"></span>
+      </div>
+      <div class="stats" id="tally"></div>
+    </div>
+    <div id="testTable"></div>
+  </section>
+
+  <!-- guard -->
+  <section class="tab" id="tab-guard" hidden>
+    <div class="card">
+      <label class="lbl" for="sql">Your SQL — it goes through the same guard as Claude's</label>
+      <textarea id="sql" rows="4" class="mono" maxlength="4000" spellcheck="false">SELECT count(*) AS clients FROM ai.client</textarea>
+      <div class="row ctl">
+        <button id="gCheck" class="ghost">Check only</button>
+        <label>run as <select id="grole"></select></label>
+        <button id="gRun">Check and run</button>
+        <button id="gAll">Run as every persona</button>
+        <span id="gState" class="muted"></span>
+      </div>
+      <div id="presets"></div>
+    </div>
+    <div id="guardOut"></div>
+  </section>
+
+  <!-- pack -->
+  <section class="tab" id="tab-pack" hidden>
+    <div class="card">
+      <p class="muted top0">This is the model's whole world: the rendered semantic layer
+        (<code>semantic/context_pack.md</code>, built from <code>semantic_layer.yaml</code>).
+        No data, no tools, no files — the question is appended below it.</p>
+      <div id="packMeta" class="muted"></div>
+    </div>
+    <pre id="pack" class="pack">Loading…</pre>
+  </section>
+</main>
+
+<script src="/play.js"></script>
+</body>
+</html>

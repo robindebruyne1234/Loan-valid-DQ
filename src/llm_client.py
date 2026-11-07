@@ -25,6 +25,7 @@ and the cost. That file is the evidence behind the Questions tab.
 
 from __future__ import annotations
 
+import functools
 import json
 import os
 import shutil
@@ -101,6 +102,38 @@ def _sandbox_dir() -> str:
     return base
 
 
+#: Flags that make the CLI a bare completion endpoint, used when the installed
+#: CLI knows them: ``--tools ""`` removes every built-in tool (so none can be
+#: called, rather than each being denied), ``--disable-slash-commands`` keeps
+#: skills out of the context, and ``--no-session-persistence`` leaves no
+#: transcript behind. Besides being the stricter sandbox, this drops the
+#: per-call overhead from about 38,000 tokens of tool and skill definitions to
+#: about 1,500 -- measured on CLI 2.1: USD 0.154 -> 0.006 for the same reply.
+MINIMAL_CLI_FLAGS: tuple[tuple[str, ...], ...] = (
+    ("--tools", ""),
+    ("--disable-slash-commands",),
+    ("--no-session-persistence",),
+)
+
+
+@functools.lru_cache(maxsize=4)
+def cli_supported_flags(binary: str) -> frozenset[str]:
+    """Which of :data:`MINIMAL_CLI_FLAGS` this CLI accepts, read from ``--help``.
+
+    Older CLIs reject unknown flags outright, so each one is used only when
+    the help text names it. Cached per binary for the life of the process.
+
+    :param binary: Path to the ``claude`` executable.
+    :returns: The supported flag names (the first element of each tuple).
+    """
+    try:
+        text = subprocess.run([binary, "--help"], capture_output=True, text=True,
+                              timeout=30, check=False).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return frozenset()
+    return frozenset(flag[0] for flag in MINIMAL_CLI_FLAGS if flag[0] in text)
+
+
 def call_claude_cli(prompt: str, model: str, timeout: int) -> LLMResponse:
     """Call the local Claude CLI as a sandboxed completion endpoint.
 
@@ -111,10 +144,14 @@ def call_claude_cli(prompt: str, model: str, timeout: int) -> LLMResponse:
         is missing, times out or returns a non-zero exit code.
     """
     binary = shutil.which("claude")
+    supported = cli_supported_flags(binary) if binary else frozenset()
+    minimal = [part for flag in MINIMAL_CLI_FLAGS if flag[0] in supported for part in flag]
     parameters = {
         "model": model,
         "output_format": "json",
-        "tools": "all disabled",
+        "tools": ("none (--tools \"\")" if "--tools" in supported
+                  else "all disabled (--disallowedTools)"),
+        "skills": "disabled" if "--disable-slash-commands" in supported else "not disabled (old CLI)",
         "mcp": "none (--strict-mcp-config with an empty config)",
         "cwd": _sandbox_dir(),
         "system_prompt": "explicit, see system_prompt field",
@@ -139,6 +176,7 @@ def call_claude_cli(prompt: str, model: str, timeout: int) -> LLMResponse:
         "--strict-mcp-config",
         "--mcp-config", '{"mcpServers":{}}',
         "--system-prompt", SYSTEM_PROMPT,
+        *minimal,
         "--disallowedTools", *DISABLED_TOOLS,
     ]
     started = time.perf_counter()

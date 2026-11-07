@@ -15,7 +15,7 @@ export PYTHONPATH
 .PHONY: help up down deps deps-check ingest profile dq model ledger reference extra \
         semantic questions entitlements evaluate workbook ddr zip deliverables \
         test build all clean status diagrams simulate demo demo-login \
-        demo-interactive web web-open
+        demo-interactive web web-open play play-open play-check play-test
 
 help:  ## Show the available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -65,6 +65,20 @@ web:  ## Serve the click-through walkthrough on http://localhost:8080
 
 web-open:  ## Same, and open it in your browser
 	$(PY) -m src.webapp --host $(WEB_HOST) --port $(WEB_PORT) --open
+
+play:  ## Localhost playground: ask live Claude as any persona, http://localhost:8080/play
+	WEB_PORT=$(WEB_PORT) scripts/play.sh
+
+play-open:  ## Same, and open it in your browser
+	$(PY) -m src.webapp --playground --host 127.0.0.1 --port $(WEB_PORT) --open
+
+play-check:  ## Live smoke test: health, the guard, then Q3 asked and scored (about USD 0.07)
+	$(PY) -m src.playground health
+	$(PY) -m src.playground guard "SELECT count(*) AS clients FROM ai.client" --everyone
+	$(PY) -m src.playground ten --ids Q3
+
+play-test:  ## Ask the ten questions live and score them against the reference (about USD 0.70)
+	$(PY) -m src.playground ten
 
 reference:  ## Run the hand-written reference queries and store the ground truth
 	$(PY) -m src.run_reference

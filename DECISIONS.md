@@ -943,3 +943,39 @@ is fed back for the single retry. Only a fully verified answer is recorded as
 quarters, date columns, fan-out, grouping, malformed IRs and both application
 paths with a scripted model; the brief's ten recorded answers still verify.
 
+
+## D030 - The playground is a localhost workbench over the same pipeline
+
+**Context.** After delivery the question became how to *use* the product, not
+only read about it: ask a live model anything, as anyone, and see each layer
+react. The walkthrough (`make web`) cannot do that safely -- it faces the
+internet, so its personas need a two-step login and visitors cannot send SQL.
+
+**Options.** (a) Loosen the walkthrough. (b) A notebook. (c) A separate
+playground surface that reuses the pipeline's functions and is only served on
+loopback.
+
+**Choice.** (c): `src/playground.py`, `web/play.*`, mounted by
+`src/webapp.py` under `/api/play/` only with `--playground`, which refuses any
+host but 127.0.0.1/localhost. Persona and model come from allowlists; questions
+go through `webapp.ask` and `run_questions.answer_question`, SQL through
+`verify_and_execute` / `execute_guarded`, scoring through `evaluate`. The same
+operations are a CLI (`python -m src.playground`) and a Claude Code skill
+(`/playground`). The Claude CLI call is made bare where the CLI supports it
+(`--tools ""`, `--disable-slash-commands`, `--no-session-persistence`).
+
+**Reason.** A second implementation would prove nothing about the real one.
+Loopback-only keeps the convenience (any persona, no code to type, your own
+SQL) off any host where it would be an exposure. The bare call is the stricter
+sandbox -- no tool exists to deny -- and removes ~37,000 tokens of tool and
+skill definitions per call (USD 0.154 -> 0.006 for a one-line reply).
+
+**Cost.** Two web surfaces to keep consistent; the playground skips the
+interactive second factor (it generates the code, as `make demo-login` does).
+Live runs cost money: about USD 0.07 per question with Sonnet 5.5.
+
+**Consequence.** `tests/test_playground.py`: the routes are 404 without the
+flag, the flag is refused off loopback, the allowlists hold, the guard and RLS
+behave through the playground's routes, no model means no answer, and the CLI
+flags are feature-detected. First sessions' findings are in docs/PLAYGROUND.md
+(empty-book division by zero, the retry answering sideways, LOW-1 shown live).
